@@ -39,6 +39,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
   .g2{grid-template-columns:1fr!important}
   .filter-row{grid-template-columns:1fr!important}
   .hide-mobile{display:none!important}
+  .content-center{padding:14px 12px!important}
+}
+@media(max-width:480px){
+  .g4{grid-template-columns:1fr!important}
+}
+.content-center{
+  width:100%;
+  max-width:980px;
+  margin:0 auto;
 }
 </style>
 </head>
@@ -171,6 +180,9 @@ const stSet=async(k,v)=>{try{await window.storage.set(k,JSON.stringify(v));}catc
 const USERS=[
   {id:"1",user:"admin",pass:"admin123",role:"admin",name:"Administrador"},
   {id:"2",user:"porteria",pass:"porteria1",role:"porteria",name:"Portería"},
+  {id:"3",user:"Dana",pass:"dana123",role:"porteria",name:"Dana"},
+  {id:"4",user:"Anibal",pass:"anibal123",role:"porteria",name:"Anibal"},
+  {id:"5",user:"German",pass:"german123",role:"porteria",name:"German"},
 ];
 const DEF_CFG={
   proveedores:[...PROVEEDORES_FULL],
@@ -265,20 +277,23 @@ function Toast({msg,type}){
 function AutoInput({options=[],value,onChange,placeholder,error}){
   const[open,setOpen]=useState(false);
   const[focused,setFocused]=useState(false);
+  const[dropRect,setDropRect]=useState(null);
+  const inputRef=useRef(null);
   const q=value.toLowerCase();
-  const filtered=useMemo(()=>options.filter(o=>o.toLowerCase().includes(q)&&o!==value).slice(0,12),[options,q,value]);
+  const filtered=useMemo(()=>options.filter(o=>o.toLowerCase().includes(q)&&o!==value).slice(0,10),[options,q,value]);
   const show=open&&focused&&filtered.length>0;
+  const updateRect=()=>{if(inputRef.current){const r=inputRef.current.getBoundingClientRect();setDropRect(r);}};
   return(
     <div style={{position:"relative"}}>
-      <input style={{...d.input,borderColor:error?"var(--red-dark)":undefined}} value={value}
-        onChange={e=>{onChange(e.target.value);setOpen(true);}}
-        onFocus={()=>{setFocused(true);setOpen(true);}}
+      <input ref={inputRef} style={{...d.input,borderColor:error?"var(--red-dark)":undefined}} value={value}
+        onChange={e=>{onChange(e.target.value);setOpen(true);updateRect();}}
+        onFocus={()=>{setFocused(true);setOpen(true);updateRect();}}
         onBlur={()=>setTimeout(()=>setFocused(false),160)}
         placeholder={placeholder}/>
-      {show&&(
-        <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:200,background:"#1c1f30",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",marginTop:"2px",maxHeight:"220px",overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+      {show&&dropRect&&(
+        <div style={{position:"fixed",top:`${dropRect.bottom+2}px`,left:`${dropRect.left}px`,width:`${dropRect.width}px`,zIndex:9999,background:"#1c1f30",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",maxHeight:"260px",overflowY:"auto",boxShadow:"0 12px 32px rgba(0,0,0,0.7)"}}>
           {filtered.map(opt=>(
-            <div key={opt} onMouseDown={()=>{onChange(opt);setOpen(false);}} style={{padding:"9px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}} onMouseEnter={e=>e.target.style.background="var(--bg-hover)"} onMouseLeave={e=>e.target.style.background="transparent"}>{opt}</div>
+            <div key={opt} onMouseDown={()=>{onChange(opt);setOpen(false);}} style={{padding:"10px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{opt}</div>
           ))}
         </div>
       )}
@@ -337,9 +352,6 @@ function LoginScreen({onLogin}){
           {err&&<p style={{...d.err,marginBottom:"12px"}}>{err}</p>}
           <button type="submit" style={{...d.btnPrimary,width:"100%",padding:"12px",fontSize:"15px"}}>Ingresar al Sistema</button>
         </form>
-        <div style={{marginTop:"16px",padding:"10px 12px",background:"var(--bg-input)",borderRadius:"var(--radius)",fontSize:"11px",color:"var(--text-muted)",textAlign:"center"}}>
-          <strong style={{color:"var(--text-dim)"}}>admin</strong>:admin123 &nbsp;·&nbsp; <strong style={{color:"var(--text-dim)"}}>porteria</strong>:porteria1
-        </div>
       </div>
       <div style={{marginTop:"40px",fontSize:"11px",color:"var(--text-dim)"}}>desarrollado por alexis plescia en 2026</div>
     </div>
@@ -429,7 +441,7 @@ function Dashboard({registros,setView}){
     {l:"Generadores activos",v:stats.genDentro,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
   ];
   return(
-    <div style={{maxWidth:"960px"}}>
+    <div style={{maxWidth:"960px",margin:"0 auto"}}>
       <div className="g4" style={{...d.g4,marginBottom:"20px"}}>
         {SC.map(s=>(
           <div key={s.l} style={{background:s.bg,border:`1px solid ${s.bd}`,borderRadius:"var(--radius-lg)",padding:"1.1rem 1.2rem"}}>
@@ -566,7 +578,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       {/* Tipo Op */}
       <div style={{...d.card,marginBottom:"16px"}}>
         <label style={d.label}>Tipo de Operación</label>
@@ -671,7 +683,7 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       <div style={{background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"13px"}}>
         <span style={{fontSize:"26px"}}>⚡</span>
         <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{genList.length} generador(es) registrado(s) en el sistema</div></div>
@@ -759,7 +771,7 @@ function Historial({registros}){
   const td={padding:"9px 11px",fontSize:"12px",color:"var(--text)",borderBottom:"1px solid var(--border)"};
 
   return(
-    <div>
+    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
       <div className="filter-row" style={{...d.card,marginBottom:"16px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"12px"}}>
         <div><label style={d.label}>Búsqueda</label><input style={d.input} value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, nombre, remito..."/></div>
         <div><label style={d.label}>Operación</label><select style={d.input} value={fTipo} onChange={e=>setFTipo(e.target.value)}><option value="TODOS">Todos</option><option value="INGRESO">Ingreso</option><option value="EGRESO">Egreso</option></select></div>
@@ -839,7 +851,7 @@ function Admin({cfg,saveCfg}){
   const tabs=[{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📦 Estados Material",key:"estadosMaterial"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"gs",label:"🔗 Google Sheets",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       <div style={{background:"var(--purple-bg)",border:"1px solid var(--purple)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px"}}>
         <div style={{fontSize:"14px",fontWeight:700,color:"var(--purple-t)"}}>⚙️ Panel de Administración</div>
         <div style={{fontSize:"12px",color:"var(--purple)",marginTop:"2px"}}>Configurá los valores dinámicos — los cambios impactan inmediatamente en los formularios</div>
@@ -856,27 +868,9 @@ function Admin({cfg,saveCfg}){
         <div style={d.card}>
           <h3 style={d.h3}>🔗 Integración Google Sheets</h3>
           <p style={{...d.muted,fontSize:"12px",marginBottom:"16px",lineHeight:1.7}}>Ingresá la URL de tu Apps Script Web App para sincronizar cada registro automáticamente con Google Sheets. Los datos se guardan localmente aunque no haya conexión.</p>
-          <div style={{marginBottom:"10px"}}><label style={d.label}>URL del Web App</label><input style={d.input} value={gsUrl} onChange={e=>setGsUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/></div>
-          {gsUrl&&gsUrl.includes("/a/macros/")&&(
-            <div style={{marginBottom:"12px",padding:"10px 12px",background:"var(--red-bg)",border:"1px solid var(--red-dark)",borderRadius:"var(--radius)",fontSize:"12px",color:"var(--red-t)"}}>
-              ⛔ Esta URL tiene dominio corporativo (<code>/a/macros/carrefour.com/</code>) y va a dar 401. Necesitás una URL del tipo <code>/macros/s/...</code> — deployá el script con acceso <strong>"Cualquier persona"</strong>.
-            </div>
-          )}
-          {gsUrl&&!gsUrl.includes("/a/macros/")&&gsUrl.includes("script.google.com")&&(
-            <div style={{marginBottom:"12px",padding:"10px 12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)",borderRadius:"var(--radius)",fontSize:"12px",color:"var(--green-t)"}}>
-              ✓ URL correcta. Sync activo con Google Sheets.
-            </div>
-          )}
-          <div style={{background:"var(--bg-input)",borderRadius:"var(--radius)",padding:"13px",marginBottom:"14px",fontSize:"11px",color:"var(--text-muted)",lineHeight:1.8,borderLeft:"2px solid var(--amber)"}}>
-            <div style={{fontWeight:700,color:"var(--amber-t)",marginBottom:"6px"}}>⚙️ Cómo deployar correctamente:</div>
-            1. Apps Script → Implementar → Nueva implementación<br/>
-            2. Tipo: <strong>Aplicación web</strong><br/>
-            3. Ejecutar como: <strong>Yo</strong><br/>
-            4. Quién accede: <strong>Cualquier persona</strong> (NO "carrefour.com")<br/>
-            5. La URL debe ser: <code>script.google.com/macros/s/...</code>
-          </div>
-          <div style={{background:"var(--bg-input)",borderRadius:"var(--radius)",padding:"12px",marginBottom:"14px",fontFamily:"monospace",fontSize:"11px",color:"var(--text-muted)",lineHeight:2,borderLeft:"2px solid var(--border-light)"}}>
-            {"// En tu Apps Script (acepta text/plain por no-cors):\nfunction doPost(e) {\n  const data = JSON.parse(e.postData.contents);\n  guardarDatos(data);\n  return ContentService\n    .createTextOutput(JSON.stringify({ok:true}))\n    .setMimeType(ContentService.MimeType.JSON);\n}"}
+          <div style={{marginBottom:"14px"}}><label style={d.label}>URL del Web App</label><input style={d.input} value={gsUrl} onChange={e=>setGsUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec"/></div><div style={{marginTop:"6px",padding:"8px 10px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)",fontSize:"11px",color:"var(--amber-t)",lineHeight:1.6}}>⚠️ <strong>Importante:</strong> En el deploy de Apps Script elegí <em>Ejecutar como: Yo</em> y <em>Acceso: Cualquier persona</em>. Si la URL contiene <code>/a/macros/carrefour.com/</code> va a fallar por CORS — necesitás una URL del tipo <code>script.google.com/macros/s/...</code></div>
+          <div style={{background:"var(--bg-input)",borderRadius:"var(--radius)",padding:"14px",marginBottom:"16px",fontFamily:"monospace",fontSize:"11px",color:"var(--text-muted)",lineHeight:2,borderLeft:"2px solid var(--border-light)"}}>
+            {"// Agregá doPost en tu Apps Script:\n"}{"function doPost(e) {\n  const data = JSON.parse(e.postData.contents);\n  guardarDatos(data);\n  return ContentService.createTextOutput('OK');\n}"}
           </div>
           <button onClick={()=>saveCfg({...cfg,gsUrl})} style={{...d.btnPrimary,width:"100%"}}>💾 Guardar URL</button>
         </div>
@@ -919,17 +913,13 @@ function App(){
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
 
-  // Envío a GAS con no-cors para evitar preflight OPTIONS desde file://
-  // Los datos YA están en localStorage antes de llamar esto.
-  // La respuesta es opaque (no leíble), por eso el 401 aparece en consola
-  // pero el código no lo ve y continúa normalmente.
-  const syncSheets=useCallback(async(payload)=>{
+  // ── Envío a Google Sheets sin CORS ──────────────────────────────
+  // Usar text/plain + no-cors evita el preflight OPTIONS que GAS rechaza
+  // cuando la app se abre desde file:// o un dominio no autorizado.
+  // La respuesta es opaca (no-cors) pero no la necesitamos: los datos
+  // ya están guardados localmente antes de llamar a esta función.
+  const enviarASheets=async(payload)=>{
     if(!cfg.gsUrl)return;
-    // Validar que sea URL de GAS pública (sin /a/macros/DOMINIO/)
-    if(cfg.gsUrl.includes("/a/macros/")){
-      console.warn("[Sheets] La URL tiene dominio corporativo - requiere login. Usá una URL del tipo /macros/s/...");
-      return;
-    }
     try{
       await fetch(cfg.gsUrl,{
         method:"POST",
@@ -937,26 +927,30 @@ function App(){
         headers:{"Content-Type":"text/plain"},
         body:JSON.stringify(payload),
       });
-    }catch(e){console.warn("[Sheets] sync ignorado:",e.message);}
-  },[cfg.gsUrl]);
+    }catch(err){console.warn("Sheets sync (ignorado):",err);}
+  };
 
   const addRegistros=async(lote)=>{
-    // 1. Guardar local - siempre funciona
+    // 1. Guardar local PRIMERO — funciona siempre, con o sin internet
     const next=[...registros,...lote];
     setRegistros(next);
     await stSet("porteria_v2_reg",next);
     const ids=[...new Set(lote.map(r=>r.id))];
     showToast(`✓ ${ids.join(" + ")} guardado${ids.length>1?"s":""} correctamente`);
-    // 2. Sync Sheets en background (fire & forget)
-    syncSheets({action:lote.length===1?"guardar_registro":"guardar_lote",data:lote.length===1?lote[0]:lote});
+    // 2. Sync Sheets en segundo plano (fire & forget, no bloquea UI)
+    enviarASheets({
+      action: lote.length===1?"guardar_registro":"guardar_lote",
+      data:   lote.length===1?lote[0]:lote,
+    });
   };
 
   const saveCfg=async(nc)=>{
-    setCfg(nc);
-    await stSet("porteria_v2_cfg",nc);
-    showToast("✓ Configuración guardada");
-    if(nc.gsUrl&&!nc.gsUrl.includes("/a/macros/")){
-      try{await fetch(nc.gsUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"guardar_config",data:nc})});}catch(_){}
+    setCfg(nc);await stSet("porteria_v2_cfg",nc);showToast("✓ Configuración guardada");
+    // Sync config también con no-cors
+    if(nc.gsUrl){
+      try{
+        await fetch(nc.gsUrl,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({action:"guardar_config",data:nc})});
+      }catch(_){}
     }
   };
   const nextId=()=>new Set(registros.map(r=>r.id)).size+1;
@@ -975,12 +969,14 @@ function App(){
       <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
       <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
-        <main style={{flex:1,padding:"24px 28px",overflow:"auto"}}>
+        <main style={{flex:1,padding:"24px 32px",overflow:"auto"}}>
+          <div className="content-center">
           {view==="dashboard"&&<Dashboard registros={registros} setView={setView}/>}
           {view==="nueva"&&<NuevaOp registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="generadores"&&<Generadores registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="historial"&&<Historial registros={registros}/>}
           {view==="admin"&&user.role==="admin"&&<Admin cfg={cfg} saveCfg={saveCfg}/>}
+          </div>
         </main>
         <Footer/>
       </div>
