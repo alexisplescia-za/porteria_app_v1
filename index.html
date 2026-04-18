@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>🛡️ Control de Acceso — Carrefour</title>
@@ -270,7 +271,6 @@ function Toast({msg,type}){
 function AutoInput({options=[],value,onChange,placeholder,error}){
   const[open,setOpen]=useState(false);
   const[focused,setFocused]=useState(false);
-  const[pos,setPos]=useState({top:0,left:0,width:0});
   const inputRef=React.useRef(null);
   const q=(value||"").toLowerCase().trim();
   const filtered=useMemo(()=>{
@@ -278,23 +278,43 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
     return options.slice(0,10);
   },[options,q,value]);
   const show=open&&focused&&filtered.length>0;
-  const calcPos=()=>{
-    if(inputRef.current){
-      const r=inputRef.current.getBoundingClientRect();
-      setPos({top:r.bottom+2,left:r.left,width:r.width});
-    }
+  // Posición calculada en render (no en estado) para evitar delay de 1 frame
+  const getDropStyle=()=>{
+    if(!inputRef.current) return {display:"none"};
+    const r=inputRef.current.getBoundingClientRect();
+    return {
+      position:"fixed",
+      top:Math.round(r.bottom+2)+"px",
+      left:Math.round(r.left)+"px",
+      width:Math.round(r.width)+"px",
+      zIndex:9999,
+      background:"#1c1f30",
+      border:"1px solid var(--border-light)",
+      borderRadius:"var(--radius)",
+      maxHeight:"260px",
+      overflowY:"auto",
+      boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
+    };
   };
   return(
     <div style={{position:"relative"}}>
-      <input ref={inputRef} style={{...d.input,borderColor:error?"var(--red-dark)":undefined}} value={value}
-        onChange={e=>{onChange(e.target.value);setOpen(true);calcPos();}}
-        onFocus={()=>{setFocused(true);setOpen(true);calcPos();}}
+      <input ref={inputRef}
+        style={{...d.input,borderColor:error?"var(--red-dark)":undefined}}
+        value={value}
+        onChange={e=>{onChange(e.target.value);setOpen(true);}}
+        onFocus={()=>{setFocused(true);setOpen(true);}}
         onBlur={()=>setTimeout(()=>setFocused(false),160)}
         placeholder={placeholder}/>
       {show&&(
-        <div style={{position:"fixed",top:pos.top+"px",left:pos.left+"px",width:pos.width+"px",zIndex:9999,background:"#1c1f30",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",maxHeight:"260px",overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+        <div style={getDropStyle()}>
           {filtered.map(opt=>(
-            <div key={opt} onMouseDown={()=>{onChange(opt);setOpen(false);}} style={{padding:"9px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{opt}</div>
+            <div key={opt}
+              onMouseDown={()=>{onChange(opt);setOpen(false);}}
+              style={{padding:"9px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}}
+              onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              {opt}
+            </div>
           ))}
           {q.length===0&&options.length>10&&(
             <div style={{padding:"6px 13px",fontSize:"11px",color:"var(--text-muted)",borderTop:"1px solid var(--border)",textAlign:"center"}}>
