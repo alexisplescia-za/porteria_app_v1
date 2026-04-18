@@ -271,6 +271,7 @@ function Toast({msg,type}){
 function AutoInput({options=[],value,onChange,placeholder,error}){
   const[open,setOpen]=useState(false);
   const[focused,setFocused]=useState(false);
+  const[pos,setPos]=useState({top:0,left:0,width:0});
   const inputRef=React.useRef(null);
   const q=(value||"").toLowerCase().trim();
   const filtered=useMemo(()=>{
@@ -278,35 +279,58 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
     return options.slice(0,10);
   },[options,q,value]);
   const show=open&&focused&&filtered.length>0;
-  // Posición calculada en render (no en estado) para evitar delay de 1 frame
-  const getDropStyle=()=>{
-    if(!inputRef.current) return {display:"none"};
-    const r=inputRef.current.getBoundingClientRect();
-    return {
-      position:"fixed",
-      top:Math.round(r.bottom+2)+"px",
-      left:Math.round(r.left)+"px",
-      width:Math.round(r.width)+"px",
-      zIndex:9999,
-      background:"#1c1f30",
-      border:"1px solid var(--border-light)",
-      borderRadius:"var(--radius)",
-      maxHeight:"260px",
-      overflowY:"auto",
-      boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
+
+  const updatePos=React.useCallback(()=>{
+    if(inputRef.current){
+      // Sube por el DOM sumando offsetTop/offsetLeft para evitar problemas con transform en ancestros
+      let el=inputRef.current,top=0,left=0;
+      const rect=el.getBoundingClientRect();
+      top=rect.bottom+window.scrollY+2;
+      left=rect.left+window.scrollX;
+      setPos({top,left,width:rect.width});
+    }
+  },[]);
+
+  React.useLayoutEffect(()=>{
+    if(show) updatePos();
+  },[show]);
+
+  React.useEffect(()=>{
+    if(!show) return;
+    const onScroll=()=>updatePos();
+    window.addEventListener("scroll",onScroll,true);
+    window.addEventListener("resize",updatePos);
+    return()=>{
+      window.removeEventListener("scroll",onScroll,true);
+      window.removeEventListener("resize",updatePos);
     };
+  },[show,updatePos]);
+
+  const dropStyle={
+    position:"absolute",
+    top:pos.top+"px",
+    left:pos.left+"px",
+    width:pos.width+"px",
+    zIndex:99999,
+    background:"#1c1f30",
+    border:"1px solid var(--border-light)",
+    borderRadius:"var(--radius)",
+    maxHeight:"260px",
+    overflowY:"auto",
+    boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
   };
+
   return(
     <div style={{position:"relative"}}>
       <input ref={inputRef}
         style={{...d.input,borderColor:error?"var(--red-dark)":undefined}}
         value={value}
-        onChange={e=>{onChange(e.target.value);setOpen(true);}}
-        onFocus={()=>{setFocused(true);setOpen(true);}}
+        onChange={e=>{onChange(e.target.value);setOpen(true);updatePos();}}
+        onFocus={()=>{setFocused(true);setOpen(true);updatePos();}}
         onBlur={()=>setTimeout(()=>setFocused(false),160)}
         placeholder={placeholder}/>
-      {show&&(
-        <div style={getDropStyle()}>
+      {show&&ReactDOM.createPortal(
+        <div style={dropStyle}>
           {filtered.map(opt=>(
             <div key={opt}
               onMouseDown={()=>{onChange(opt);setOpen(false);}}
@@ -321,7 +345,8 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
               Escribí para buscar entre {options.length} opciones...
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
       {error&&<span style={d.err}>{error}</span>}
     </div>
