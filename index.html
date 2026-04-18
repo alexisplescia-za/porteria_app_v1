@@ -270,8 +270,14 @@ function Toast({msg,type}){
 function AutoInput({options=[],value,onChange,placeholder,error}){
   const[open,setOpen]=useState(false);
   const[focused,setFocused]=useState(false);
-  const q=value.toLowerCase();
-  const filtered=useMemo(()=>options.filter(o=>o.toLowerCase().includes(q)&&o!==value).slice(0,12),[options,q,value]);
+  const q=(value||"").toLowerCase().trim();
+  // Si hay búsqueda: filtrar por coincidencia. Si no: mostrar primeros 10
+  const filtered=useMemo(()=>{
+    if(q.length>0){
+      return options.filter(o=>o.toLowerCase().includes(q)&&o!==value).slice(0,15);
+    }
+    return options.slice(0,10);
+  },[options,q,value]);
   const show=open&&focused&&filtered.length>0;
   return(
     <div style={{position:"relative"}}>
@@ -281,10 +287,26 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
         onBlur={()=>setTimeout(()=>setFocused(false),160)}
         placeholder={placeholder}/>
       {show&&(
-        <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:200,background:"#1c1f30",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",marginTop:"2px",maxHeight:"220px",overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+        <div style={{position:"fixed",zIndex:9999,background:"#1c1f30",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",marginTop:"2px",maxHeight:"260px",overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,0.5)",minWidth:"200px"}}
+          ref={el=>{
+            if(el){
+              const input=el.previousSibling;
+              if(input){
+                const r=input.getBoundingClientRect();
+                el.style.top=(r.bottom+window.scrollY)+"px";
+                el.style.left=r.left+"px";
+                el.style.width=r.width+"px";
+              }
+            }
+          }}>
           {filtered.map(opt=>(
-            <div key={opt} onMouseDown={()=>{onChange(opt);setOpen(false);}} style={{padding:"9px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}} onMouseEnter={e=>e.target.style.background="var(--bg-hover)"} onMouseLeave={e=>e.target.style.background="transparent"}>{opt}</div>
+            <div key={opt} onMouseDown={()=>{onChange(opt);setOpen(false);}} style={{padding:"9px 13px",cursor:"pointer",fontSize:"13px",color:"var(--text)",borderBottom:"1px solid var(--border)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>{opt}</div>
           ))}
+          {q.length===0&&options.length>10&&(
+            <div style={{padding:"6px 13px",fontSize:"11px",color:"var(--text-muted)",borderTop:"1px solid var(--border)",textAlign:"center"}}>
+              Escribí para buscar entre {options.length} opciones...
+            </div>
+          )}
         </div>
       )}
       {error&&<span style={d.err}>{error}</span>}
