@@ -429,7 +429,7 @@ function Dashboard({registros,setView}){
     {l:"Generadores activos",v:stats.genDentro,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
   ];
   return(
-    <div style={{maxWidth:"960px"}}>
+    <div style={{maxWidth:"960px",margin:"0 auto"}}>
       <div className="g4" style={{...d.g4,marginBottom:"20px"}}>
         {SC.map(s=>(
           <div key={s.l} style={{background:s.bg,border:`1px solid ${s.bd}`,borderRadius:"var(--radius-lg)",padding:"1.1rem 1.2rem"}}>
@@ -566,7 +566,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       {/* Tipo Op */}
       <div style={{...d.card,marginBottom:"16px"}}>
         <label style={d.label}>Tipo de Operación</label>
@@ -671,7 +671,7 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       <div style={{background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"13px"}}>
         <span style={{fontSize:"26px"}}>⚡</span>
         <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{genList.length} generador(es) registrado(s) en el sistema</div></div>
@@ -839,7 +839,7 @@ function Admin({cfg,saveCfg}){
   const tabs=[{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📦 Estados Material",key:"estadosMaterial"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
-    <div style={{maxWidth:"700px"}}>
+    <div style={{maxWidth:"700px",margin:"0 auto"}}>
       <div style={{background:"var(--purple-bg)",border:"1px solid var(--purple)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px"}}>
         <div style={{fontSize:"14px",fontWeight:700,color:"var(--purple-t)"}}>⚙️ Panel de Administración</div>
         <div style={{fontSize:"12px",color:"var(--purple)",marginTop:"2px"}}>Configurá los valores dinámicos — los cambios impactan inmediatamente en los formularios</div>
@@ -897,16 +897,23 @@ function App(){
 
   useEffect(()=>{
     (async()=>{
-      // Función para detectar config corrupta (jefes/oficinaTecnica con proveedores)
+      // Detectar config corrupta: jefes/oficinaTecnica no deberían tener más de 50 items
+      // ni contener palabras de proveedores como "S.A." o "S.R.L."
       const esCfgCorrupta=(cfg)=>{
-        const check=(arr)=>arr&&arr.some(n=>/S\.A\.|S\.R\.L\.|SRL|S\.A/.test(n||""));
-        return check(cfg.jefes)||check(cfg.oficinaTecnica);
+        const tieneProv=(arr)=>{
+          if(!arr||!arr.length)return false;
+          if(arr.length>60)return true; // proveedores son 278, jefes son ~34
+          return arr.some(n=>{
+            const s=(n||"").toUpperCase();
+            return s.includes(" S.A")||s.includes("S.R.L")||s.includes(" SRL")||s.includes(" SA ");
+          });
+        };
+        return tieneProv(cfg.jefes)||tieneProv(cfg.oficinaTecnica);
       };
 
-      // 1. Cargar config local
+      // 1. Config local solo como fallback — siempre esperamos el backend
       const localCfg=await stGet("porteria_v2_cfg",null);
-      let cfg=DEF_CFG;
-      if(localCfg&&!esCfgCorrupta(localCfg)) cfg={...DEF_CFG,...localCfg};
+      let cfg=DEF_CFG; // siempre arrancamos con defaults, backend los pisa
 
       // 2. Cargar desde backend (sobreescribe local si es válida)
       try{
@@ -942,9 +949,11 @@ function App(){
           }
         }
       }catch(e){
-        console.warn("Backend no disponible:",e);
+        console.warn("Backend no disponible, usando cache local:",e);
         const localReg=await stGet("porteria_v2_reg",[]);
         setRegistros(localReg);
+        // Si backend no está disponible, usar config local como fallback
+        if(localCfg&&!esCfgCorrupta(localCfg)) cfg={...DEF_CFG,...localCfg};
       }
 
       await stSet("porteria_v2_cfg",cfg);
