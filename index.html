@@ -1319,7 +1319,7 @@ function Historial({registros,addRegistros,nextId}){
   const exportCSV=()=>{
     const H=["ID","Fecha","Tipo Op","Perfil","Módulo","Nombre/Empresa","Remito/OT","Detalle","Estado","Observaciones","Egreso Temprano","Usuario"];
     const rows=filtered.map(r=>[r.id,fmtDate(r.fechaHora),r.tipoOp,r.perfil,r.modulo||"general",r.nombre,r.remito,r.detalle,r.estado,r.obs,r.egresoTemprano?"Sí":"No",r.usuario]);
-    const csv=[H,...rows].map(row=>row.map(v=>`"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
+    const csv=[H,...rows].map(row=>row.map(v=>'"' + (v||"").toString().replace(/"/g,'""')+'"').join(",")).join("\n");
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));a.download=`porteria_${new Date().toISOString().slice(0,10)}.csv`;a.click();
   };
 
