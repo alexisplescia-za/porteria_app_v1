@@ -6,9 +6,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>🛡️ Control de Acceso — Carrefour</title>
-<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.27.1/babel.min.js"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
 :root{
   --bg-deep:#0b0d16;--bg-card:#13162100;--bg-card-solid:#13162199;
@@ -37,11 +37,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
   .sidebar{transform:translateX(-100%);position:fixed!important;z-index:100;transition:transform .3s}
   .sidebar.open{transform:translateX(0)}
   .main-wrap{margin-left:0!important}
+  .main-pad{padding:16px!important}
   .g4{grid-template-columns:1fr 1fr!important}
+  .g3{grid-template-columns:1fr!important}
   .g2{grid-template-columns:1fr!important}
   .filter-row{grid-template-columns:1fr!important}
   .hide-mobile{display:none!important}
+  .sidebar-overlay{display:block!important}
 }
+@media(min-width:769px){
+  .hide-desktop{display:none!important}
+}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9;cursor:pointer}
 </style>
 </head>
 <body>
@@ -210,18 +217,22 @@ const DEF_CFG={
     // Express Amba Norte
     "Walter Rueda","Facundo Dieghl",
   ].sort(),
+  tecnicos:[
+    "Barella Adrian","Batocletti Nestor","Caceres Matias","Cogliano Jose Ezequiel",
+    "Colarte Adrian","Coronel Jorge","Fogtman Federico","Fressia Sergio",
+    "Gomez German","Juarez Juan","Santillan Rodrigo","Silva Guillermo",
+    "Silvera Alejandro","Soto Pablo","Taborda David","Tejerina","Veron Ayrton",
+  ].sort(),
   estadosMaterial:["Nuevo","Usado","A Reparar","Reparado","Para Baja","En garantía"],
   motivosGenerador:["Mantenimiento preventivo","Reparación","Instalación","Retiro definitivo","Prueba técnica","Actualización"],
   generadores:["Pañol - TRAILER GRANDE","Pañol - TRAILER CHICO","Pañol - ESTATICO","A1","A2","A3"],
-  tecnicos:[],
-  tiposMaterial:[],
   gsUrl:"",
 };
 
 // ── URL del backend Node.js (Render) ────────────────────────────
 const BACKEND_URL = "https://porteria-backend.onrender.com";
 
-const VIEWS={dashboard:"Dashboard",nueva:"Nueva Operación",generadores:"Grupos Electrógenos",historial:"Historial",admin:"Administración"};
+const VIEWS={dashboard:"Dashboard",analytics:"Analytics",nueva:"Nueva Operación",generadores:"Grupos Electrógenos",historial:"Historial",tempranos:"Egresos Tempranos",admin:"Administración"};
 
 /* ═══════════════════════════════════════════════════════
    HELPERS
@@ -261,7 +272,7 @@ function Badge({tipo,small,egresoTemprano}){
   return(
     <span style={{display:"inline-flex",alignItems:"center",gap:"4px",fontSize:small?"10px":"12px",fontWeight:700,padding:small?"2px 7px":"4px 10px",borderRadius:"6px",background:ok?"var(--green-bg)":"var(--red-bg)",color:ok?"var(--green-t)":"var(--red-t)",border:`1px solid ${ok?"var(--green-dark)":"var(--red-dark)"}`}}>
       {ok?"▶":"◀"} {ok?"INGRESO":"EGRESO"}
-      {egresoTemprano&&<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"1px 4px",borderRadius:"4px",marginLeft:"2px"}}>TEMP</span>}
+      {egresoTemprano&&<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"1px 4px",borderRadius:"4px",marginLeft:"2px"}}>TEMPRANO</span>}
     </span>
   );
 }
@@ -379,8 +390,25 @@ function CarrefourLogo({size=36}){
    LOGIN
 ═══════════════════════════════════════════════════════ */
 function LoginScreen({onLogin}){
-  const[usr,setUsr]=useState("");const[pw,setPw]=useState("");const[err,setErr]=useState("");
-  const go=(e)=>{e.preventDefault();const f=USERS.find(u=>u.user===usr&&u.pass===pw);f?onLogin(f):setErr("Usuario o contraseña incorrectos");};
+  const[usr,setUsr]=useState("");const[pw,setPw]=useState("");const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
+  const go=async(e)=>{
+    e.preventDefault();setErr("");setLoading(true);
+    try{
+      const res=await fetch(`${BACKEND_URL}/api/usuarios/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:usr,password:pw})});
+      const data=await res.json();
+      if(data.ok){
+        onLogin({id:data.usuario.id,user:data.usuario.username,role:data.usuario.rol,name:data.usuario.username});
+      } else {
+        // fallback a usuarios locales
+        const f=USERS.find(u=>u.user===usr&&u.pass===pw);
+        f?onLogin(f):setErr(data.error||"Usuario o contraseña incorrectos");
+      }
+    } catch {
+      // sin conexión al backend — usar usuarios locales
+      const f=USERS.find(u=>u.user===usr&&u.pass===pw);
+      f?onLogin(f):setErr("Sin conexión al servidor. Verificá que el backend esté corriendo.");
+    } finally {setLoading(false);}
+  };
   return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg-deep)",padding:"20px"}}>
       <div style={{marginBottom:"36px",textAlign:"center"}}>
@@ -395,14 +423,11 @@ function LoginScreen({onLogin}){
           <div style={{fontSize:"18px",fontWeight:700,color:"var(--text)"}}>Iniciar Sesión</div>
         </div>
         <form onSubmit={go}>
-          <div style={d.sec}><label style={d.label}>Usuario</label><input style={d.input} value={usr} onChange={e=>setUsr(e.target.value)} placeholder="admin / porteria" autoFocus/></div>
+          <div style={d.sec}><label style={d.label}>Usuario</label><input style={d.input} value={usr} onChange={e=>setUsr(e.target.value)} placeholder="Ingresá tu usuario" autoFocus/></div>
           <div style={{...d.sec,marginBottom:"20px"}}><label style={d.label}>Contraseña</label><input style={d.input} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••"/></div>
           {err&&<p style={{...d.err,marginBottom:"12px"}}>{err}</p>}
-          <button type="submit" style={{...d.btnPrimary,width:"100%",padding:"12px",fontSize:"15px"}}>Ingresar al Sistema</button>
+          <button type="submit" disabled={loading} style={{...d.btnPrimary,width:"100%",padding:"12px",fontSize:"15px",opacity:loading?.6:1}}>{loading?"Verificando...":"Ingresar al Sistema"}</button>
         </form>
-        <div style={{marginTop:"16px",padding:"10px 12px",background:"var(--bg-input)",borderRadius:"var(--radius)",fontSize:"11px",color:"var(--text-muted)",textAlign:"center"}}>
-          <strong style={{color:"var(--text-dim)"}}>admin</strong>:admin123 &nbsp;·&nbsp; <strong style={{color:"var(--text-dim)"}}>porteria</strong>:porteria1
-        </div>
       </div>
       <div style={{marginTop:"40px",fontSize:"11px",color:"var(--text-dim)"}}>desarrollado por alexis plescia en 2026</div>
     </div>
@@ -412,7 +437,7 @@ function LoginScreen({onLogin}){
 /* ═══════════════════════════════════════════════════════
    SIDEBAR
 ═══════════════════════════════════════════════════════ */
-const NAV=[{id:"dashboard",label:"Dashboard",icon:"📊"},{id:"nueva",label:"Nueva Operación",icon:"➕"},{id:"generadores",label:"Grupos Electrógenos",icon:"⚡"},{id:"materiales",label:"Materiales",icon:"📦"},{id:"historial",label:"Historial",icon:"📋"}];
+const NAV=[{id:"dashboard",label:"Dashboard",icon:"🏠"},{id:"analytics",label:"Analytics",icon:"📊"},{id:"nueva",label:"Nueva Operación",icon:"➕"},{id:"generadores",label:"Grupos Electrógenos",icon:"⚡"},{id:"historial",label:"Historial",icon:"📋"},{id:"tempranos",label:"Egresos Tempranos",icon:"⏱️"}];
 function Sidebar({view,setView,user,onLogout,sidebarOpen}){
   const nb=(item,accentColor)=>{
     const active=view===item.id;
@@ -468,70 +493,6 @@ function Header({view,onMenuToggle}){
 }
 
 /* ═══════════════════════════════════════════════════════
-   DONUT CHART (SVG)
-═══════════════════════════════════════════════════════ */
-function DonutChart({data,size=170}){
-  const total=data.reduce((s,d)=>s+d.value,0);
-  if(!total)return <div style={{textAlign:"center",padding:"28px 0",color:"var(--text-muted)",fontSize:"12px"}}>Sin datos aún</div>;
-  const cx=size/2,cy=size/2,R=size*0.41,r=size*0.26;
-  let angle=-Math.PI/2;
-  const paths=data.map(d=>{
-    const a=Math.min((d.value/total)*2*Math.PI,2*Math.PI-0.001);
-    const x1=cx+R*Math.cos(angle),y1=cy+R*Math.sin(angle);
-    const x2=cx+R*Math.cos(angle+a),y2=cy+R*Math.sin(angle+a);
-    const ix1=cx+r*Math.cos(angle),iy1=cy+r*Math.sin(angle);
-    const ix2=cx+r*Math.cos(angle+a),iy2=cy+r*Math.sin(angle+a);
-    const lg=a>Math.PI?1:0;
-    const path=`M${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${lg} 1 ${x2.toFixed(2)},${y2.toFixed(2)} L${ix2.toFixed(2)},${iy2.toFixed(2)} A${r},${r} 0 ${lg} 0 ${ix1.toFixed(2)},${iy1.toFixed(2)}Z`;
-    const pct=Math.round(d.value/total*100);
-    angle+=a;
-    return{path,color:d.color,name:d.name,value:d.value,pct};
-  });
-  return(
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"12px"}}>
-      <svg width={size} height={size}>
-        {paths.map((p,i)=><path key={i} d={p.path} fill={p.color}/>)}
-        <text x={cx} y={cy-5} textAnchor="middle" fontSize="20" fontWeight="800" fill="#e2e8f0">{total}</text>
-        <text x={cx} y={cy+11} textAnchor="middle" fontSize="9" fill="#64748b" fontWeight="500">TOTAL</text>
-      </svg>
-      <div style={{display:"flex",flexWrap:"wrap",gap:"6px 10px",justifyContent:"center",width:"100%"}}>
-        {paths.map((p,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"10px",color:"var(--text-muted)"}}>
-            <div style={{width:"8px",height:"8px",borderRadius:"2px",background:p.color,flexShrink:0}}/>
-            <span style={{maxWidth:"90px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</span>
-            <span style={{fontWeight:700,color:"var(--text)"}}>{p.pct}%</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
-   HORIZONTAL BAR CHART
-═══════════════════════════════════════════════════════ */
-function HBarChart({data}){
-  if(!data||!data.length)return <div style={{textAlign:"center",padding:"28px 0",color:"var(--text-muted)",fontSize:"12px"}}>Sin datos aún</div>;
-  const max=Math.max(...data.map(d=>d.value));
-  const COLS=["#6366f1","#818cf8","#7c3aed","#a78bfa","#4f46e5","#8b5cf6","#4338ca","#c4b5fd"];
-  return(
-    <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
-      {data.map((d,i)=>(
-        <div key={i}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"4px"}}>
-            <span style={{fontSize:"11px",color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"78%"}} title={d.name}>{d.name}</span>
-            <span style={{fontSize:"11px",fontWeight:700,color:COLS[i%COLS.length],flexShrink:0,marginLeft:"6px"}}>{d.value}</span>
-          </div>
-          <div style={{height:"7px",background:"rgba(255,255,255,0.06)",borderRadius:"4px",overflow:"hidden"}}>
-            <div style={{height:"100%",width:`${(d.value/max)*100}%`,background:COLS[i%COLS.length],borderRadius:"4px"}}/>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
    DASHBOARD
 ═══════════════════════════════════════════════════════ */
 function Dashboard({registros,setView}){
@@ -540,84 +501,40 @@ function Dashboard({registros,setView}){
     const todayR=registros.filter(r=>new Date(r.fechaHora).toDateString()===today);
     const ingH=new Set(todayR.filter(r=>r.tipoOp==="INGRESO").map(r=>r.id)).size;
     const egH=new Set(todayR.filter(r=>r.tipoOp==="EGRESO").map(r=>r.id)).size;
+    const genDentro=new Set(registros.filter(r=>r.modulo==="generador"&&r.tipoOp==="INGRESO").map(r=>r.id)).size;
     const total=new Set(registros.map(r=>r.id)).size;
-    const pendRaw=registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano).filter(r=>!registros.some(x=>x.tipoOp==="EGRESO"&&x.grupoId===r.grupoId));
-    const pendientes=new Set(pendRaw.map(r=>r.grupoId)).size;
-    const criticos=new Set(registros.filter(r=>r.estado==="Para Baja"||r.estado==="A Reparar").map(r=>r.id)).size;
-    // Gráfico 1: ING vs EGR totales
-    const totalIng=new Set(registros.filter(r=>r.tipoOp==="INGRESO").map(r=>r.id)).size;
-    const totalEg=new Set(registros.filter(r=>r.tipoOp==="EGRESO").map(r=>r.id)).size;
-    // Gráfico 2: por perfil
-    const perfilMap={};
-    registros.forEach(r=>{const p=r.perfil||"Sin perfil";perfilMap[p]=(perfilMap[p]||0)+1;});
-    // Gráfico 3: top 8 empresas
-    const empMap={};
-    registros.forEach(r=>{if(r.nombre&&r.nombre.trim())empMap[r.nombre.trim()]=(empMap[r.nombre.trim()]||0)+1;});
-    const top8=Object.entries(empMap).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([name,value])=>({name,value}));
-    return{ingH,egH,total,pendientes,criticos,totalIng,totalEg,perfilMap,top8};
+    const abiertos=registros.filter(r=>r.tipoOp==="INGRESO").filter(r=>{
+      const egIds=new Set(registros.filter(x=>x.tipoOp==="EGRESO"&&x.grupoId===r.grupoId).map(x=>x.grupoId));
+      return!egIds.has(r.grupoId);
+    });
+    return{ingH,egH,genDentro,total,abiertos:new Set(abiertos.map(r=>r.grupoId)).size};
   },[registros,today]);
-
-  const recent=useMemo(()=>{const seen=new Set();return[...registros].reverse().filter(r=>{if(seen.has(r.id))return false;seen.add(r.id);return true;}).slice(0,8);},[registros]);
-
-  const KPI=[
-    {icon:"▶",l:"Ingresos hoy",v:stats.ingH,bg:"var(--green-bg)",c:"var(--green-t)",bd:"var(--green-dark)"},
-    {icon:"◀",l:"Egresos hoy",v:stats.egH,bg:"var(--red-bg)",c:"var(--red-t)",bd:"var(--red-dark)"},
-    {icon:"⏳",l:"Egresos abiertos",v:stats.pendientes,bg:"var(--red-bg)",c:"var(--red-t)",bd:"var(--red-dark)",onClick:()=>setView("historial")},
-    {icon:"⚠️",l:"Para Baja / A Reparar",v:stats.criticos,bg:"var(--amber-bg)",c:"var(--amber-t)",bd:"var(--amber)"},
-    {icon:"📊",l:"Total histórico",v:stats.total,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
+  const recent=useMemo(()=>{const seen=new Set();return[...registros].reverse().filter(r=>{if(seen.has(r.id))return false;seen.add(r.id);return true;}).slice(0,10);},[registros]);
+  const SC=[
+    {l:"Ingresos hoy",v:stats.ingH,bg:"var(--green-bg)",c:"var(--green-t)",bd:"var(--green-dark)"},
+    {l:"Egresos hoy",v:stats.egH,bg:"var(--red-bg)",c:"var(--red-t)",bd:"var(--red-dark)"},
+    {l:"Registros abiertos",v:stats.abiertos,bg:"var(--amber-bg)",c:"var(--amber-t)",bd:"var(--amber)"},
+    {l:"Generadores activos",v:stats.genDentro,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
   ];
-
-  const PCOLS=["#6366f1","#f59e0b","#10b981","#3b82f6","#ec4899","#8b5cf6","#14b8a6","#f97316"];
-  const donutIE=[
-    {name:"Ingresos",value:stats.totalIng,color:"#22c55e"},
-    {name:"Egresos",value:stats.totalEg,color:"#f87171"},
-  ];
-  const donutPerfil=Object.entries(stats.perfilMap||{}).sort((a,b)=>b[1]-a[1]).map(([name,value],i)=>({name,value,color:PCOLS[i%PCOLS.length]}));
-
   return(
-    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
-
-      {/* ── KPI Cards ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:"14px",marginBottom:"20px"}}>
-        {KPI.map(s=>(
-          <div key={s.l} onClick={s.onClick} style={{background:s.bg,border:`1px solid ${s.bd}`,borderRadius:"var(--radius-lg)",padding:"1rem 1.1rem",cursor:s.onClick?"pointer":"default",transition:"opacity .15s"}} onMouseEnter={e=>{if(s.onClick)e.currentTarget.style.opacity=".75";}} onMouseLeave={e=>{if(s.onClick)e.currentTarget.style.opacity="1";}}>
-            <div style={{fontSize:"11px",color:s.c,opacity:.6,fontWeight:600,marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.icon} {s.l}{s.onClick&&" ↗"}</div>
-            <div style={{fontSize:"36px",fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
+    <div style={{maxWidth:"960px",margin:"0 auto"}}>
+      <div className="g4" style={{...d.g4,marginBottom:"20px"}}>
+        {SC.map(s=>(
+          <div key={s.l} style={{background:s.bg,border:`1px solid ${s.bd}`,borderRadius:"var(--radius-lg)",padding:"1.1rem 1.2rem"}}>
+            <div style={{fontSize:"32px",fontWeight:800,color:s.c,lineHeight:1}}>{s.v}</div>
+            <div style={{fontSize:"12px",color:s.c,opacity:.75,marginTop:"4px",fontWeight:500}}>{s.l}</div>
           </div>
         ))}
       </div>
-
-      {/* ── Acciones rápidas ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"12px",marginBottom:"20px"}}>
-        {[{icon:"➕",l:"Nueva Operación",v:"nueva"},{icon:"⚡",l:"Grupos Electrógenos",v:"generadores"},{icon:"📦",l:"Materiales",v:"materiales"},{icon:"📋",l:"Historial",v:"historial"}].map(item=>(
-          <button key={item.v} onClick={()=>setView(item.v)} style={{...d.card,cursor:"pointer",textAlign:"left",border:"1px solid var(--border-light)",transition:"border-color .15s",padding:"0.9rem 1rem"}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border-light)"}>
-            <div style={{fontSize:"20px",marginBottom:"6px"}}>{item.icon}</div>
-            <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)"}}>{item.l}</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:"14px",marginBottom:"20px"}}>
+        {[{icon:"➕",l:"Nueva Operación",desc:"Registrar ingreso o egreso",v:"nueva"},{icon:"⚡",l:"Grupo Electrógeno",desc:"Módulo generadores",v:"generadores"},{icon:"📋",l:"Historial",desc:"Consultar y exportar",v:"historial"}].map(item=>(
+          <button key={item.v} onClick={()=>setView(item.v)} style={{...d.card,cursor:"pointer",textAlign:"left",border:"1px solid var(--border-light)",transition:"border-color .15s"}} onMouseEnter={e=>e.currentTarget.style.borderColor="var(--accent)"} onMouseLeave={e=>e.currentTarget.style.borderColor="var(--border-light)"}>
+            <div style={{fontSize:"24px",marginBottom:"8px"}}>{item.icon}</div>
+            <div style={{fontSize:"14px",fontWeight:700,color:"var(--text)"}}>{item.l}</div>
+            <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"3px"}}>{item.desc}</div>
           </button>
         ))}
       </div>
-
-      {/* ── Gráficos ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 2fr",gap:"16px",marginBottom:"20px"}}>
-
-        <div style={{...d.card,display:"flex",flexDirection:"column",gap:"4px"}}>
-          <div style={{...d.h3,marginBottom:"14px"}}>Ingresos vs Egresos</div>
-          <DonutChart data={donutIE}/>
-        </div>
-
-        <div style={{...d.card,display:"flex",flexDirection:"column",gap:"4px"}}>
-          <div style={{...d.h3,marginBottom:"14px"}}>Operaciones por Perfil</div>
-          <DonutChart data={donutPerfil}/>
-        </div>
-
-        <div style={d.card}>
-          <div style={{...d.h3,marginBottom:"16px"}}>Top 8 Empresas con más movimientos</div>
-          <HBarChart data={stats.top8}/>
-        </div>
-
-      </div>
-
-      {/* ── Actividad reciente ── */}
       <div style={d.card}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"14px"}}>
           <h3 style={{...d.h3,margin:0}}>Actividad reciente</h3>
@@ -632,7 +549,7 @@ function Dashboard({registros,setView}){
                 <Badge tipo={r.tipoOp} small egresoTemprano={r.egresoTemprano}/>
                 <div>
                   <div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.nombre}</div>
-                  <div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.perfil}{r.modulo==="generador"?" · ⚡":r.modulo==="material"?" · 📦":""}</div>
+                  <div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.perfil}{r.modulo==="generador"?" · ⚡ Generador":""}</div>
                 </div>
               </div>
               <div style={{textAlign:"right"}}>
@@ -643,7 +560,6 @@ function Dashboard({registros,setView}){
           ))
         )}
       </div>
-
     </div>
   );
 }
@@ -682,10 +598,9 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   const[errors,setErrors]=useState({});
   // EGRESO TEMPRANO
   const[egresoTemprano,setEgresoTemprano]=useState(false);
-  const[egresoObs,setEgresoObs]=useState("");
 
-  const perfiles=["Proveedor","Oficina Técnica","Jefe","Otro"];
-  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;return[];};
+  const perfiles=["Proveedor","Técnico","Oficina Técnica","Jefe","Otro"];
+  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;return[];};
   const addRem=()=>setRemitos(p=>[...p,{id:Date.now(),remito:"",detalle:"",estado:"Nuevo",obs:""}]);
   const updRem=(id,upd)=>setRemitos(p=>p.map(r=>r.id===id?{...r,...upd}:r));
   const delRem=(id)=>setRemitos(p=>p.filter(r=>r.id!==id));
@@ -697,7 +612,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
     setErrors(e);return!Object.keys(e).length;
   };
 
-  const reset=()=>{setNombre("");setObsOtro("");setEgresoTemprano(false);setEgresoObs("");setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);};
+  const reset=()=>{setNombre("");setObsOtro("");setEgresoTemprano(false);setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);};
 
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
@@ -705,18 +620,21 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
     const grupoId=`GRP-${n}`;
     const base={grupoId,fechaHora:now,perfil,nombre:nombre.trim(),modulo:"general",usuario:user.name};
     const lote=[];
-    const etFlag=egresoTemprano&&tipoOp==="INGRESO";
-    const etPrefix=etFlag?`[ET${egresoObs?" — "+egresoObs:""}] `:"";
 
     // Construir registros de INGRESO (o EGRESO directo si tipoOp===EGRESO)
     if(perfil==="Otro"||remitos.length===0){
       const id=genId(tipoOp,n);
-      lote.push({...base,id,idOperacion:id,tipoOp,remito:"N/A",detalle:"N/A",estado:"N/A",egresoTemprano:etFlag,obs:etPrefix+(obsOtro||"Sin remitos")});
+      lote.push({...base,id,idOperacion:id,tipoOp,remito:"N/A",detalle:"N/A",estado:"N/A",obs:obsOtro||"Sin remitos"});
     }else{
       for(const r of remitos){
         const id=genId(tipoOp,n);
-        lote.push({...base,id,idOperacion:id,tipoOp,remito:r.remito,detalle:r.detalle,estado:r.estado,egresoTemprano:etFlag,obs:etPrefix+(r.obs||obsOtro||"N/A")});
+        lote.push({...base,id,idOperacion:id,tipoOp,remito:r.remito,detalle:r.detalle,estado:r.estado,obs:r.obs||obsOtro||"N/A"});
       }
+    }
+
+    // Si es INGRESO + egreso temprano, marcar la bandera en los registros del lote
+    if(tipoOp==="INGRESO"&&egresoTemprano){
+      lote.forEach(r=>r.egresoTemprano=true);
     }
 
     await addRegistros(lote);
@@ -738,11 +656,10 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
         {/* Egreso Temprano toggle — solo en INGRESO */}
         {tipoOp==="INGRESO"&&(
           <div style={{marginTop:"14px",padding:"12px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)"}}>
-            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Registrar egreso temprano" accent="var(--amber)"/>
+            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Egreso temprano esperado" accent="var(--amber)"/>
             {egresoTemprano&&(
-              <div style={{marginTop:"12px"}}>
-                <label style={d.label}>Motivo del egreso temprano</label>
-                <input style={d.input} value={egresoObs} onChange={e=>setEgresoObs(e.target.value)} placeholder="Motivo del egreso temprano (opcional)"/>
+              <div style={{marginTop:"8px",fontSize:"12px",color:"var(--amber-t)"}}>
+                ⚠️ Se registrará el ingreso con bandera de egreso temprano. Cuando la persona se retire, registrá el egreso normalmente.
               </div>
             )}
           </div>
@@ -782,8 +699,8 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
         <div style={{...d.card,marginBottom:"16px"}}><label style={d.label}>Observaciones / Detalle</label><textarea style={{...d.input,height:"100px",resize:"vertical"}} value={obsOtro} onChange={e=>setObsOtro(e.target.value)} placeholder="Detallá el motivo..."/></div>
       )}
 
-      <button onClick={handleSubmit} disabled={saving} style={{...(egresoTemprano?d.btnSuccess:d.btnPrimary),width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1}}>
-        {saving?"Guardando...":(egresoTemprano?"💾 Guardar Ingreso (Egreso Temprano)":"💾 Guardar Registro")}
+      <button onClick={handleSubmit} disabled={saving} style={{...d.btnPrimary,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1}}>
+        {saving?"Guardando...":"💾 Guardar Registro"}
       </button>
     </div>
   );
@@ -802,7 +719,6 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
   const[egresoTemprano,setEgresoTemprano]=useState(false);
-  const[egresoObs,setEgresoObs]=useState("");
 
   const genList=useMemo(()=>{const seen=new Set();return[...registros].filter(r=>r.modulo==="generador").filter(r=>{if(!seen.has(r.id)){seen.add(r.id);return true;}return false;});},[registros]);
   
@@ -812,10 +728,8 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
     if(!validate())return;setSaving(true);
     const n=nextId();const id=genId(tipoOp,n);const grupoId=`GRP-${n}`;
     const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:modelo.trim(),detalle:motivo,estado:tipoOp==="INGRESO"?"Dentro":"Retirado",obs:`Técnico: ${tecnico||"N/A"} | ${obs}`,tipoOp,modulo:"generador",proveedor:proveedor.trim(),tecnico,modelo:modelo.trim(),motivo,usuario:user.name};
-    const etFlag=tipoOp==="INGRESO"&&egresoTemprano;
-    const etPrefix=etFlag?`[ET${egresoObs?" — "+egresoObs:""}] `:"";
-    const lote=[{...base,egresoTemprano:etFlag,obs:etPrefix+base.obs}];
-    await addRegistros(lote);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setEgresoTemprano(false);setErrors({});setView("dashboard");
+    if(tipoOp==="INGRESO"&&egresoTemprano) base.egresoTemprano=true;
+    await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setEgresoTemprano(false);setErrors({});setView("dashboard");
   };
 
   return(
@@ -836,11 +750,10 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
         </div>
         {tipoOp==="INGRESO"&&(
           <div style={{marginTop:"14px",padding:"12px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)"}}>
-            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Registrar egreso temprano del generador" accent="var(--amber)"/>
+            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Egreso temprano esperado" accent="var(--amber)"/>
             {egresoTemprano&&(
-              <div style={{marginTop:"12px"}}>
-                <label style={d.label}>Motivo del egreso temprano</label>
-                <input style={d.input} value={egresoObs} onChange={e=>setEgresoObs(e.target.value)} placeholder="Motivo de salida (opcional)"/>
+              <div style={{marginTop:"8px",fontSize:"12px",color:"var(--amber-t)"}}>
+                ⚠️ Se registrará el ingreso con bandera de egreso temprano. Cuando el equipo se retire, registrá el egreso normalmente.
               </div>
             )}
           </div>
@@ -859,8 +772,8 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
         <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
       </div>
 
-      <button onClick={handleSubmit} disabled={saving} style={{...(egresoTemprano?d.btnSuccess:d.btnPrimary),width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
-        {saving?"Guardando...":(egresoTemprano?"⚡ Registrar Ingreso + Egreso Temprano":"⚡ Registrar Grupo Electrógeno")}
+      <button onClick={handleSubmit} disabled={saving} style={{...d.btnPrimary,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
+        {saving?"Guardando...":"⚡ Registrar Grupo Electrógeno"}
       </button>
 
       {genList.length>0&&(
@@ -874,110 +787,89 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
           ))}
         </div>
       )}
+
+      <GeEgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════
-   MATERIALES
-═══════════════════════════════════════════════════════ */
-function Materiales({registros,cfg,user,addRegistros,nextId,setView}){
-  const[tipoOp,setTipoOp]=useState("INGRESO");
-  const[proveedor,setProveedor]=useState("");
-  const[tecnico,setTecnico]=useState("");
-  const[tipoMaterial,setTipoMaterial]=useState("");
-  const[cantidad,setCantidad]=useState("");
-  const[estado,setEstado]=useState("Nuevo");
-  const[obs,setObs]=useState("");
-  const[saving,setSaving]=useState(false);
-  const[errors,setErrors]=useState({});
-  const[egresoTemprano,setEgresoTemprano]=useState(false);
-  const[egresoObs,setEgresoObs]=useState("");
+function GeEgresosTemprano({registros,addRegistros,nextId,user}){
+  const ingTempranos=useMemo(()=>
+    registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano&&r.modulo==="generador")
+  ,[registros]);
 
-  const matList=useMemo(()=>{const seen=new Set();return[...registros].filter(r=>r.modulo==="material").filter(r=>{if(!seen.has(r.id)){seen.add(r.id);return true;}return false;});},[registros]);
+  const gruposConEgreso=useMemo(()=>
+    new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId))
+  ,[registros]);
 
-  const validate=()=>{const e={};if(!proveedor.trim())e.proveedor="Requerido";if(!tipoMaterial.trim())e.tipoMaterial="Requerido";setErrors(e);return!Object.keys(e).length;};
+  const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
 
-  const handleSubmit=async()=>{
-    if(!validate())return;setSaving(true);
-    const n=nextId();const id=genId(tipoOp,n);const grupoId=`GRP-${n}`;
-    const cantStr=cantidad?`${cantidad}x `:"";
-    const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Material",nombre:proveedor.trim(),remito:cantStr+tipoMaterial.trim(),detalle:tipoMaterial.trim(),estado,obs:`Técnico: ${tecnico||"N/A"} | ${obs||"N/A"}`,tipoOp,modulo:"material",proveedor:proveedor.trim(),tecnico,modelo:tipoMaterial.trim(),usuario:user.name};
-    const etFlag=tipoOp==="INGRESO"&&egresoTemprano;
-    const etPrefix=etFlag?`[ET${egresoObs?" — "+egresoObs:""}] `:"";
-    const lote=[{...base,egresoTemprano:etFlag,obs:etPrefix+base.obs}];
-    await addRegistros(lote);setSaving(false);setProveedor("");setTecnico("");setTipoMaterial("");setCantidad("");setObs("");setEgresoTemprano(false);setErrors({});setView("dashboard");
+  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingTempranos,gruposConEgreso]);
+  const cerrados=useMemo(()=>unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
+
+  const cerrarEgreso=async(ing)=>{
+    const n=nextId();const egId=genId("EGRESO",n);
+    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:ing.perfil,nombre:ing.nombre,remito:ing.remito,detalle:ing.detalle,estado:"Retirado",obs:"Egreso temprano cerrado",modulo:"generador",egresoTemprano:true,usuario:user.name}]);
   };
 
-  return(
-    <div style={{maxWidth:"700px",margin:"0 auto"}}>
-      <div style={{background:"var(--blue-bg)",border:"1px solid var(--accent)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"13px"}}>
-        <span style={{fontSize:"26px"}}>📦</span>
-        <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--blue-t)"}}>Módulo: Materiales</div><div style={{fontSize:"12px",color:"var(--accent)",opacity:.8}}>{matList.length} material(es) registrado(s) en el sistema</div></div>
-      </div>
+  const tiempoDesde=(fechaHora)=>{const diff=Math.round((new Date()-new Date(fechaHora))/60000);if(diff<60)return`${diff} min`;return`${Math.floor(diff/60)}h ${diff%60}min`;};
+  const egresoDelGrupo=(grupoId)=>registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===grupoId);
+  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 110px 150px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
+  const lbl={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
 
-      <div style={{...d.card,marginBottom:"16px"}}>
-        <label style={d.label}>Tipo de Operación</label>
-        <div style={{display:"flex",gap:"8px",marginTop:"6px"}}>
-          {["INGRESO","EGRESO"].map(t=>(
-            <button key={t} onClick={()=>{setTipoOp(t);setEgresoTemprano(false);}} style={{flex:1,padding:"12px",borderRadius:"var(--radius)",border:`1px solid ${tipoOp===t?(t==="INGRESO"?"var(--green-dark)":"var(--red-dark)"):"var(--border)"}`,cursor:"pointer",fontWeight:700,fontSize:"15px",background:tipoOp===t?(t==="INGRESO"?"var(--green-bg)":"var(--red-bg)"):"transparent",color:tipoOp===t?(t==="INGRESO"?"var(--green-t)":"var(--red-t)"):"var(--text-muted)"}}>
-              {t==="INGRESO"?"▶ INGRESO":"◀ EGRESO"}
-            </button>
-          ))}
+  if(!ingTempranos.length) return null;
+
+  return(
+    <div style={{marginTop:"18px"}}>
+      {/* ABIERTOS */}
+      <div style={{...d.card,marginBottom:"14px",border:"1px solid var(--amber)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)"}}/>
+          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>EGRESOS TEMPRANOS ABIERTOS</h3>
+          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{abiertos.length}</span>
         </div>
-        {tipoOp==="INGRESO"&&(
-          <div style={{marginTop:"14px",padding:"12px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)"}}>
-            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Registrar egreso temprano del material" accent="var(--amber)"/>
-            {egresoTemprano&&(
-              <div style={{marginTop:"12px"}}>
-                <label style={d.label}>Motivo del egreso temprano</label>
-                <input style={d.input} value={egresoObs} onChange={e=>setEgresoObs(e.target.value)} placeholder="Motivo de salida (opcional)"/>
+        {abiertos.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>No hay egresos tempranos pendientes.</p>}
+        {abiertos.length>0&&(
+          <>
+            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Técnico</div><div style={lbl}>Tiempo</div><div style={lbl}>Acción</div></div>
+            {abiertos.map(r=>(
+              <div key={r.grupoId} style={rowStyle}>
+                <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.remito||r.modelo}</div><div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"2px"}}>{r.nombre}</div></div>
+                <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
+                <div style={{fontSize:"15px",fontWeight:700,color:"var(--amber-t)"}}>{tiempoDesde(r.fechaHora)}</div>
+                <button onClick={()=>cerrarEgreso(r)} style={{padding:"8px 14px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>✓ Cerrar Egreso</button>
               </div>
-            )}
-          </div>
+            ))}
+          </>
         )}
       </div>
-
-      <div style={{...d.card,marginBottom:"16px"}}>
-        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-          <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..." error={errors.proveedor}/></div>
-          <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
+      {/* CERRADOS */}
+      <div style={d.card}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
+          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>EGRESOS TEMPRANOS CERRADOS</h3>
+          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{cerrados.length}</span>
         </div>
-        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-          <div>
-            <label style={d.label}>Tipo de Material</label>
-            {(cfg.tiposMaterial||[]).length>0
-              ?<select style={{...d.input,borderColor:errors.tipoMaterial?"var(--red-dark)":undefined}} value={tipoMaterial} onChange={e=>setTipoMaterial(e.target.value)}>
-                  <option value="">— Seleccionar material —</option>
-                  {(cfg.tiposMaterial||[]).map(m=><option key={m}>{m}</option>)}
-                </select>
-              :<input style={{...d.input,borderColor:errors.tipoMaterial?"var(--red-dark)":undefined}} value={tipoMaterial} onChange={e=>setTipoMaterial(e.target.value)} placeholder="Ej: Laptop, Cable UTP..."/>
-            }
-            {errors.tipoMaterial&&<span style={d.err}>{errors.tipoMaterial}</span>}
-          </div>
-          <div><label style={d.label}>Cantidad</label><input type="number" min="1" style={d.input} value={cantidad} onChange={e=>setCantidad(e.target.value)} placeholder="Ej: 3"/></div>
-        </div>
-        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-          <div><label style={d.label}>Estado</label><select style={d.input} value={estado} onChange={e=>setEstado(e.target.value)}>{cfg.estadosMaterial.map(s=><option key={s}>{s}</option>)}</select></div>
-        </div>
-        <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
+        {cerrados.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>Aún no hay egresos tempranos cerrados.</p>}
+        {cerrados.length>0&&(
+          <>
+            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Ingreso</div><div style={lbl}>Egreso</div><div style={lbl}>Duración</div></div>
+            {cerrados.map(r=>{
+              const eg=egresoDelGrupo(r.grupoId);
+              const dur=eg?Math.round((new Date(eg.fechaHora)-new Date(r.fechaHora))/60000):null;
+              const durStr=dur===null?"—":dur<60?`${dur} min`:`${Math.floor(dur/60)}h ${dur%60}min`;
+              return(
+                <div key={r.grupoId} style={rowStyle}>
+                  <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.remito||r.modelo}</div><div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.nombre}</div></div>
+                  <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
+                  <div style={{fontSize:"12px",color:"var(--green-t)",fontWeight:600}}>{eg?fmtDate(eg.fechaHora):"—"}</div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)"}}>{durStr}</div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
-
-      <button onClick={handleSubmit} disabled={saving} style={{...(egresoTemprano?d.btnSuccess:d.btnPrimary),width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
-        {saving?"Guardando...":(egresoTemprano?"📦 Guardar Ingreso (Egreso Temprano)":"📦 Registrar Material")}
-      </button>
-
-      {matList.length>0&&(
-        <div style={d.card}>
-          <h3 style={d.h3}>Últimos materiales registrados</h3>
-          {matList.slice(0,8).map((g,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<Math.min(matList.length,8)-1?"1px solid var(--border)":"none"}}>
-              <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{g.remito||g.detalle}</div><div style={{fontSize:"11px",color:"var(--text-muted)"}}>{g.nombre} · {g.estado}</div></div>
-              <Badge tipo={g.tipoOp} small egresoTemprano={g.egresoTemprano}/>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -985,19 +877,9 @@ function Materiales({registros,cfg,user,addRegistros,nextId,setView}){
 /* ═══════════════════════════════════════════════════════
    HISTORIAL
 ═══════════════════════════════════════════════════════ */
-function Historial({registros,addRegistros,nextId}){
+function Historial({registros}){
   const[search,setSearch]=useState("");const[fTipo,setFTipo]=useState("TODOS");const[fPerfil,setFPerfil]=useState("TODOS");const[fFecha,setFFecha]=useState("");const[fModulo,setFModulo]=useState("TODOS");
-  const[confirmando,setConfirmando]=useState(null);
   const perfiles=useMemo(()=>["TODOS",...new Set(registros.map(r=>r.perfil))],[registros]);
-  const gruposConEgreso=useMemo(()=>new Set(registros.filter(r=>r.tipoOp==="EGRESO").map(r=>r.grupoId)),[registros]);
-  const confirmarEgreso=async(grupoId)=>{
-    setConfirmando(grupoId);
-    const ingresos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano&&r.grupoId===grupoId);
-    const now=nowISO();const baseN=nextId();
-    const lote=ingresos.map((r,i)=>{const egId=genId("EGRESO",baseN+i);return{...r,id:egId,idOperacion:egId,tipoOp:"EGRESO",fechaHora:now,egresoTemprano:true};});
-    await addRegistros(lote);
-    setConfirmando(null);
-  };
   const filtered=useMemo(()=>{
     const q=search.toLowerCase();
     return[...registros].reverse().filter(r=>{
@@ -1025,7 +907,7 @@ function Historial({registros,addRegistros,nextId}){
       <div className="filter-row" style={{...d.card,marginBottom:"16px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"12px"}}>
         <div><label style={d.label}>Búsqueda</label><input style={d.input} value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, nombre, remito..."/></div>
         <div><label style={d.label}>Operación</label><select style={d.input} value={fTipo} onChange={e=>setFTipo(e.target.value)}><option value="TODOS">Todos</option><option value="INGRESO">Ingreso</option><option value="EGRESO">Egreso</option></select></div>
-        <div><label style={d.label}>Módulo</label><select style={d.input} value={fModulo} onChange={e=>setFModulo(e.target.value)}><option value="TODOS">Todos</option><option value="general">General</option><option value="generador">Generadores</option><option value="material">Materiales</option></select></div>
+        <div><label style={d.label}>Módulo</label><select style={d.input} value={fModulo} onChange={e=>setFModulo(e.target.value)}><option value="TODOS">Todos</option><option value="general">General</option><option value="generador">Generadores</option></select></div>
         <div><label style={d.label}>Perfil</label><select style={d.input} value={fPerfil} onChange={e=>setFPerfil(e.target.value)}>{perfiles.map(p=><option key={p}>{p}</option>)}</select></div>
         <div><label style={d.label}>Fecha</label><input type="date" style={d.input} value={fFecha} onChange={e=>setFFecha(e.target.value)}/></div>
       </div>
@@ -1050,7 +932,7 @@ function Historial({registros,addRegistros,nextId}){
                   <td style={{...td,fontFamily:"monospace",fontSize:"11px",color:"var(--text-muted)"}}>{r.remito}</td>
                   <td style={{...td,maxWidth:"140px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:"11px"}}>{r.detalle}</td>
                   <td style={{...td,fontSize:"11px"}}>{r.estado}</td>
-                  <td style={td}>{r.egresoTemprano?(r.tipoOp==="INGRESO"&&!gruposConEgreso.has(r.grupoId)?<button onClick={()=>confirmarEgreso(r.grupoId)} disabled={confirmando===r.grupoId} style={{fontSize:"9px",background:"var(--red-bg)",color:"var(--red-t)",padding:"2px 5px",borderRadius:"4px",fontWeight:700,border:"1px solid var(--red-dark)",cursor:"pointer"}}>{confirmando===r.grupoId?"...":"EA"}</button>:<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 5px",borderRadius:"4px",fontWeight:700}}>ET</span>):"—"}</td>
+                  <td style={td}>{r.egresoTemprano?<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 5px",borderRadius:"4px",fontWeight:700}}>ET</span>:"—"}</td>
                   <td style={{...td,color:"var(--text-muted)",fontSize:"11px"}}>{r.usuario}</td>
                 </tr>
               ))}
@@ -1094,11 +976,695 @@ function ListEditor({title,items,onSave}){
 }
 
 /* ═══════════════════════════════════════════════════════
+   EGRESOS TEMPRANOS
+═══════════════════════════════════════════════════════ */
+function EgresosTemprano({registros,addRegistros,nextId,user}){
+
+  // INGRESOs marcados como egreso temprano
+  const ingTempranos=useMemo(()=>
+    registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano)
+  ,[registros]);
+
+  // grupoIds que ya tienen un EGRESO registrado
+  const gruposConEgreso=useMemo(()=>
+    new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId))
+  ,[registros]);
+
+  // Para cada grupoId de egreso temprano, tomamos el primer INGRESO (evitamos duplicados de remitos)
+  const unicos=(lista)=>{
+    const seen=new Set();
+    return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});
+  };
+
+  const abiertos=useMemo(()=>
+    unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId)))
+      .sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora))
+  ,[ingTempranos,gruposConEgreso]);
+
+  const cerrados=useMemo(()=>
+    unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId)))
+      .sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora))
+  ,[ingTempranos,gruposConEgreso]);
+
+  const cerrarEgreso=async(ing)=>{
+    const n=nextId();
+    const egId=genId("EGRESO",n);
+    const egreso={
+      id:egId,idOperacion:egId,grupoId:ing.grupoId,
+      fechaHora:nowISO(),tipoOp:"EGRESO",
+      perfil:ing.perfil,nombre:ing.nombre,
+      remito:ing.remito,detalle:ing.detalle,estado:ing.estado,
+      obs:"Egreso temprano cerrado",modulo:ing.modulo||"general",
+      egresoTemprano:true,usuario:user.name,
+    };
+    await addRegistros([egreso]);
+  };
+
+  const tiempoDesde=(fechaHora)=>{
+    const diff=Math.round((new Date()-new Date(fechaHora))/60000);
+    if(diff<60) return`${diff} min`;
+    return`${Math.floor(diff/60)}h ${diff%60}min`;
+  };
+
+  const egresoDelGrupo=(grupoId)=>
+    registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===grupoId);
+
+  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 110px 150px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
+  const labelMuted={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
+
+  return(
+    <div style={{maxWidth:"900px",margin:"0 auto"}}>
+
+      {/* Header */}
+      <div style={{marginBottom:"22px"}}>
+        <div style={{fontSize:"20px",fontWeight:800,color:"var(--amber-t)"}}>⏱️ Egresos Tempranos</div>
+        <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"2px"}}>
+          Ingresos con egreso temprano esperado — {abiertos.length} abierto(s) · {cerrados.length} cerrado(s)
+        </div>
+      </div>
+
+      {/* ABIERTOS */}
+      <div style={{...d.card,marginBottom:"18px",border:"1px solid var(--amber)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)"}}/>
+          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>EGRESOS TEMPRANOS ABIERTOS</h3>
+          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{abiertos.length}</span>
+        </div>
+
+        {abiertos.length===0&&(
+          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>No hay egresos tempranos pendientes.</p>
+        )}
+
+        {abiertos.length>0&&(
+          <>
+            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}>
+              <div style={labelMuted}>Nombre / Empresa</div>
+              <div style={labelMuted}>Perfil · Módulo</div>
+              <div style={labelMuted}>Ingresó hace</div>
+              <div style={labelMuted}>Acción</div>
+            </div>
+            {abiertos.map(r=>(
+              <div key={r.grupoId} style={rowStyle}>
+                <div>
+                  <div style={{fontSize:"14px",fontWeight:600,color:"var(--text)"}}>{r.nombre}</div>
+                  <div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"2px"}}>{fmtDate(r.fechaHora)}</div>
+                </div>
+                <div>
+                  <div style={{fontSize:"13px",color:"var(--text)"}}>{r.perfil}</div>
+                  <div style={{fontSize:"11px",color:"var(--text-muted)",textTransform:"capitalize"}}>{r.modulo||"general"}</div>
+                </div>
+                <div style={{fontSize:"15px",fontWeight:700,color:"var(--amber-t)"}}>{tiempoDesde(r.fechaHora)}</div>
+                <button
+                  onClick={()=>cerrarEgreso(r)}
+                  style={{padding:"8px 16px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                  ✓ Cerrar Egreso
+                </button>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* CERRADOS */}
+      <div style={d.card}>
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
+          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
+          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>EGRESOS TEMPRANOS CERRADOS</h3>
+          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{cerrados.length}</span>
+        </div>
+
+        {cerrados.length===0&&(
+          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>Aún no hay egresos tempranos cerrados.</p>
+        )}
+
+        {cerrados.length>0&&(
+          <>
+            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}>
+              <div style={labelMuted}>Nombre / Empresa</div>
+              <div style={labelMuted}>Perfil · Módulo</div>
+              <div style={labelMuted}>Ingreso</div>
+              <div style={labelMuted}>Egreso</div>
+            </div>
+            {cerrados.map(r=>{
+              const eg=egresoDelGrupo(r.grupoId);
+              const dur=eg?Math.round((new Date(eg.fechaHora)-new Date(r.fechaHora))/60000):null;
+              const durStr=dur===null?"—":dur<60?`${dur}m`:`${Math.floor(dur/60)}h ${dur%60}m`;
+              return(
+                <div key={r.grupoId} style={rowStyle}>
+                  <div>
+                    <div style={{fontSize:"14px",fontWeight:600,color:"var(--text)"}}>{r.nombre}</div>
+                    <div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"2px"}}>{r.perfil}</div>
+                  </div>
+                  <div style={{fontSize:"13px",color:"var(--text-muted)",textTransform:"capitalize"}}>{r.modulo||"general"}</div>
+                  <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
+                  <div>
+                    <div style={{fontSize:"12px",color:"var(--green-t)",fontWeight:600}}>{eg?fmtDate(eg.fechaHora):"—"}</div>
+                    <div style={{fontSize:"11px",color:"var(--text-muted)"}}>Duración: {durStr}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   ANALYTICS
+═══════════════════════════════════════════════════════ */
+function Analytics({registros}){
+  const[rango,setRango]=useState("30");
+
+  const ahora=useMemo(()=>new Date(),[]);
+
+  const filtrados=useMemo(()=>{
+    if(rango==="todo") return registros;
+    const dias=parseInt(rango,10);
+    const corte=new Date(ahora);
+    corte.setDate(corte.getDate()-dias);
+    return registros.filter(r=>new Date(r.fechaHora)>=corte);
+  },[registros,rango,ahora]);
+
+  const hoy=useMemo(()=>{
+    const d=new Date(ahora);d.setHours(0,0,0,0);return d;
+  },[ahora]);
+
+  const ayer=useMemo(()=>{
+    const d=new Date(hoy);d.setDate(d.getDate()-1);return d;
+  },[hoy]);
+
+  const mesInicio=useMemo(()=>{
+    return new Date(ahora.getFullYear(),ahora.getMonth(),1);
+  },[ahora]);
+
+  // ── KPI: personas dentro ahora ──
+  const dentroAhora=useMemo(()=>{
+    const hoyStr=hoy.toDateString();
+    const ingresos=registros.filter(r=>r.tipoOp==="INGRESO"&&new Date(r.fechaHora).toDateString()===hoyStr);
+    const gruposConEgreso=new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId));
+    return ingresos.filter(r=>r.grupoId&&!gruposConEgreso.has(r.grupoId)).length;
+  },[registros,hoy]);
+
+  // ── KPI: movimientos hoy vs ayer ──
+  const {movHoy,movAyer,pctDiff}=useMemo(()=>{
+    const mh=registros.filter(r=>new Date(r.fechaHora)>=hoy).length;
+    const ma=registros.filter(r=>{const f=new Date(r.fechaHora);return f>=ayer&&f<hoy;}).length;
+    const pct=ma===0?100:Math.round(((mh-ma)/ma)*100);
+    return{movHoy:mh,movAyer:ma,pctDiff:pct};
+  },[registros,hoy,ayer]);
+
+  // ── KPI: tasa egreso temprano del mes ──
+  const tasaEgresoTemprano=useMemo(()=>{
+    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio);
+    if(!del_mes.length) return 0;
+    const temp=del_mes.filter(r=>r.egresoTemprano).length;
+    return Math.round((temp/del_mes.length)*100);
+  },[registros,mesInicio]);
+
+  // ── KPI: tiempo promedio de permanencia hoy (minutos) ──
+  const tiempoPromedio=useMemo(()=>{
+    const hoyStr=hoy.toDateString();
+    const ingresos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId&&new Date(r.fechaHora).toDateString()===hoyStr);
+    const tiempos=[];
+    ingresos.forEach(ing=>{
+      const eg=registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===ing.grupoId);
+      if(eg){
+        const diff=(new Date(eg.fechaHora)-new Date(ing.fechaHora))/60000;
+        if(diff>0&&diff<1440) tiempos.push(diff);
+      }
+    });
+    if(!tiempos.length) return null;
+    return Math.round(tiempos.reduce((a,b)=>a+b,0)/tiempos.length);
+  },[registros,hoy]);
+
+  // ── Heatmap: [dia0-6][hora0-23] = count ──
+  const heatmapData=useMemo(()=>{
+    const mat=Array.from({length:7},()=>Array(24).fill(0));
+    filtrados.forEach(r=>{
+      const d=new Date(r.fechaHora);
+      const dia=(d.getDay()+6)%7; // 0=Lun
+      const hora=d.getHours();
+      mat[dia][hora]++;
+    });
+    return mat;
+  },[filtrados]);
+
+  const heatmapMax=useMemo(()=>Math.max(1,...heatmapData.flat()),[heatmapData]);
+
+  // ── Top 10 nombres/proveedores del mes ──
+  const top10=useMemo(()=>{
+    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio&&r.nombre);
+    const cnt={};
+    del_mes.forEach(r=>{cnt[r.nombre]=(cnt[r.nombre]||0)+1;});
+    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  },[registros,mesInicio]);
+
+  const top10max=top10.length?top10[0][1]:1;
+
+  // ── Línea de tiempo hoy (ingresos vs egresos por hora) ──
+  const lineaHoy=useMemo(()=>{
+    const hoyStr=hoy.toDateString();
+    const horas=Array.from({length:24},(_,i)=>({h:i,ing:0,eg:0}));
+    registros.filter(r=>new Date(r.fechaHora).toDateString()===hoyStr).forEach(r=>{
+      const h=new Date(r.fechaHora).getHours();
+      if(r.tipoOp==="INGRESO") horas[h].ing++;
+      else horas[h].eg++;
+    });
+    return horas;
+  },[registros,hoy]);
+
+  const lineaMax=useMemo(()=>Math.max(1,...lineaHoy.map(h=>Math.max(h.ing,h.eg))),[lineaHoy]);
+
+  // ── Torta: distribución por perfil del mes ──
+  const perfilData=useMemo(()=>{
+    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio&&r.perfil);
+    const cnt={};
+    del_mes.forEach(r=>{cnt[r.perfil]=(cnt[r.perfil]||0)+1;});
+    const total=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
+    const colores={"Proveedor":"var(--accent)","Oficina Técnica":"var(--purple)","Jefe":"var(--green)","Otro":"var(--amber)"};
+    let acum=0;
+    return Object.entries(cnt).map(([perfil,n])=>{
+      const pct=(n/total)*100;
+      const ini=acum;acum+=pct;
+      return{perfil,n,pct:Math.round(pct),ini,color:colores[perfil]||"var(--text-muted)"};
+    });
+  },[registros,mesInicio]);
+
+  // ── Barras por módulo ──
+  const moduloData=useMemo(()=>{
+    const cnt={general:0,generador:0,material:0};
+    filtrados.forEach(r=>{if(cnt[r.modulo]!==undefined)cnt[r.modulo]++;});
+    const mx=Math.max(1,...Object.values(cnt));
+    return[
+      {k:"general",label:"General",cnt:cnt.general,pct:Math.round((cnt.general/mx)*100),color:"var(--accent)"},
+      {k:"generador",label:"Generadores",cnt:cnt.generador,pct:Math.round((cnt.generador/mx)*100),color:"var(--amber)"},
+      {k:"material",label:"Material",cnt:cnt.material,pct:Math.round((cnt.material/mx)*100),color:"var(--purple)"},
+    ];
+  },[filtrados]);
+
+  // ── Egresos tempranos pendientes (ingreso con flag, sin egreso aún) ──
+  const sinEgreso=useMemo(()=>{
+    const ingTempranos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano&&r.grupoId);
+    const gruposConEgreso=new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId));
+    const seen=new Set();
+    return ingTempranos
+      .filter(r=>!gruposConEgreso.has(r.grupoId)&&!seen.has(r.grupoId)&&seen.add(r.grupoId))
+      .sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora));
+  },[registros]);
+
+  // ── Anomalías: egresos tempranos últimos 7 días por perfil ──
+  const egresosTempPerfil=useMemo(()=>{
+    const corte=new Date(ahora);corte.setDate(corte.getDate()-7);
+    const temp=registros.filter(r=>r.egresoTemprano&&new Date(r.fechaHora)>=corte);
+    const cnt={};
+    temp.forEach(r=>{const p=r.perfil||"Sin perfil";cnt[p]=(cnt[p]||0)+1;});
+    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  },[registros,ahora]);
+
+  const dias7=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+  const fmtMin=(m)=>{if(m===null)return"—";if(m<60)return`${m} min`;return`${Math.floor(m/60)}h ${m%60}min`;};
+
+  const conicStops=useMemo(()=>{
+    let s="",acum=0;
+    perfilData.forEach(p=>{
+      s+=`${p.color} ${acum}% ${acum+p.pct}%,`;
+      acum+=p.pct;
+    });
+    return s.slice(0,-1)||"var(--border) 0% 100%";
+  },[perfilData]);
+
+  const rangoOpts=[{v:"1",l:"Hoy"},{v:"7",l:"7 días"},{v:"30",l:"30 días"},{v:"todo",l:"Todo"}];
+
+  const kpiCard=(icon,title,value,sub,color="var(--accent)")=>(
+    <div style={{...d.card,display:"flex",flexDirection:"column",gap:"6px"}}>
+      <div style={{fontSize:"11px",fontWeight:600,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:".07em"}}>{icon} {title}</div>
+      <div style={{fontSize:"28px",fontWeight:800,color,lineHeight:1}}>{value}</div>
+      {sub&&<div style={{fontSize:"11px",color:"var(--text-muted)"}}>{sub}</div>}
+    </div>
+  );
+
+  return(
+    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
+
+      {/* Header + selector de rango */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
+        <div>
+          <div style={{fontSize:"20px",fontWeight:800,color:"var(--text)"}}>📊 Analytics</div>
+          <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"2px"}}>Métricas en tiempo real del sistema de acceso</div>
+        </div>
+        <div style={{display:"flex",gap:"6px"}}>
+          {rangoOpts.map(o=>(
+            <button key={o.v} onClick={()=>setRango(o.v)} style={{padding:"6px 14px",borderRadius:"var(--radius)",border:"1px solid",borderColor:rango===o.v?"var(--accent)":"var(--border-light)",background:rango===o.v?"color-mix(in srgb, var(--accent) 15%, transparent)":"transparent",color:rango===o.v?"var(--accent)":"var(--text-muted)",fontSize:"12px",fontWeight:rango===o.v?700:400,cursor:"pointer"}}>
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Fila 1 — KPI Cards */}
+      <div className="g4" style={{...d.g4,marginBottom:"18px"}}>
+        {kpiCard("👥","Dentro ahora",dentroAhora,"Ingresos sin egreso hoy","var(--green-t)")}
+        {kpiCard("🔄","Movimientos hoy",movHoy,
+          <span style={{color:pctDiff>=0?"var(--green-t)":"var(--red-t)"}}>
+            {pctDiff>=0?"↑":"↓"} {Math.abs(pctDiff)}% vs ayer ({movAyer})
+          </span>,
+          "var(--blue-t)"
+        )}
+        {kpiCard("⏰","Egreso temprano",`${tasaEgresoTemprano}%`,"Del mes actual","var(--amber-t)")}
+        {kpiCard("⌛","Permanencia prom.",fmtMin(tiempoPromedio),"Promedio hoy (min)","var(--purple-t)")}
+      </div>
+
+      {/* Fila 2 — Heatmap + Top 10 */}
+      <div className="g2" style={{...d.g2,marginBottom:"18px"}}>
+
+        {/* Heatmap */}
+        <div style={{...d.card,overflowX:"auto"}}>
+          <h3 style={d.h3}>🔥 Heatmap de Tráfico</h3>
+          <div style={{display:"flex",gap:"4px",marginBottom:"6px"}}>
+            <div style={{width:"28px",flexShrink:0}}/>
+            {Array.from({length:24},(_,h)=>(
+              <div key={h} style={{flex:1,fontSize:"9px",color:"var(--text-muted)",textAlign:"center",minWidth:"14px"}}>{h%4===0?h:""}</div>
+            ))}
+          </div>
+          {heatmapData.map((row,di)=>(
+            <div key={di} style={{display:"flex",gap:"4px",marginBottom:"3px",alignItems:"center"}}>
+              <div style={{width:"28px",fontSize:"10px",color:"var(--text-muted)",flexShrink:0,textAlign:"right",paddingRight:"4px"}}>{dias7[di]}</div>
+              {row.map((cnt,hi)=>{
+                const pct=cnt/heatmapMax;
+                const bg=pct===0?"var(--bg-input)":`color-mix(in srgb, var(--accent) ${Math.round(pct*85+5)}%, var(--bg-input))`;
+                return(
+                  <div key={hi} title={`${dias7[di]} ${hi}h: ${cnt} mov`} style={{flex:1,aspectRatio:"1",borderRadius:"3px",background:bg,minWidth:"14px",minHeight:"14px",cursor:"default"}}/>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"10px",justifyContent:"flex-end"}}>
+            <div style={{fontSize:"10px",color:"var(--text-muted)"}}>Menos</div>
+            {[0,.25,.5,.75,1].map(p=>(
+              <div key={p} style={{width:"14px",height:"14px",borderRadius:"3px",background:p===0?"var(--bg-input)":`color-mix(in srgb, var(--accent) ${Math.round(p*85+5)}%, var(--bg-input))`}}/>
+            ))}
+            <div style={{fontSize:"10px",color:"var(--text-muted)"}}>Más</div>
+          </div>
+        </div>
+
+        {/* Top 10 */}
+        <div style={d.card}>
+          <h3 style={d.h3}>🏆 Top 10 del Mes</h3>
+          {top10.length===0&&<p style={d.muted}>Sin datos para el mes actual.</p>}
+          {top10.map(([nombre,cnt],i)=>(
+            <div key={nombre} style={{marginBottom:"10px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"3px"}}>
+                <span style={{fontSize:"12px",color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"78%"}}>{i+1}. {nombre}</span>
+                <span style={{fontSize:"12px",fontWeight:700,color:"var(--accent)",flexShrink:0}}>{cnt}</span>
+              </div>
+              <div style={{height:"6px",borderRadius:"3px",background:"var(--bg-input)"}}>
+                <div style={{height:"100%",borderRadius:"3px",background:"var(--accent)",width:`${Math.round((cnt/top10max)*100)}%`,transition:"width .4s"}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fila 3 — Línea hoy + Torta perfil + Barras módulo */}
+      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:"14px",marginBottom:"18px"}}>
+
+        {/* Línea de tiempo hoy */}
+        <div style={{...d.card,overflowX:"auto"}}>
+          <h3 style={d.h3}>📈 Ingresos vs Egresos — Hoy por hora</h3>
+          <div style={{display:"flex",alignItems:"flex-end",gap:"3px",height:"100px",paddingBottom:"2px"}}>
+            {lineaHoy.map(({h,ing,eg})=>(
+              <div key={h} title={`${h}h — Ing:${ing} Eg:${eg}`} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",height:"100%",justifyContent:"flex-end"}}>
+                <div style={{width:"100%",display:"flex",gap:"1px",justifyContent:"center",alignItems:"flex-end",height:"100%"}}>
+                  <div style={{flex:1,borderRadius:"2px 2px 0 0",background:"var(--green-dark)",height:`${Math.round((ing/lineaMax)*100)}%`,minHeight:ing?"2px":"0"}}/>
+                  <div style={{flex:1,borderRadius:"2px 2px 0 0",background:"var(--red-dark)",height:`${Math.round((eg/lineaMax)*100)}%`,minHeight:eg?"2px":"0"}}/>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:"3px",marginTop:"4px"}}>
+            {lineaHoy.map(({h})=>(
+              <div key={h} style={{flex:1,textAlign:"center",fontSize:"9px",color:"var(--text-dim)"}}>{h%4===0?h:""}</div>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:"14px",marginTop:"8px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}>
+              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--green-dark)"}}/> Ingresos
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}>
+              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--red-dark)"}}/> Egresos
+            </div>
+          </div>
+        </div>
+
+        {/* Torta perfil */}
+        <div style={d.card}>
+          <h3 style={d.h3}>🥧 Por Perfil</h3>
+          <div style={{width:"100px",height:"100px",borderRadius:"50%",background:`conic-gradient(${conicStops})`,margin:"0 auto 14px",boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}/>
+          {perfilData.map(p=>(
+            <div key={p.perfil} style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"5px"}}>
+              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:p.color,flexShrink:0}}/>
+              <span style={{fontSize:"11px",color:"var(--text)",flex:1}}>{p.perfil}</span>
+              <span style={{fontSize:"11px",color:"var(--text-muted)",fontWeight:700}}>{p.pct}%</span>
+            </div>
+          ))}
+          {perfilData.length===0&&<p style={{...d.muted,fontSize:"11px"}}>Sin datos</p>}
+        </div>
+
+        {/* Barras módulo */}
+        <div style={d.card}>
+          <h3 style={d.h3}>📦 Por Módulo</h3>
+          {moduloData.map(m=>(
+            <div key={m.k} style={{marginBottom:"14px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                <span style={{fontSize:"12px",color:"var(--text)"}}>{m.label}</span>
+                <span style={{fontSize:"12px",fontWeight:700,color:m.color}}>{m.cnt}</span>
+              </div>
+              <div style={{height:"8px",borderRadius:"4px",background:"var(--bg-input)"}}>
+                <div style={{height:"100%",borderRadius:"4px",background:m.color,width:`${m.pct}%`,transition:"width .4s"}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Fila 4 — Anomalías */}
+      <div className="g2" style={d.g2}>
+
+        {/* Ingresos sin egreso >4h */}
+        <div style={d.card}>
+          <h3 style={{...d.h3,color:"var(--amber-t)"}}>⏱️ Egresos Tempranos Pendientes</h3>
+          {sinEgreso.length===0&&<p style={d.muted}>No hay egresos tempranos pendientes.</p>}
+          {sinEgreso.map(r=>{
+            const mins=Math.round((ahora-new Date(r.fechaHora))/60000);
+            return(
+              <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+                <div>
+                  <div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.nombre||r.id}</div>
+                  <div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.perfil} · {fmtDate(r.fechaHora)}</div>
+                </div>
+                <div style={{fontSize:"12px",fontWeight:700,color:"var(--amber-t)",flexShrink:0,marginLeft:"8px"}}>{fmtMin(mins)}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Egresos tempranos últimos 7 días por perfil */}
+        <div style={d.card}>
+          <h3 style={{...d.h3,color:"var(--red-t)"}}>⏱️ Egresos Tempranos — 7 días</h3>
+          {egresosTempPerfil.length===0&&<p style={d.muted}>Sin egresos tempranos en los últimos 7 días.</p>}
+          {egresosTempPerfil.map(([perfil,cnt])=>(
+            <div key={perfil} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+              <span style={{fontSize:"13px",color:"var(--text)"}}>{perfil}</span>
+              <span style={{fontSize:"13px",fontWeight:700,color:"var(--red-t)"}}>{cnt}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
    ADMIN
 ═══════════════════════════════════════════════════════ */
-function Admin({cfg,saveCfg}){
-  const[tab,setTab]=useState("proveedores");
-  const tabs=[{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"tiposMaterial",label:"📦 Tipos de Material",key:"tiposMaterial"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📋 Estados Material",key:"estadosMaterial"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null}];
+/* ═══════════════════════════════════════════════════════
+   GESTIÓN DE USUARIOS (tab dentro de Admin)
+═══════════════════════════════════════════════════════ */
+function UsuariosAdmin(){
+  const[users,setUsers]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[err,setErr]=useState("");
+  const[msg,setMsg]=useState("");
+  const[newUser,setNewUser]=useState({username:"",password:"",rol:"porteria"});
+  const[newErr,setNewErr]=useState("");
+  const[creating,setCreating]=useState(false);
+  const[editing,setEditing]=useState(null);
+
+  const flash=(text,isErr=false)=>{
+    if(isErr)setErr(text); else setMsg(text);
+    setTimeout(()=>{setErr("");setMsg("");},3500);
+  };
+
+  // Parsea la respuesta de forma segura — si el backend devuelve HTML (ruta no existe) no rompe
+  const safeJson=async(r)=>{
+    try{return await r.json();}
+    catch{return{ok:false,error:`El backend no tiene esta función aún (${r.status}). Actualizá el backend en Render.`};}
+  };
+
+  const loadUsers=async()=>{
+    setLoading(true);
+    try{
+      const r=await fetch(`${BACKEND_URL}/api/usuarios`);
+      const data=await safeJson(r);
+      if(data.ok){
+        // Normalizar: si el backend viejo no manda "activo", asumimos true
+        setUsers(data.data.map(u=>({...u,activo:u.activo!==undefined?u.activo:true})));
+      } else {
+        flash("Error al cargar usuarios: "+data.error,true);
+      }
+    }catch{flash("Sin conexión al backend",true);}
+    setLoading(false);
+  };
+
+  useEffect(()=>{loadUsers();},[]);
+
+  const crearUsuario=async(e)=>{
+    e.preventDefault();setNewErr("");
+    if(!newUser.username.trim()||!newUser.password.trim()){setNewErr("Completá usuario y contraseña");return;}
+    setCreating(true);
+    try{
+      const r=await fetch(`${BACKEND_URL}/api/usuarios`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(newUser)});
+      const data=await safeJson(r);
+      if(data.ok){setNewUser({username:"",password:"",rol:"porteria"});flash("Usuario creado correctamente");loadUsers();}
+      else setNewErr(data.error||"Error al crear usuario");
+    }catch{setNewErr("Sin conexión al backend");}
+    setCreating(false);
+  };
+
+  const guardarEdicion=async(u)=>{
+    if(!editing.password.trim()&&editing.rol===u.rol){setEditing(null);return;}
+    const body={};
+    if(editing.password.trim()) body.password=editing.password.trim();
+    if(editing.rol!==u.rol) body.rol=editing.rol;
+    try{
+      const r=await fetch(`${BACKEND_URL}/api/usuarios/${u.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const data=await safeJson(r);
+      if(data.ok){flash("Usuario actualizado");setEditing(null);loadUsers();}
+      else flash(data.error||"Error al actualizar",true);
+    }catch{flash("Sin conexión al backend",true);}
+  };
+
+  const toggleActivo=async(u)=>{
+    const esActivo=u.activo===true||u.activo===undefined;
+    const endpoint=esActivo?`${BACKEND_URL}/api/usuarios/${u.id}`:`${BACKEND_URL}/api/usuarios/${u.id}/reactivar`;
+    const method=esActivo?"DELETE":"PUT";
+    try{
+      const r=await fetch(endpoint,{method,headers:{"Content-Type":"application/json"}});
+      const data=await safeJson(r);
+      if(data.ok){flash(esActivo?"Usuario desactivado":"Usuario reactivado");loadUsers();}
+      else flash(data.error||"Error",true);
+    }catch{flash("Sin conexión al backend",true);}
+  };
+
+  const rolColor=(rol)=>rol==="admin"?"var(--purple-t)":"var(--blue-t)";
+  const rolBg=(rol)=>rol==="admin"?"var(--purple-bg)":"var(--blue-bg)";
+
+  return(
+    <div>
+      {/* Mensaje feedback */}
+      {msg&&<div style={{padding:"10px 14px",background:"var(--green-bg)",border:"1px solid var(--green-dark)",borderRadius:"var(--radius)",color:"var(--green-t)",fontSize:"13px",marginBottom:"14px"}}>{msg}</div>}
+      {err&&<div style={{padding:"10px 14px",background:"var(--red-bg)",border:"1px solid var(--red-dark)",borderRadius:"var(--radius)",color:"var(--red-t)",fontSize:"13px",marginBottom:"14px"}}>{err}</div>}
+
+      {/* Formulario crear usuario */}
+      <div style={{...d.card,marginBottom:"18px"}}>
+        <h3 style={d.h3}>Crear usuario</h3>
+        <form onSubmit={crearUsuario}>
+          <div className="g3" style={{...d.g3,marginBottom:"12px"}}>
+            <div>
+              <label style={d.label}>Usuario</label>
+              <input style={d.input} value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="nombre de usuario"/>
+            </div>
+            <div>
+              <label style={d.label}>Contraseña</label>
+              <input style={d.input} type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} placeholder="contraseña"/>
+            </div>
+            <div>
+              <label style={d.label}>Rol</label>
+              <select style={d.input} value={newUser.rol} onChange={e=>setNewUser(p=>({...p,rol:e.target.value}))}>
+                <option value="porteria">Portería</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          {newErr&&<p style={{...d.err,marginBottom:"10px"}}>{newErr}</p>}
+          <button type="submit" disabled={creating} style={{...d.btnPrimary,opacity:creating?.6:1}}>
+            {creating?"Creando...":"+ Crear usuario"}
+          </button>
+        </form>
+      </div>
+
+      {/* Lista de usuarios */}
+      <div style={d.card}>
+        <h3 style={d.h3}>Usuarios ({users.length})</h3>
+        {loading?(
+          <div style={{...d.muted,textAlign:"center",padding:"20px"}}>Cargando...</div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+            {users.map(u=>(
+              <div key={u.id} style={{padding:"12px 14px",borderRadius:"var(--radius)",border:`1px solid ${u.activo?"var(--border-light)":"var(--border)"}`,background:u.activo?"var(--bg-hover)":"var(--bg-deep)",opacity:u.activo?1:0.55}}>
+                {editing?.id===u.id?(
+                  /* Modo edición */
+                  <div style={{display:"flex",gap:"10px",alignItems:"flex-end",flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:"140px"}}>
+                      <label style={d.label}>Nueva contraseña</label>
+                      <input style={d.input} type="password" value={editing.password} onChange={e=>setEditing(p=>({...p,password:e.target.value}))} placeholder="dejar vacío = no cambiar"/>
+                    </div>
+                    <div style={{minWidth:"130px"}}>
+                      <label style={d.label}>Rol</label>
+                      <select style={d.input} value={editing.rol} onChange={e=>setEditing(p=>({...p,rol:e.target.value}))}>
+                        <option value="porteria">Portería</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <div style={{display:"flex",gap:"6px"}}>
+                      <button onClick={()=>guardarEdicion(u)} style={d.btnPrimary}>Guardar</button>
+                      <button onClick={()=>setEditing(null)} style={d.btnGhost}>Cancelar</button>
+                    </div>
+                  </div>
+                ):(
+                  /* Vista normal */
+                  <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap"}}>
+                    <div style={{flex:1}}>
+                      <span style={{fontWeight:700,fontSize:"14px",color:"var(--text)"}}>{u.username}</span>
+                      <span style={{marginLeft:"10px",fontSize:"11px",fontWeight:700,padding:"2px 8px",borderRadius:"4px",background:rolBg(u.rol),color:rolColor(u.rol)}}>{u.rol}</span>
+                      {!u.activo&&<span style={{marginLeft:"6px",fontSize:"11px",color:"var(--red-t)"}}>DESACTIVADO</span>}
+                    </div>
+                    <div style={{display:"flex",gap:"6px"}}>
+                      {u.activo&&(
+                        <button onClick={()=>setEditing({id:u.id,password:"",rol:u.rol})} style={d.btnGhost}>Editar</button>
+                      )}
+                      <button onClick={()=>toggleActivo(u)} style={{...d.btnDanger,background:u.activo?"var(--red-dark)":"var(--green-dark)",color:u.activo?"#fca5a5":"var(--green-t)"}}>
+                        {u.activo?"Desactivar":"Reactivar"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {users.length===0&&<div style={{...d.muted,textAlign:"center",padding:"20px"}}>No hay usuarios</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Admin({cfg,saveCfg,registros,onPurgeDB}){
+  const[tab,setTab]=useState("usuarios");
+  const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📦 Estados Material",key:"estadosMaterial"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
     <div style={{maxWidth:"700px",margin:"0 auto"}}>
@@ -1113,7 +1679,9 @@ function Admin({cfg,saveCfg}){
           </button>
         ))}
       </div>
-      {ct?.key&&<ListEditor key={tab} title={ct.label} items={cfg[ct.key]||[]} onSave={(list)=>saveCfg({...cfg,[ct.key]:list})}/>}
+      {tab==="usuarios"&&<UsuariosAdmin/>}
+      {ct?.key&&<ListEditor key={ct.id} title={ct.label} items={cfg[ct.key]||[]} onSave={(list)=>saveCfg({...cfg,[ct.key]:list})}/>}
+      {tab==="purgar"&&<PurgarDB registros={registros} onPurgeDB={onPurgeDB}/>}
       {tab==="backend"&&(
         <div style={d.card}>
           <h3 style={d.h3}>🔗 Backend Node.js</h3>
@@ -1129,6 +1697,105 @@ function Admin({cfg,saveCfg}){
             {"POST " + BACKEND_URL + "/api/config"}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   PURGAR DB
+═══════════════════════════════════════════════════════ */
+function PurgarDB({registros,onPurgeDB}){
+  const[confirm,setConfirm]=useState(false);
+  const[loading,setLoading]=useState(false);
+  const[done,setDone]=useState(null);
+
+  const exportAll=()=>{
+    const headers=["ID","Fecha/Hora","Tipo","Perfil","Módulo","Nombre","Remito","Detalle","Estado","Obs","Egreso Temprano","Usuario"];
+    const rows=registros.map(r=>[r.id,fmtDate(r.fechaHora),r.tipoOp,r.perfil,r.modulo||"general",r.nombre,r.remito,r.detalle,r.estado,r.obs,r.egresoTemprano?"Sí":"No",r.usuario]);
+    const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=`registros_backup_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();URL.revokeObjectURL(url);
+  };
+
+  const handlePurge=async()=>{
+    setLoading(true);
+    const result=await onPurgeDB();
+    setLoading(false);
+    if(result.ok){setConfirm(false);setDone(result.eliminados);}
+  };
+
+  if(done!==null)return(
+    <div style={{...d.card,textAlign:"center",padding:"40px 20px"}}>
+      <div style={{fontSize:"40px",marginBottom:"12px"}}>✅</div>
+      <div style={{fontSize:"16px",fontWeight:700,color:"var(--green-t)",marginBottom:"8px"}}>Base de datos limpiada</div>
+      <div style={{fontSize:"13px",color:"var(--text-muted)"}}>{done} registros eliminados correctamente.</div>
+    </div>
+  );
+
+  return(
+    <div>
+      <div style={{background:"var(--red-bg)",border:"1px solid var(--red-dark)",borderRadius:"var(--radius-lg)",padding:"16px 20px",marginBottom:"18px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
+          <span style={{fontSize:"20px"}}>⚠️</span>
+          <span style={{fontSize:"14px",fontWeight:700,color:"var(--red-t)",textTransform:"uppercase",letterSpacing:"0.05em"}}>Zona de peligro</span>
+        </div>
+        <p style={{fontSize:"13px",color:"var(--red-t)",lineHeight:1.6,margin:0}}>
+          Esta sección permite borrar <strong>permanentemente</strong> todos los registros de la base de datos. Esta acción <strong>no se puede deshacer</strong>. Exportá los datos antes de continuar.
+        </p>
+      </div>
+
+      <div style={d.card}>
+        <h3 style={d.h3}>🗑️ Limpiar base de datos de registros</h3>
+        <div style={{...d.muted,marginBottom:"20px"}}>
+          Registros actuales en la base: <strong style={{color:"var(--text)",fontSize:"16px",marginLeft:"6px"}}>{registros.length}</strong>
+        </div>
+        <div style={{marginBottom:"14px",padding:"14px",background:"var(--bg-input)",borderRadius:"var(--radius)",borderLeft:"3px solid var(--accent)"}}>
+          <div style={{fontSize:"13px",fontWeight:600,color:"var(--text)",marginBottom:"5px"}}>Paso 1 — Exportar datos (recomendado)</div>
+          <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:"10px"}}>Descargá una copia de todos los registros antes de borrar.</div>
+          <button onClick={exportAll} style={d.btnPrimary}>📥 Exportar todo a Excel/CSV</button>
+        </div>
+        <div style={{padding:"14px",background:"var(--red-bg)",borderRadius:"var(--radius)",borderLeft:"3px solid var(--red-dark)"}}>
+          <div style={{fontSize:"13px",fontWeight:600,color:"var(--red-t)",marginBottom:"5px"}}>Paso 2 — Borrar registros</div>
+          <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:"10px"}}>Se eliminarán los {registros.length} registros de forma permanente.</div>
+          <button onClick={()=>setConfirm(true)} disabled={registros.length===0} style={{...d.btnDanger,fontSize:"13px",padding:"9px 18px",opacity:registros.length===0?0.4:1,cursor:registros.length===0?"not-allowed":"pointer"}}>
+            🗑️ Borrar todos los registros
+          </button>
+        </div>
+      </div>
+
+      {confirm&&ReactDOM.createPortal(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px"}}>
+          <div style={{background:"var(--bg-sidebar)",border:"2px solid var(--red-dark)",borderRadius:"var(--radius-lg)",padding:"28px 28px",maxWidth:"460px",width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.7)"}}>
+            <div style={{textAlign:"center",marginBottom:"22px"}}>
+              <div style={{fontSize:"40px",marginBottom:"10px"}}>🚨</div>
+              <div style={{fontSize:"15px",fontWeight:800,color:"var(--red-t)",textTransform:"uppercase",letterSpacing:"0.06em",lineHeight:1.4,marginBottom:"14px"}}>
+                ESTÁS A PUNTO DE BORRAR<br/>LA BASE DE DATOS DE REGISTROS
+              </div>
+              <div style={{fontSize:"14px",fontWeight:600,color:"var(--text)",marginBottom:"10px"}}>
+                ¿DESEÁS EXPORTAR ANTES LOS DATOS A EXCEL?
+              </div>
+              <div style={{fontSize:"12px",color:"var(--text-muted)",lineHeight:1.6}}>
+                Se eliminarán <strong style={{color:"var(--red-t)"}}>{registros.length} registros</strong> permanentemente.<br/>Esta acción no se puede deshacer.
+              </div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:"10px"}}>
+              <button onClick={exportAll} style={{...d.btnPrimary,width:"100%",justifyContent:"center",display:"flex",fontSize:"14px",padding:"10px"}}>
+                📥 Sí, exportar primero a Excel
+              </button>
+              <button onClick={handlePurge} disabled={loading} style={{...d.btnDanger,width:"100%",padding:"10px",fontSize:"13px",opacity:loading?0.6:1}}>
+                {loading?"Borrando...":"🗑️ Borrar sin exportar"}
+              </button>
+              <button onClick={()=>setConfirm(false)} style={{...d.btnGhost,width:"100%"}}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -1259,10 +1926,24 @@ function App(){
 
   const saveCfg=async(nc)=>{
     setCfg(nc);await stSet("porteria_v2_cfg",nc);showToast("✓ Configuración guardada");
-    // Sync config con backend
     try{
       await fetch(`${BACKEND_URL}/api/config`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(nc)});
     }catch(_){}
+  };
+
+  const purgeDB=async()=>{
+    try{
+      const res=await fetch(`${BACKEND_URL}/api/registros/purge`,{method:"DELETE"});
+      const data=await res.json();
+      if(!data.ok)throw new Error(data.error);
+      setRegistros([]);
+      await stSet("porteria_v2_reg",[]);
+      showToast(`✓ ${data.eliminados} registros eliminados`);
+      return{ok:true,eliminados:data.eliminados};
+    }catch(err){
+      showToast("Error al purgar: "+err.message,"error");
+      return{ok:false};
+    }
   };
   const nextId=()=>new Set(registros.map(r=>r.id)).size+1;
 
@@ -1278,15 +1959,17 @@ function App(){
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
+      {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
+      <div className="main-wrap" style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
-        <main style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1300px",margin:"0 auto"}}>
-          {view==="dashboard"&&<Dashboard registros={registros} setView={setView} addRegistros={addRegistros} nextId={nextId}/>}
+        <main className="main-pad" style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1100px",margin:"0 auto"}}>
+          {view==="dashboard"&&<Dashboard registros={registros} setView={setView}/>}
+          {view==="analytics"&&<Analytics registros={registros}/>}
           {view==="nueva"&&<NuevaOp registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="generadores"&&<Generadores registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
-          {view==="materiales"&&<Materiales registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
-          {view==="historial"&&<Historial registros={registros} addRegistros={addRegistros} nextId={nextId}/>}
-          {view==="admin"&&user.role==="admin"&&<Admin cfg={cfg} saveCfg={saveCfg}/>}
+          {view==="historial"&&<Historial registros={registros}/>}
+          {view==="tempranos"&&<EgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>}
+          {view==="admin"&&user.role==="admin"&&<Admin cfg={cfg} saveCfg={saveCfg} registros={registros} onPurgeDB={purgeDB}/>}
         </div></main>
         <Footer/>
       </div>
