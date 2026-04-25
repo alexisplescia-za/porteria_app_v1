@@ -37,11 +37,18 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-
   .sidebar{transform:translateX(-100%);position:fixed!important;z-index:100;transition:transform .3s}
   .sidebar.open{transform:translateX(0)}
   .main-wrap{margin-left:0!important}
+  .main-pad{padding:16px!important}
   .g4{grid-template-columns:1fr 1fr!important}
+  .g3{grid-template-columns:1fr!important}
   .g2{grid-template-columns:1fr!important}
   .filter-row{grid-template-columns:1fr!important}
   .hide-mobile{display:none!important}
+  .sidebar-overlay{display:block!important}
 }
+@media(min-width:769px){
+  .hide-desktop{display:none!important}
+}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9;cursor:pointer}
 </style>
 </head>
 <body>
@@ -1491,25 +1498,33 @@ function UsuariosAdmin(){
   const[loading,setLoading]=useState(true);
   const[err,setErr]=useState("");
   const[msg,setMsg]=useState("");
-  // form nuevo usuario
   const[newUser,setNewUser]=useState({username:"",password:"",rol:"porteria"});
   const[newErr,setNewErr]=useState("");
   const[creating,setCreating]=useState(false);
-  // edición inline
-  const[editing,setEditing]=useState(null); // {id, password, rol}
+  const[editing,setEditing]=useState(null);
 
   const flash=(text,isErr=false)=>{
     if(isErr)setErr(text); else setMsg(text);
     setTimeout(()=>{setErr("");setMsg("");},3500);
   };
 
+  // Parsea la respuesta de forma segura — si el backend devuelve HTML (ruta no existe) no rompe
+  const safeJson=async(r)=>{
+    try{return await r.json();}
+    catch{return{ok:false,error:`El backend no tiene esta función aún (${r.status}). Actualizá el backend en Render.`};}
+  };
+
   const loadUsers=async()=>{
     setLoading(true);
     try{
       const r=await fetch(`${BACKEND_URL}/api/usuarios`);
-      const data=await r.json();
-      if(data.ok) setUsers(data.data);
-      else flash("Error al cargar usuarios: "+data.error,true);
+      const data=await safeJson(r);
+      if(data.ok){
+        // Normalizar: si el backend viejo no manda "activo", asumimos true
+        setUsers(data.data.map(u=>({...u,activo:u.activo!==undefined?u.activo:true})));
+      } else {
+        flash("Error al cargar usuarios: "+data.error,true);
+      }
     }catch{flash("Sin conexión al backend",true);}
     setLoading(false);
   };
@@ -1522,7 +1537,7 @@ function UsuariosAdmin(){
     setCreating(true);
     try{
       const r=await fetch(`${BACKEND_URL}/api/usuarios`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(newUser)});
-      const data=await r.json();
+      const data=await safeJson(r);
       if(data.ok){setNewUser({username:"",password:"",rol:"porteria"});flash("Usuario creado correctamente");loadUsers();}
       else setNewErr(data.error||"Error al crear usuario");
     }catch{setNewErr("Sin conexión al backend");}
@@ -1536,19 +1551,20 @@ function UsuariosAdmin(){
     if(editing.rol!==u.rol) body.rol=editing.rol;
     try{
       const r=await fetch(`${BACKEND_URL}/api/usuarios/${u.id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-      const data=await r.json();
+      const data=await safeJson(r);
       if(data.ok){flash("Usuario actualizado");setEditing(null);loadUsers();}
       else flash(data.error||"Error al actualizar",true);
     }catch{flash("Sin conexión al backend",true);}
   };
 
   const toggleActivo=async(u)=>{
-    const endpoint=u.activo?`${BACKEND_URL}/api/usuarios/${u.id}`:`${BACKEND_URL}/api/usuarios/${u.id}/reactivar`;
-    const method=u.activo?"DELETE":"PUT";
+    const esActivo=u.activo===true||u.activo===undefined;
+    const endpoint=esActivo?`${BACKEND_URL}/api/usuarios/${u.id}`:`${BACKEND_URL}/api/usuarios/${u.id}/reactivar`;
+    const method=esActivo?"DELETE":"PUT";
     try{
       const r=await fetch(endpoint,{method,headers:{"Content-Type":"application/json"}});
-      const data=await r.json();
-      if(data.ok){flash(u.activo?"Usuario desactivado":"Usuario reactivado");loadUsers();}
+      const data=await safeJson(r);
+      if(data.ok){flash(esActivo?"Usuario desactivado":"Usuario reactivado");loadUsers();}
       else flash(data.error||"Error",true);
     }catch{flash("Sin conexión al backend",true);}
   };
@@ -1566,7 +1582,7 @@ function UsuariosAdmin(){
       <div style={{...d.card,marginBottom:"18px"}}>
         <h3 style={d.h3}>Crear usuario</h3>
         <form onSubmit={crearUsuario}>
-          <div style={{...d.g3,marginBottom:"12px"}}>
+          <div className="g3" style={{...d.g3,marginBottom:"12px"}}>
             <div>
               <label style={d.label}>Usuario</label>
               <input style={d.input} value={newUser.username} onChange={e=>setNewUser(p=>({...p,username:e.target.value}))} placeholder="nombre de usuario"/>
@@ -1829,9 +1845,10 @@ function App(){
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
       <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
-      <div style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
+      {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
+      <div className="main-wrap" style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
-        <main style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1100px",margin:"0 auto"}}>
+        <main className="main-pad" style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1100px",margin:"0 auto"}}>
           {view==="dashboard"&&<Dashboard registros={registros} setView={setView}/>}
           {view==="analytics"&&<Analytics registros={registros}/>}
           {view==="nueva"&&<NuevaOp registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
