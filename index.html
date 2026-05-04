@@ -223,6 +223,17 @@ const DEF_CFG={
     "Gomez German","Juarez Juan","Santillan Rodrigo","Silva Guillermo",
     "Silvera Alejandro","Soto Pablo","Taborda David","Tejerina","Veron Ayrton",
   ].sort(),
+  express:[
+    "Nelson Marquez","Maximiliano Napolillo","Daniel Barrozo","Alexis Pelegrini",
+    "Patricio Mosquera","Joaquin Cuello","Alex Lovera","Joel Nievas",
+    "Ramiro Leguizamon","Lucas Sislo","Rubén Tomasa","Ignacio Portillo",
+    "Benigno Acosta","Daniel Ojeda","Luciano Ramallo","Ezequiel Delorenzo",
+    "Luis Malier","Luis Vallejos","Martin Menendez","Joaquin Muñoz",
+    "Martin Rosales","Elias Aquino","Leandro Bolaños","Guillermo Pistoia",
+    "Alan Fernandez","Cristian Tortoriel","Franco Lerchundi","Gabriel Amaya",
+    "Gonzalo Suriano","Magali Mota","Jorge Ledesma","Gustavo Palacios",
+    "Leandro Mancilla",
+  ].sort(),
   estadosMaterial:["Nuevo","Usado","A Reparar","Reparado","Para Baja","En garantía"],
   motivosGenerador:["Mantenimiento preventivo","Reparación","Instalación","Retiro definitivo","Prueba técnica","Actualización"],
   generadores:["Pañol - TRAILER GRANDE","Pañol - TRAILER CHICO","Pañol - ESTATICO","A1","A2","A3"],
@@ -599,8 +610,8 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   // EGRESO TEMPRANO
   const[egresoTemprano,setEgresoTemprano]=useState(false);
 
-  const perfiles=["Proveedor","Técnico","Oficina Técnica","Jefe","Otro"];
-  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;return[];};
+  const perfiles=["Proveedor","Técnico","Oficina Técnica","Repartos","Express","Jefe","Otro"];
+  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;if(perfil==="Express")return cfg.express||[];return[];};
   const addRem=()=>setRemitos(p=>[...p,{id:Date.now(),remito:"",detalle:"",estado:"Nuevo",obs:""}]);
   const updRem=(id,upd)=>setRemitos(p=>p.map(r=>r.id===id?{...r,...upd}:r));
   const delRem=(id)=>setRemitos(p=>p.filter(r=>r.id!==id));
@@ -608,7 +619,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   const validate=()=>{
     const e={};
     if(!nombre.trim())e.nombre="Ingresá el nombre o empresa";
-    if(perfil!=="Otro")remitos.forEach((r,i)=>{if(!r.remito.trim())e[`r${i}`]="Nro de remito requerido";});
+    remitos.forEach((r,i)=>{if(!r.remito.trim())e[`r${i}`]="Nro de remito requerido";});
     setErrors(e);return!Object.keys(e).length;
   };
 
@@ -622,9 +633,9 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
     const lote=[];
 
     // Construir registros de INGRESO (o EGRESO directo si tipoOp===EGRESO)
-    if(perfil==="Otro"||remitos.length===0){
+    if(remitos.length===0){
       const id=genId(tipoOp,n);
-      lote.push({...base,id,idOperacion:id,tipoOp,remito:"N/A",detalle:"N/A",estado:"N/A",obs:obsOtro||"Sin remitos"});
+      lote.push({...base,id,idOperacion:id,tipoOp,remito:"N/A",detalle:"N/A",estado:"N/A",obs:"Sin remitos"});
     }else{
       for(const r of remitos){
         const id=genId(tipoOp,n);
@@ -679,25 +690,23 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
             <label style={d.label}>{perfil==="Proveedor"?"Empresa / Proveedor":"Nombre"}</label>
             {perfil==="Otro"
               ?<input style={{...d.input,borderColor:errors.nombre?"var(--red-dark)":undefined}} value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Nombre completo"/>
-              :<AutoInput options={getNombres()} value={nombre} onChange={setNombre} placeholder="Escribir para buscar..." error={errors.nombre}/>
+              :perfil==="Repartos"
+                ?<select style={{...d.input,borderColor:errors.nombre?"var(--red-dark)":undefined}} value={nombre} onChange={e=>setNombre(e.target.value)}><option value="">Seleccionar...</option><option>Diego Vattimo</option><option>Juan Leguizamon</option></select>
+                :<AutoInput options={getNombres()} value={nombre} onChange={setNombre} placeholder="Escribir para buscar..." error={errors.nombre}/>
             }
-            {perfil==="Otro"&&errors.nombre&&<span style={d.err}>{errors.nombre}</span>}
+            {(perfil==="Otro"||perfil==="Repartos")&&errors.nombre&&<span style={d.err}>{errors.nombre}</span>}
           </div>
         </div>
       </div>
 
       {/* Remitos */}
-      {perfil!=="Otro"?(
-        <>
-          {remitos.map((r,i)=>(
-            <RemitoCard key={r.id} rem={r} idx={i} onUpd={u=>updRem(r.id,u)} onDel={()=>delRem(r.id)} estados={cfg.estadosMaterial} canDel={remitos.length>1}/>
-          ))}
-          {errors[`r0`]&&<span style={{...d.err,display:"block",marginBottom:"8px"}}>{errors["r0"]}</span>}
-          <button onClick={addRem} style={{...d.btnGhost,width:"100%",marginBottom:"16px",padding:"10px",borderStyle:"dashed"}}>+ Agregar remito</button>
-        </>
-      ):(
-        <div style={{...d.card,marginBottom:"16px"}}><label style={d.label}>Observaciones / Detalle</label><textarea style={{...d.input,height:"100px",resize:"vertical"}} value={obsOtro} onChange={e=>setObsOtro(e.target.value)} placeholder="Detallá el motivo..."/></div>
-      )}
+      <>
+        {remitos.map((r,i)=>(
+          <RemitoCard key={r.id} rem={r} idx={i} onUpd={u=>updRem(r.id,u)} onDel={()=>delRem(r.id)} estados={cfg.estadosMaterial} canDel={remitos.length>1}/>
+        ))}
+        {errors[`r0`]&&<span style={{...d.err,display:"block",marginBottom:"8px"}}>{errors["r0"]}</span>}
+        <button onClick={addRem} style={{...d.btnGhost,width:"100%",marginBottom:"16px",padding:"10px",borderStyle:"dashed"}}>+ Agregar remito</button>
+      </>
 
       <button onClick={handleSubmit} disabled={saving} style={{...d.btnPrimary,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1}}>
         {saving?"Guardando...":"💾 Guardar Registro"}
