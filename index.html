@@ -243,7 +243,7 @@ const DEF_CFG={
 // ── URL del backend Node.js (Render) ────────────────────────────
 const BACKEND_URL = "https://porteria-backend.onrender.com";
 
-const VIEWS={dashboard:"Dashboard",analytics:"Analytics",nueva:"Nueva Operación",generadores:"Grupos Electrógenos",historial:"Historial",tempranos:"Egresos Tempranos",admin:"Administración"};
+const VIEWS={dashboard:"Dashboard",analytics:"Analytics",nueva:"Nueva Operación",generadores:"Grupos Electrógenos",historial:"Historial",tempranos:"Pendientes de Egreso",admin:"Administración"};
 
 /* ═══════════════════════════════════════════════════════
    HELPERS
@@ -448,7 +448,7 @@ function LoginScreen({onLogin}){
 /* ═══════════════════════════════════════════════════════
    SIDEBAR
 ═══════════════════════════════════════════════════════ */
-const NAV=[{id:"dashboard",label:"Dashboard",icon:"🏠"},{id:"analytics",label:"Analytics",icon:"📊"},{id:"nueva",label:"Nueva Operación",icon:"➕"},{id:"generadores",label:"Grupos Electrógenos",icon:"⚡"},{id:"historial",label:"Historial",icon:"📋"},{id:"tempranos",label:"Egresos Tempranos",icon:"⏱️"}];
+const NAV=[{id:"dashboard",label:"Dashboard",icon:"🏠"},{id:"analytics",label:"Analytics",icon:"📊"},{id:"nueva",label:"Nueva Operación",icon:"➕"},{id:"generadores",label:"Grupos Electrógenos",icon:"⚡"},{id:"historial",label:"Historial",icon:"📋"},{id:"tempranos",label:"Pendientes de Egreso",icon:"⏱️"}];
 function Sidebar({view,setView,user,onLogout,sidebarOpen}){
   const nb=(item,accentColor)=>{
     const active=view===item.id;
@@ -524,7 +524,7 @@ function Dashboard({registros,setView}){
   const SC=[
     {l:"Ingresos hoy",v:stats.ingH,bg:"var(--green-bg)",c:"var(--green-t)",bd:"var(--green-dark)"},
     {l:"Egresos hoy",v:stats.egH,bg:"var(--red-bg)",c:"var(--red-t)",bd:"var(--red-dark)"},
-    {l:"Registros abiertos",v:stats.abiertos,bg:"var(--amber-bg)",c:"var(--amber-t)",bd:"var(--amber)"},
+    {l:"Sin egreso",v:stats.abiertos,bg:"var(--amber-bg)",c:"var(--amber-t)",bd:"var(--amber)"},
     {l:"Generadores activos",v:stats.genDentro,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
   ];
   return(
@@ -600,15 +600,12 @@ function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
    NUEVA OPERACIÓN
 ═══════════════════════════════════════════════════════ */
 function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
-  const[tipoOp,setTipoOp]=useState("INGRESO");
   const[perfil,setPerfil]=useState("Proveedor");
   const[nombre,setNombre]=useState("");
   const[remitos,setRemitos]=useState([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);
   const[obsOtro,setObsOtro]=useState("");
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
-  // EGRESO TEMPRANO
-  const[egresoTemprano,setEgresoTemprano]=useState(false);
 
   const perfiles=["Proveedor","Técnico","Oficina Técnica","Repartos","Express","Jefe","Otro"];
   const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;if(perfil==="Express")return cfg.express||[];return[];};
@@ -623,29 +620,23 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
     setErrors(e);return!Object.keys(e).length;
   };
 
-  const reset=()=>{setNombre("");setObsOtro("");setEgresoTemprano(false);setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);};
+  const reset=()=>{setNombre("");setObsOtro("");setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);};
 
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
-    const n=nextId();const inId=genId("INGRESO",n);const now=nowISO();
+    const n=nextId();const now=nowISO();
     const grupoId=`GRP-${n}`;
     const base={grupoId,fechaHora:now,perfil,nombre:nombre.trim(),modulo:"general",usuario:user.name};
     const lote=[];
 
-    // Construir registros de INGRESO (o EGRESO directo si tipoOp===EGRESO)
     if(remitos.length===0){
-      const id=genId(tipoOp,n);
-      lote.push({...base,id,idOperacion:id,tipoOp,remito:"N/A",detalle:"N/A",estado:"N/A",obs:"Sin remitos"});
+      const id=genId("INGRESO",n);
+      lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:"N/A",detalle:"N/A",estado:"N/A",obs:"Sin remitos",egresoTemprano:true});
     }else{
       for(const r of remitos){
-        const id=genId(tipoOp,n);
-        lote.push({...base,id,idOperacion:id,tipoOp,remito:r.remito,detalle:r.detalle,estado:r.estado,obs:r.obs||obsOtro||"N/A"});
+        const id=genId("INGRESO",n);
+        lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:r.remito,detalle:r.detalle,estado:r.estado,obs:r.obs||obsOtro||"N/A",egresoTemprano:true});
       }
-    }
-
-    // Si es INGRESO + egreso temprano, marcar la bandera en los registros del lote
-    if(tipoOp==="INGRESO"&&egresoTemprano){
-      lote.forEach(r=>r.egresoTemprano=true);
     }
 
     await addRegistros(lote);
@@ -654,27 +645,13 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
 
   return(
     <div style={{maxWidth:"700px",margin:"0 auto"}}>
-      {/* Tipo Op */}
-      <div style={{...d.card,marginBottom:"16px"}}>
-        <label style={d.label}>Tipo de Operación</label>
-        <div style={{display:"flex",gap:"8px",marginTop:"6px"}}>
-          {["INGRESO","EGRESO"].map(t=>(
-            <button key={t} onClick={()=>{setTipoOp(t);setEgresoTemprano(false);}} style={{flex:1,padding:"12px",borderRadius:"var(--radius)",border:`1px solid ${tipoOp===t?(t==="INGRESO"?"var(--green-dark)":"var(--red-dark)"):"var(--border)"}`,cursor:"pointer",fontWeight:700,fontSize:"15px",background:tipoOp===t?(t==="INGRESO"?"var(--green-bg)":"var(--red-bg)"):"transparent",color:tipoOp===t?(t==="INGRESO"?"var(--green-t)":"var(--red-t)"):"var(--text-muted)",transition:"all .15s"}}>
-              {t==="INGRESO"?"▶ INGRESO":"◀ EGRESO"}
-            </button>
-          ))}
+      {/* Ingreso */}
+      <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)"}}>
+        <span style={{fontSize:"22px"}}>▶</span>
+        <div>
+          <div style={{fontSize:"15px",fontWeight:700,color:"var(--green-t)"}}>INGRESO Y EGRESO</div>
+          <div style={{fontSize:"12px",color:"var(--green-t)",opacity:.7,marginTop:"2px"}}>La persona ingresa ahora. Registrá el egreso desde "Pendientes de Egreso" cuando se retire.</div>
         </div>
-        {/* Egreso Temprano toggle — solo en INGRESO */}
-        {tipoOp==="INGRESO"&&(
-          <div style={{marginTop:"14px",padding:"12px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)"}}>
-            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Egreso temprano esperado" accent="var(--amber)"/>
-            {egresoTemprano&&(
-              <div style={{marginTop:"8px",fontSize:"12px",color:"var(--amber-t)"}}>
-                ⚠️ Se registrará el ingreso con bandera de egreso temprano. Cuando la persona se retire, registrá el egreso normalmente.
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Perfil + Nombre */}
@@ -719,7 +696,6 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
    GENERADORES
 ═══════════════════════════════════════════════════════ */
 function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
-  const[tipoOp,setTipoOp]=useState("INGRESO");
   const[proveedor,setProveedor]=useState("");
   const[tecnico,setTecnico]=useState("");
   const[modelo,setModelo]=useState("");
@@ -727,7 +703,6 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   const[obs,setObs]=useState("");
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
-  const[egresoTemprano,setEgresoTemprano]=useState(false);
 
   const genList=useMemo(()=>{const seen=new Set();return[...registros].filter(r=>r.modulo==="generador").filter(r=>{if(!seen.has(r.id)){seen.add(r.id);return true;}return false;});},[registros]);
   
@@ -735,10 +710,9 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
-    const n=nextId();const id=genId(tipoOp,n);const grupoId=`GRP-${n}`;
-    const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:modelo.trim(),detalle:motivo,estado:tipoOp==="INGRESO"?"Dentro":"Retirado",obs:`Técnico: ${tecnico||"N/A"} | ${obs}`,tipoOp,modulo:"generador",proveedor:proveedor.trim(),tecnico,modelo:modelo.trim(),motivo,usuario:user.name};
-    if(tipoOp==="INGRESO"&&egresoTemprano) base.egresoTemprano=true;
-    await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setEgresoTemprano(false);setErrors({});setView("dashboard");
+    const n=nextId();const id=genId("INGRESO",n);const grupoId=`GRP-${n}`;
+    const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:modelo.trim(),detalle:motivo,estado:"Dentro",obs:`Técnico: ${tecnico||"N/A"} | ${obs}`,tipoOp:"INGRESO",modulo:"generador",proveedor:proveedor.trim(),tecnico,modelo:modelo.trim(),motivo,usuario:user.name,egresoTemprano:true};
+    await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setErrors({});setView("dashboard");
   };
 
   return(
@@ -748,25 +722,12 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
         <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{genList.length} generador(es) registrado(s) en el sistema</div></div>
       </div>
 
-      <div style={{...d.card,marginBottom:"16px"}}>
-        <label style={d.label}>Tipo de Operación</label>
-        <div style={{display:"flex",gap:"8px",marginTop:"6px"}}>
-          {["INGRESO","EGRESO"].map(t=>(
-            <button key={t} onClick={()=>{setTipoOp(t);setEgresoTemprano(false);}} style={{flex:1,padding:"12px",borderRadius:"var(--radius)",border:`1px solid ${tipoOp===t?(t==="INGRESO"?"var(--green-dark)":"var(--red-dark)"):"var(--border)"}`,cursor:"pointer",fontWeight:700,fontSize:"15px",background:tipoOp===t?(t==="INGRESO"?"var(--green-bg)":"var(--red-bg)"):"transparent",color:tipoOp===t?(t==="INGRESO"?"var(--green-t)":"var(--red-t)"):"var(--text-muted)"}}>
-              {t==="INGRESO"?"▶ INGRESO":"◀ EGRESO"}
-            </button>
-          ))}
+      <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)"}}>
+        <span style={{fontSize:"22px"}}>⚡</span>
+        <div>
+          <div style={{fontSize:"15px",fontWeight:700,color:"var(--green-t)"}}>INGRESO DE GENERADOR</div>
+          <div style={{fontSize:"12px",color:"var(--green-t)",opacity:.7,marginTop:"2px"}}>Registrá el ingreso ahora. Cerrá el egreso desde "Pendientes de Egreso" cuando se retire el equipo.</div>
         </div>
-        {tipoOp==="INGRESO"&&(
-          <div style={{marginTop:"14px",padding:"12px",background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius)"}}>
-            <Toggle checked={egresoTemprano} onChange={setEgresoTemprano} label="Egreso temprano esperado" accent="var(--amber)"/>
-            {egresoTemprano&&(
-              <div style={{marginTop:"8px",fontSize:"12px",color:"var(--amber-t)"}}>
-                ⚠️ Se registrará el ingreso con bandera de egreso temprano. Cuando el equipo se retire, registrá el egreso normalmente.
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div style={{...d.card,marginBottom:"16px"}}>
@@ -781,8 +742,8 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
         <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
       </div>
 
-      <button onClick={handleSubmit} disabled={saving} style={{...d.btnPrimary,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
-        {saving?"Guardando...":"⚡ Registrar Grupo Electrógeno"}
+      <button onClick={handleSubmit} disabled={saving} style={{...d.btnSuccess,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
+        {saving?"Guardando...":"⚡ Registrar Ingreso de Generador"}
       </button>
 
       {genList.length>0&&(
@@ -804,7 +765,7 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
 
 function GeEgresosTemprano({registros,addRegistros,nextId,user}){
   const ingTempranos=useMemo(()=>
-    registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano&&r.modulo==="generador")
+    registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo==="generador")
   ,[registros]);
 
   const gruposConEgreso=useMemo(()=>
@@ -816,9 +777,16 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
   const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingTempranos,gruposConEgreso]);
   const cerrados=useMemo(()=>unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
 
-  const cerrarEgreso=async(ing)=>{
+  const[modalIng,setModalIng]=useState(null);
+  const[showRemito,setShowRemito]=useState(false);
+  const[remitoEg,setRemitoEg]=useState({remito:"",obs:""});
+
+  const abrirModal=(ing)=>{setModalIng(ing);setShowRemito(false);setRemitoEg({remito:"",obs:""});};
+
+  const confirmarEgreso=async(conRemito)=>{
+    const ing=modalIng;setModalIng(null);
     const n=nextId();const egId=genId("EGRESO",n);
-    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:ing.perfil,nombre:ing.nombre,remito:ing.remito,detalle:ing.detalle,estado:"Retirado",obs:"Egreso temprano cerrado",modulo:"generador",egresoTemprano:true,usuario:user.name}]);
+    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:ing.perfil,nombre:ing.nombre,remito:conRemito&&remitoEg.remito?remitoEg.remito:ing.remito,detalle:ing.detalle,estado:"Retirado",obs:conRemito&&remitoEg.obs?remitoEg.obs:"Egreso registrado",modulo:"generador",egresoTemprano:true,usuario:user.name}]);
   };
 
   const tiempoDesde=(fechaHora)=>{const diff=Math.round((new Date()-new Date(fechaHora))/60000);if(diff<60)return`${diff} min`;return`${Math.floor(diff/60)}h ${diff%60}min`;};
@@ -830,14 +798,14 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
 
   return(
     <div style={{marginTop:"18px"}}>
-      {/* ABIERTOS */}
+      {/* PENDIENTES */}
       <div style={{...d.card,marginBottom:"14px",border:"1px solid var(--amber)"}}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
           <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>EGRESOS TEMPRANOS ABIERTOS</h3>
+          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>GENERADORES PENDIENTES DE EGRESO</h3>
           <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{abiertos.length}</span>
         </div>
-        {abiertos.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>No hay egresos tempranos pendientes.</p>}
+        {abiertos.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>No hay generadores con egreso pendiente.</p>}
         {abiertos.length>0&&(
           <>
             <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Técnico</div><div style={lbl}>Tiempo</div><div style={lbl}>Acción</div></div>
@@ -846,7 +814,7 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
                 <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.remito||r.modelo}</div><div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"2px"}}>{r.nombre}</div></div>
                 <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
                 <div style={{fontSize:"15px",fontWeight:700,color:"var(--amber-t)"}}>{tiempoDesde(r.fechaHora)}</div>
-                <button onClick={()=>cerrarEgreso(r)} style={{padding:"8px 14px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>✓ Cerrar Egreso</button>
+                <button onClick={()=>abrirModal(r)} style={{padding:"8px 14px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>◀ Registrar Egreso</button>
               </div>
             ))}
           </>
@@ -856,10 +824,10 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
       <div style={d.card}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
           <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>EGRESOS TEMPRANOS CERRADOS</h3>
+          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>GENERADORES EGRESADOS</h3>
           <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{cerrados.length}</span>
         </div>
-        {cerrados.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>Aún no hay egresos tempranos cerrados.</p>}
+        {cerrados.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>Aún no hay generadores egresados.</p>}
         {cerrados.length>0&&(
           <>
             <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Ingreso</div><div style={lbl}>Egreso</div><div style={lbl}>Duración</div></div>
@@ -879,6 +847,37 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
           </>
         )}
       </div>
+
+      {/* Modal de egreso */}
+      {modalIng&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"20px"}}>
+          <div style={{...d.card,width:"100%",maxWidth:"420px",border:"1px solid var(--amber)"}}>
+            <div style={{marginBottom:"18px"}}>
+              <div style={{fontSize:"16px",fontWeight:700,color:"var(--amber-t)"}}>◀ Registrar Egreso de Generador</div>
+              <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"4px"}}>{modalIng.remito||modalIng.modelo} · {modalIng.nombre}</div>
+            </div>
+            {!showRemito?(
+              <div>
+                <p style={{fontSize:"14px",color:"var(--text)",marginBottom:"20px",lineHeight:1.6}}>¿Desea cargar un remito de egreso?</p>
+                <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
+                  <button onClick={()=>setModalIng(null)} style={{...d.btnGhost,flex:1}}>Cancelar</button>
+                  <button onClick={()=>confirmarEgreso(false)} style={{...d.btnPrimary,flex:1}}>Solo egreso</button>
+                  <button onClick={()=>setShowRemito(true)} style={{...d.btnSuccess,flex:1}}>+ Remito</button>
+                </div>
+              </div>
+            ):(
+              <div>
+                <div style={d.sec}><label style={d.label}>Nro Remito / OT (egreso)</label><input style={d.input} value={remitoEg.remito} onChange={e=>setRemitoEg(p=>({...p,remito:e.target.value}))} placeholder="Ej: 186757"/></div>
+                <div style={{marginBottom:"16px"}}><label style={d.label}>Observaciones</label><input style={d.input} value={remitoEg.obs} onChange={e=>setRemitoEg(p=>({...p,obs:e.target.value}))} placeholder="Observaciones (opcional)"/></div>
+                <div style={{display:"flex",gap:"10px"}}>
+                  <button onClick={()=>setShowRemito(false)} style={{...d.btnGhost,flex:1}}>Atrás</button>
+                  <button onClick={()=>confirmarEgreso(true)} style={{...d.btnSuccess,flex:1}}>Guardar Egreso</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -985,13 +984,13 @@ function ListEditor({title,items,onSave}){
 }
 
 /* ═══════════════════════════════════════════════════════
-   EGRESOS TEMPRANOS
+   PENDIENTES DE EGRESO
 ═══════════════════════════════════════════════════════ */
 function EgresosTemprano({registros,addRegistros,nextId,user}){
 
-  // INGRESOs marcados como egreso temprano
+  // Todos los INGRESOs que aún no tienen un EGRESO registrado
   const ingTempranos=useMemo(()=>
-    registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano)
+    registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo!=="generador")
   ,[registros]);
 
   // grupoIds que ya tienen un EGRESO registrado
@@ -999,7 +998,6 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
     new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId))
   ,[registros]);
 
-  // Para cada grupoId de egreso temprano, tomamos el primer INGRESO (evitamos duplicados de remitos)
   const unicos=(lista)=>{
     const seen=new Set();
     return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});
@@ -1015,18 +1013,29 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
       .sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora))
   ,[ingTempranos,gruposConEgreso]);
 
-  const cerrarEgreso=async(ing)=>{
+  // ── Modal de egreso ──
+  const[modalIng,setModalIng]=useState(null);
+  const[showRemito,setShowRemito]=useState(false);
+  const[remitoEg,setRemitoEg]=useState({remito:"",detalle:"",obs:""});
+
+  const abrirModal=(ing)=>{setModalIng(ing);setShowRemito(false);setRemitoEg({remito:"",detalle:"",obs:""}); };
+
+  const confirmarEgreso=async(conRemito)=>{
+    const ing=modalIng;
+    setModalIng(null);
     const n=nextId();
     const egId=genId("EGRESO",n);
-    const egreso={
+    await addRegistros([{
       id:egId,idOperacion:egId,grupoId:ing.grupoId,
       fechaHora:nowISO(),tipoOp:"EGRESO",
       perfil:ing.perfil,nombre:ing.nombre,
-      remito:ing.remito,detalle:ing.detalle,estado:ing.estado,
-      obs:"Egreso temprano cerrado",modulo:ing.modulo||"general",
+      remito:conRemito&&remitoEg.remito?remitoEg.remito:ing.remito,
+      detalle:conRemito&&remitoEg.detalle?remitoEg.detalle:ing.detalle,
+      estado:ing.estado,
+      obs:conRemito&&remitoEg.obs?remitoEg.obs:"Egreso registrado",
+      modulo:ing.modulo||"general",
       egresoTemprano:true,usuario:user.name,
-    };
-    await addRegistros([egreso]);
+    }]);
   };
 
   const tiempoDesde=(fechaHora)=>{
@@ -1046,22 +1055,22 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
 
       {/* Header */}
       <div style={{marginBottom:"22px"}}>
-        <div style={{fontSize:"20px",fontWeight:800,color:"var(--amber-t)"}}>⏱️ Egresos Tempranos</div>
+        <div style={{fontSize:"20px",fontWeight:800,color:"var(--amber-t)"}}>⏱️ Pendientes de Egreso</div>
         <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"2px"}}>
-          Ingresos con egreso temprano esperado — {abiertos.length} abierto(s) · {cerrados.length} cerrado(s)
+          Personas dentro del establecimiento — {abiertos.length} pendiente(s) · {cerrados.length} egresado(s)
         </div>
       </div>
 
-      {/* ABIERTOS */}
+      {/* PENDIENTES */}
       <div style={{...d.card,marginBottom:"18px",border:"1px solid var(--amber)"}}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
           <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>EGRESOS TEMPRANOS ABIERTOS</h3>
+          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>PENDIENTES DE EGRESO</h3>
           <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{abiertos.length}</span>
         </div>
 
         {abiertos.length===0&&(
-          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>No hay egresos tempranos pendientes.</p>
+          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>No hay personas con egreso pendiente.</p>
         )}
 
         {abiertos.length>0&&(
@@ -1084,9 +1093,9 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
                 </div>
                 <div style={{fontSize:"15px",fontWeight:700,color:"var(--amber-t)"}}>{tiempoDesde(r.fechaHora)}</div>
                 <button
-                  onClick={()=>cerrarEgreso(r)}
+                  onClick={()=>abrirModal(r)}
                   style={{padding:"8px 16px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>
-                  ✓ Cerrar Egreso
+                  ◀ Registrar Egreso
                 </button>
               </div>
             ))}
@@ -1098,12 +1107,12 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
       <div style={d.card}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"16px"}}>
           <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>EGRESOS TEMPRANOS CERRADOS</h3>
+          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>EGRESOS REGISTRADOS</h3>
           <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{cerrados.length}</span>
         </div>
 
         {cerrados.length===0&&(
-          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>Aún no hay egresos tempranos cerrados.</p>
+          <p style={{...d.muted,textAlign:"center",padding:"16px 0"}}>Aún no hay egresos registrados hoy.</p>
         )}
 
         {cerrados.length>0&&(
@@ -1136,6 +1145,38 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
           </>
         )}
       </div>
+
+      {/* Modal de egreso */}
+      {modalIng&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"20px"}}>
+          <div style={{...d.card,width:"100%",maxWidth:"460px",border:"1px solid var(--amber)"}}>
+            <div style={{marginBottom:"18px"}}>
+              <div style={{fontSize:"16px",fontWeight:700,color:"var(--amber-t)"}}>◀ Registrar Egreso</div>
+              <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"4px"}}>{modalIng.nombre} · {fmtDate(modalIng.fechaHora)}</div>
+            </div>
+            {!showRemito?(
+              <div>
+                <p style={{fontSize:"14px",color:"var(--text)",marginBottom:"20px",lineHeight:1.6}}>¿Desea cargar un remito de egreso?</p>
+                <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
+                  <button onClick={()=>setModalIng(null)} style={{...d.btnGhost,flex:1}}>Cancelar</button>
+                  <button onClick={()=>confirmarEgreso(false)} style={{...d.btnPrimary,flex:1}}>Solo egreso</button>
+                  <button onClick={()=>setShowRemito(true)} style={{...d.btnSuccess,flex:1}}>+ Remito de egreso</button>
+                </div>
+              </div>
+            ):(
+              <div>
+                <div style={d.sec}><label style={d.label}>Nro Remito / OT (egreso)</label><input style={d.input} value={remitoEg.remito} onChange={e=>setRemitoEg(p=>({...p,remito:e.target.value}))} placeholder="Ej: 186757"/></div>
+                <div style={d.sec}><label style={d.label}>Detalle de material</label><input style={d.input} value={remitoEg.detalle} onChange={e=>setRemitoEg(p=>({...p,detalle:e.target.value}))} placeholder="Material retirado..."/></div>
+                <div style={{marginBottom:"16px"}}><label style={d.label}>Observaciones</label><input style={d.input} value={remitoEg.obs} onChange={e=>setRemitoEg(p=>({...p,obs:e.target.value}))} placeholder="Observaciones (opcional)"/></div>
+                <div style={{display:"flex",gap:"10px"}}>
+                  <button onClick={()=>setShowRemito(false)} style={{...d.btnGhost,flex:1}}>Atrás</button>
+                  <button onClick={()=>confirmarEgreso(true)} style={{...d.btnSuccess,flex:1}}>Guardar Egreso</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1183,14 +1224,6 @@ function Analytics({registros}){
     const pct=ma===0?100:Math.round(((mh-ma)/ma)*100);
     return{movHoy:mh,movAyer:ma,pctDiff:pct};
   },[registros,hoy,ayer]);
-
-  // ── KPI: tasa egreso temprano del mes ──
-  const tasaEgresoTemprano=useMemo(()=>{
-    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio);
-    if(!del_mes.length) return 0;
-    const temp=del_mes.filter(r=>r.egresoTemprano).length;
-    return Math.round((temp/del_mes.length)*100);
-  },[registros,mesInicio]);
 
   // ── KPI: tiempo promedio de permanencia hoy (minutos) ──
   const tiempoPromedio=useMemo(()=>{
@@ -1275,7 +1308,7 @@ function Analytics({registros}){
 
   // ── Egresos tempranos pendientes (ingreso con flag, sin egreso aún) ──
   const sinEgreso=useMemo(()=>{
-    const ingTempranos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.egresoTemprano&&r.grupoId);
+    const ingTempranos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId);
     const gruposConEgreso=new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId));
     const seen=new Set();
     return ingTempranos
@@ -1342,7 +1375,7 @@ function Analytics({registros}){
           </span>,
           "var(--blue-t)"
         )}
-        {kpiCard("⏰","Egreso temprano",`${tasaEgresoTemprano}%`,"Del mes actual","var(--amber-t)")}
+        {kpiCard("⏰","Pendientes egreso",sinEgreso.length,"Sin egreso ahora","var(--amber-t)")}
         {kpiCard("⌛","Permanencia prom.",fmtMin(tiempoPromedio),"Promedio hoy (min)","var(--purple-t)")}
       </div>
 
@@ -1464,8 +1497,8 @@ function Analytics({registros}){
 
         {/* Ingresos sin egreso >4h */}
         <div style={d.card}>
-          <h3 style={{...d.h3,color:"var(--amber-t)"}}>⏱️ Egresos Tempranos Pendientes</h3>
-          {sinEgreso.length===0&&<p style={d.muted}>No hay egresos tempranos pendientes.</p>}
+          <h3 style={{...d.h3,color:"var(--amber-t)"}}>⏱️ Pendientes de Egreso</h3>
+          {sinEgreso.length===0&&<p style={d.muted}>No hay ingresos pendientes de egreso.</p>}
           {sinEgreso.map(r=>{
             const mins=Math.round((ahora-new Date(r.fechaHora))/60000);
             return(
@@ -1482,8 +1515,8 @@ function Analytics({registros}){
 
         {/* Egresos tempranos últimos 7 días por perfil */}
         <div style={d.card}>
-          <h3 style={{...d.h3,color:"var(--red-t)"}}>⏱️ Egresos Tempranos — 7 días</h3>
-          {egresosTempPerfil.length===0&&<p style={d.muted}>Sin egresos tempranos en los últimos 7 días.</p>}
+          <h3 style={{...d.h3,color:"var(--red-t)"}}>📋 Ingresos con egreso — 7 días por perfil</h3>
+          {egresosTempPerfil.length===0&&<p style={d.muted}>Sin actividad en los últimos 7 días.</p>}
           {egresosTempPerfil.map(([perfil,cnt])=>(
             <div key={perfil} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
               <span style={{fontSize:"13px",color:"var(--text)"}}>{perfil}</span>
