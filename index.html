@@ -588,7 +588,7 @@ function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
       </div>
       <div className="g2" style={{...d.g2,marginBottom:"10px"}}>
         <div><label style={d.label}>Nro Remito / OT</label><input style={d.input} value={rem.remito} onChange={e=>u("remito",e.target.value)} placeholder="Ej: 186757"/></div>
-        <div><label style={d.label}>Estado del Material</label><select style={d.input} value={rem.estado} onChange={e=>u("estado",e.target.value)}>{estados.map(s=><option key={s}>{s}</option>)}</select></div>
+        <div><label style={d.label}>Motivo</label><select style={d.input} value={rem.estado} onChange={e=>u("estado",e.target.value)}>{estados.map(s=><option key={s}>{s}</option>)}</select></div>
       </div>
       <div style={d.sec}><label style={d.label}>Detalle de Material</label><input style={d.input} value={rem.detalle} onChange={e=>u("detalle",e.target.value)} placeholder="Descripción del material"/></div>
       <div><label style={d.label}>Observaciones</label><input style={d.input} value={rem.obs} onChange={e=>u("obs",e.target.value)} placeholder="Observaciones (opcional)"/></div>
