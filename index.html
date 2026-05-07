@@ -234,7 +234,7 @@ const DEF_CFG={
     "Gonzalo Suriano","Magali Mota","Jorge Ledesma","Gustavo Palacios",
     "Leandro Mancilla",
   ].sort(),
-  estadosMaterial:["Nuevo","Usado","A Reparar","Reparado","Para Baja","En garantía"],
+  motivosIngreso:["Búsqueda de material","Reparaciones","Retiro de camioneta","Entrega de mercadería","Relevamiento / Inspección","Instalación / Mantenimiento","Otro"],
   motivosGenerador:["Mantenimiento preventivo","Reparación","Instalación","Retiro definitivo","Prueba técnica","Actualización"],
   generadores:["Pañol - TRAILER GRANDE","Pañol - TRAILER CHICO","Pañol - ESTATICO","A1","A2","A3"],
   gsUrl:"",
@@ -580,6 +580,7 @@ function Dashboard({registros,setView}){
 ═══════════════════════════════════════════════════════ */
 function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
   const u=(f,v)=>onUpd({...rem,[f]:v});
+  const esOtro=rem.estado==="Otro";
   return(
     <div style={{...d.card,marginBottom:"12px",borderLeft:"2px solid var(--accent)"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
@@ -588,7 +589,11 @@ function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
       </div>
       <div className="g2" style={{...d.g2,marginBottom:"10px"}}>
         <div><label style={d.label}>Nro Remito / OT</label><input style={d.input} value={rem.remito} onChange={e=>u("remito",e.target.value)} placeholder="Ej: 186757"/></div>
-        <div><label style={d.label}>Motivo</label><select style={d.input} value={rem.estado} onChange={e=>u("estado",e.target.value)}>{estados.map(s=><option key={s}>{s}</option>)}</select></div>
+        <div>
+          <label style={d.label}>Motivo de Ingreso</label>
+          <select style={d.input} value={rem.estado} onChange={e=>u("estado",e.target.value)}>{estados.map(s=><option key={s}>{s}</option>)}</select>
+          {esOtro&&<input style={{...d.input,marginTop:"6px"}} value={rem.motivoLibre||""} onChange={e=>u("motivoLibre",e.target.value)} placeholder="Describí el motivo..."/>}
+        </div>
       </div>
       <div style={d.sec}><label style={d.label}>Detalle de Material</label><input style={d.input} value={rem.detalle} onChange={e=>u("detalle",e.target.value)} placeholder="Descripción del material"/></div>
       <div><label style={d.label}>Observaciones</label><input style={d.input} value={rem.obs} onChange={e=>u("obs",e.target.value)} placeholder="Observaciones (opcional)"/></div>
@@ -602,14 +607,14 @@ function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
 function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   const[perfil,setPerfil]=useState("Proveedor");
   const[nombre,setNombre]=useState("");
-  const[remitos,setRemitos]=useState([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);
+  const[remitos,setRemitos]=useState([{id:1,remito:"",detalle:"",estado:"Búsqueda de material",obs:""}]);
   const[obsOtro,setObsOtro]=useState("");
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
 
   const perfiles=["Proveedor","Técnico","Oficina Técnica","Repartos","Express","Jefe","Otro"];
   const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;if(perfil==="Express")return cfg.express||[];return[];};
-  const addRem=()=>setRemitos(p=>[...p,{id:Date.now(),remito:"",detalle:"",estado:"Nuevo",obs:""}]);
+  const addRem=()=>setRemitos(p=>[...p,{id:Date.now(),remito:"",detalle:"",estado:"Búsqueda de material",obs:""}]);
   const updRem=(id,upd)=>setRemitos(p=>p.map(r=>r.id===id?{...r,...upd}:r));
   const delRem=(id)=>setRemitos(p=>p.filter(r=>r.id!==id));
 
@@ -620,7 +625,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
     setErrors(e);return!Object.keys(e).length;
   };
 
-  const reset=()=>{setNombre("");setObsOtro("");setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Nuevo",obs:""}]);};
+  const reset=()=>{setNombre("");setObsOtro("");setErrors({});setRemitos([{id:1,remito:"",detalle:"",estado:"Búsqueda de material",obs:""}]);};
 
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
@@ -636,7 +641,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
       let n=nextId();
       for(const r of remitos){
         const id=genId("INGRESO",n++);
-        lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:r.remito,detalle:r.detalle,estado:r.estado,obs:r.obs||obsOtro||"N/A",egresoTemprano:true});
+        lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:r.remito,detalle:r.detalle,estado:r.estado==="Otro"?(r.motivoLibre||"Otro"):r.estado,obs:r.obs||obsOtro||"N/A",egresoTemprano:true});
       }
     }
 
@@ -680,7 +685,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
       {/* Remitos */}
       <>
         {remitos.map((r,i)=>(
-          <RemitoCard key={r.id} rem={r} idx={i} onUpd={u=>updRem(r.id,u)} onDel={()=>delRem(r.id)} estados={cfg.estadosMaterial} canDel={remitos.length>1}/>
+          <RemitoCard key={r.id} rem={r} idx={i} onUpd={u=>updRem(r.id,u)} onDel={()=>delRem(r.id)} estados={cfg.motivosIngreso} canDel={remitos.length>1}/>
         ))}
         {errors[`r0`]&&<span style={{...d.err,display:"block",marginBottom:"8px"}}>{errors["r0"]}</span>}
         <button onClick={addRem} style={{...d.btnGhost,width:"100%",marginBottom:"16px",padding:"10px",borderStyle:"dashed"}}>+ Agregar remito</button>
@@ -903,7 +908,7 @@ function Historial({registros}){
   },[registros,search,fTipo,fPerfil,fFecha,fModulo]);
 
   const exportCSV=()=>{
-    const H=["ID","Fecha","Tipo Op","Perfil","Módulo","Nombre/Empresa","Remito/OT","Detalle","Estado","Observaciones","Egreso Temprano","Usuario"];
+    const H=["ID","Fecha","Tipo Op","Perfil","Módulo","Nombre/Empresa","Remito/OT","Detalle","Motivo","Observaciones","Egreso Temprano","Usuario"];
     const rows=filtered.map(r=>[r.id,fmtDate(r.fechaHora),r.tipoOp,r.perfil,r.modulo||"general",r.nombre,r.remito,r.detalle,r.estado,r.obs,r.egresoTemprano?"Sí":"No",r.usuario]);
     const csv=[H,...rows].map(row=>row.map(v=>`"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));a.download=`porteria_${new Date().toISOString().slice(0,10)}.csv`;a.click();
@@ -930,7 +935,7 @@ function Historial({registros}){
           <div style={{textAlign:"center",padding:"52px",color:"var(--text-muted)"}}>No hay registros con los filtros aplicados</div>
         ):(
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>{["ID","Fecha","Op","Perfil","Nombre / Empresa","Remito / OT","Detalle","Estado","ET","Usuario"].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["ID","Fecha","Op","Perfil","Nombre / Empresa","Remito / OT","Detalle","Motivo","ET","Usuario"].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {filtered.map((r,i)=>(
                 <tr key={i} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} style={{transition:"background .1s"}}>
@@ -1187,159 +1192,123 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
 /* ═══════════════════════════════════════════════════════
    ANALYTICS
 ═══════════════════════════════════════════════════════ */
-function Analytics({registros}){
+function Analytics({registros,setView}){
   const[rango,setRango]=useState("30");
-
   const ahora=useMemo(()=>new Date(),[]);
 
+  const hoy=useMemo(()=>{const d=new Date(ahora);d.setHours(0,0,0,0);return d;},[ahora]);
+  const ayer=useMemo(()=>{const d=new Date(hoy);d.setDate(d.getDate()-1);return d;},[hoy]);
+
   const filtrados=useMemo(()=>{
-    if(rango==="todo") return registros;
-    const dias=parseInt(rango,10);
-    const corte=new Date(ahora);
-    corte.setDate(corte.getDate()-dias);
+    if(rango==="todo")return registros;
+    const corte=new Date(ahora);corte.setDate(corte.getDate()-parseInt(rango,10));
     return registros.filter(r=>new Date(r.fechaHora)>=corte);
   },[registros,rango,ahora]);
 
-  const hoy=useMemo(()=>{
-    const d=new Date(ahora);d.setHours(0,0,0,0);return d;
-  },[ahora]);
+  const fmtMin=(m)=>{if(m===null||m===undefined)return"—";const h=Math.floor(m/60);const mn=m%60;return h>0?`${h}h${mn>0?" "+mn+"min":""}`:mn+"min";};
 
-  const ayer=useMemo(()=>{
-    const d=new Date(hoy);d.setDate(d.getDate()-1);return d;
-  },[hoy]);
+  // ── helpers ──
+  const ingresoGruposGlobal=useMemo(()=>new Set(registros.filter(r=>r.tipoOp==="INGRESO").map(r=>r.grupoId)),[registros]);
+  const gruposConEgresoGlobal=useMemo(()=>new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId&&ingresoGruposGlobal.has(r.grupoId)).map(r=>r.grupoId)),[registros,ingresoGruposGlobal]);
 
-  const mesInicio=useMemo(()=>{
-    return new Date(ahora.getFullYear(),ahora.getMonth(),1);
-  },[ahora]);
-
-  // ── KPI: personas dentro ahora ──
+  // ── KPI 1: Dentro ahora ──
   const dentroAhora=useMemo(()=>{
-    const hoyStr=hoy.toDateString();
-    const ingresos=registros.filter(r=>r.tipoOp==="INGRESO"&&new Date(r.fechaHora).toDateString()===hoyStr);
-    const gruposConEgreso=new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId));
-    return ingresos.filter(r=>r.grupoId&&!gruposConEgreso.has(r.grupoId)).length;
-  },[registros,hoy]);
+    const seen=new Set();
+    return registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId&&!gruposConEgresoGlobal.has(r.grupoId)&&!seen.has(r.grupoId)&&seen.add(r.grupoId)).length;
+  },[registros,gruposConEgresoGlobal]);
 
-  // ── KPI: movimientos hoy vs ayer ──
-  const {movHoy,movAyer,pctDiff}=useMemo(()=>{
+  // ── KPI 2: Movimientos hoy vs ayer ──
+  const{movHoy,movAyer,pctDiff}=useMemo(()=>{
     const mh=registros.filter(r=>new Date(r.fechaHora)>=hoy).length;
     const ma=registros.filter(r=>{const f=new Date(r.fechaHora);return f>=ayer&&f<hoy;}).length;
-    const pct=ma===0?100:Math.round(((mh-ma)/ma)*100);
-    return{movHoy:mh,movAyer:ma,pctDiff:pct};
+    return{movHoy:mh,movAyer:ma,pctDiff:ma===0?100:Math.round(((mh-ma)/ma)*100)};
   },[registros,hoy,ayer]);
 
-  // ── KPI: tiempo promedio de permanencia hoy (minutos) ──
-  const tiempoPromedio=useMemo(()=>{
-    const hoyStr=hoy.toDateString();
-    const ingresos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId&&new Date(r.fechaHora).toDateString()===hoyStr);
-    const tiempos=[];
-    ingresos.forEach(ing=>{
-      const eg=registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===ing.grupoId);
-      if(eg){
-        const diff=(new Date(eg.fechaHora)-new Date(ing.fechaHora))/60000;
-        if(diff>0&&diff<1440) tiempos.push(diff);
-      }
-    });
-    if(!tiempos.length) return null;
-    return Math.round(tiempos.reduce((a,b)=>a+b,0)/tiempos.length);
-  },[registros,hoy]);
-
-  // ── Heatmap: [dia0-6][hora0-23] = count ──
-  const heatmapData=useMemo(()=>{
-    const mat=Array.from({length:7},()=>Array(24).fill(0));
-    filtrados.forEach(r=>{
-      const d=new Date(r.fechaHora);
-      const dia=(d.getDay()+6)%7; // 0=Lun
-      const hora=d.getHours();
-      mat[dia][hora]++;
-    });
-    return mat;
-  },[filtrados]);
-
-  const heatmapMax=useMemo(()=>Math.max(1,...heatmapData.flat()),[heatmapData]);
-
-  // ── Top 10 nombres/proveedores del mes ──
-  const top10=useMemo(()=>{
-    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio&&r.nombre);
-    const cnt={};
-    del_mes.forEach(r=>{cnt[r.nombre]=(cnt[r.nombre]||0)+1;});
-    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  },[registros,mesInicio]);
-
-  const top10max=top10.length?top10[0][1]:1;
-
-  // ── Línea de tiempo hoy (ingresos vs egresos por hora) ──
-  const lineaHoy=useMemo(()=>{
-    const hoyStr=hoy.toDateString();
-    const horas=Array.from({length:24},(_,i)=>({h:i,ing:0,eg:0}));
-    registros.filter(r=>new Date(r.fechaHora).toDateString()===hoyStr).forEach(r=>{
-      const h=new Date(r.fechaHora).getHours();
-      if(r.tipoOp==="INGRESO") horas[h].ing++;
-      else horas[h].eg++;
-    });
-    return horas;
-  },[registros,hoy]);
-
-  const lineaMax=useMemo(()=>Math.max(1,...lineaHoy.map(h=>Math.max(h.ing,h.eg))),[lineaHoy]);
-
-  // ── Torta: distribución por perfil del mes ──
-  const perfilData=useMemo(()=>{
-    const del_mes=registros.filter(r=>new Date(r.fechaHora)>=mesInicio&&r.perfil);
-    const cnt={};
-    del_mes.forEach(r=>{cnt[r.perfil]=(cnt[r.perfil]||0)+1;});
-    const total=Object.values(cnt).reduce((a,b)=>a+b,0)||1;
-    const colores={"Proveedor":"var(--accent)","Oficina Técnica":"var(--purple)","Jefe":"var(--green)","Otro":"var(--amber)"};
-    let acum=0;
-    return Object.entries(cnt).map(([perfil,n])=>{
-      const pct=(n/total)*100;
-      const ini=acum;acum+=pct;
-      return{perfil,n,pct:Math.round(pct),ini,color:colores[perfil]||"var(--text-muted)"};
-    });
-  },[registros,mesInicio]);
-
-  // ── Barras por módulo ──
-  const moduloData=useMemo(()=>{
-    const cnt={general:0,generador:0,material:0};
-    filtrados.forEach(r=>{if(cnt[r.modulo]!==undefined)cnt[r.modulo]++;});
-    const mx=Math.max(1,...Object.values(cnt));
-    return[
-      {k:"general",label:"General",cnt:cnt.general,pct:Math.round((cnt.general/mx)*100),color:"var(--accent)"},
-      {k:"generador",label:"Generadores",cnt:cnt.generador,pct:Math.round((cnt.generador/mx)*100),color:"var(--amber)"},
-      {k:"material",label:"Material",cnt:cnt.material,pct:Math.round((cnt.material/mx)*100),color:"var(--purple)"},
-    ];
-  },[filtrados]);
-
-  // ── Egresos tempranos pendientes (ingreso con flag, sin egreso aún) ──
+  // ── KPI 3+4: pendientes + críticos ──
   const sinEgreso=useMemo(()=>{
-    const ingTempranos=registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId);
-    const gruposConEgreso=new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId));
     const seen=new Set();
-    return ingTempranos
-      .filter(r=>!gruposConEgreso.has(r.grupoId)&&!seen.has(r.grupoId)&&seen.add(r.grupoId))
+    return registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId&&!gruposConEgresoGlobal.has(r.grupoId)&&!seen.has(r.grupoId)&&seen.add(r.grupoId))
       .sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora));
+  },[registros,gruposConEgresoGlobal]);
+
+  const criticos=useMemo(()=>sinEgreso.map(r=>({...r,mins:Math.round((ahora-new Date(r.fechaHora))/60000)})).filter(r=>r.mins>=240).sort((a,b)=>b.mins-a.mins),[sinEgreso,ahora]);
+
+  // ── KPI 4: permanencia por perfil ──
+  const permPorPerfil=useMemo(()=>{
+    const map={};
+    registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId).forEach(ing=>{
+      const eg=registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===ing.grupoId);
+      if(!eg)return;
+      const m=(new Date(eg.fechaHora)-new Date(ing.fechaHora))/60000;
+      if(m>0&&m<1440){const p=ing.perfil||"Otro";if(!map[p])map[p]=[];map[p].push(m);}
+    });
+    return Object.entries(map).map(([perfil,arr])=>({perfil,avg:Math.round(arr.reduce((a,b)=>a+b,0)/arr.length)})).sort((a,b)=>b.avg-a.avg).slice(0,5);
   },[registros]);
 
-  // ── Anomalías: egresos tempranos últimos 7 días por perfil ──
-  const egresosTempPerfil=useMemo(()=>{
-    const corte=new Date(ahora);corte.setDate(corte.getDate()-7);
-    const temp=registros.filter(r=>r.egresoTemprano&&new Date(r.fechaHora)>=corte);
-    const cnt={};
-    temp.forEach(r=>{const p=r.perfil||"Sin perfil";cnt[p]=(cnt[p]||0)+1;});
-    return Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
-  },[registros,ahora]);
+  // ── Bloque 2A: tráfico ingresos hoy vs ayer ──
+  const traficoHoy=useMemo(()=>{
+    const hs=Array.from({length:24},(_,i)=>({h:i,hoy:0,ayer:0}));
+    registros.filter(r=>r.tipoOp==="INGRESO"&&new Date(r.fechaHora)>=hoy).forEach(r=>{hs[new Date(r.fechaHora).getHours()].hoy++;});
+    registros.filter(r=>r.tipoOp==="INGRESO").filter(r=>{const f=new Date(r.fechaHora);return f>=ayer&&f<hoy;}).forEach(r=>{hs[new Date(r.fechaHora).getHours()].ayer++;});
+    return hs;
+  },[registros,hoy,ayer]);
+  const traficoMax=useMemo(()=>Math.max(1,...traficoHoy.map(h=>Math.max(h.hoy,h.ayer))),[traficoHoy]);
+  const picoHoy=useMemo(()=>traficoHoy.reduce((a,b)=>b.hoy>a.hoy?b:a,{h:0,hoy:0}),[traficoHoy]);
 
-  const dias7=["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+  // ── Bloque 2B: adentro ahora con tiempo ──
+  const adentroAhora=useMemo(()=>{
+    const seen=new Set();
+    return registros.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId&&!gruposConEgresoGlobal.has(r.grupoId)&&!seen.has(r.grupoId)&&seen.add(r.grupoId))
+      .sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora));
+  },[registros,gruposConEgresoGlobal]);
 
-  const fmtMin=(m)=>{if(m===null)return"—";if(m<60)return`${m} min`;return`${Math.floor(m/60)}h ${m%60}min`;};
-
-  const conicStops=useMemo(()=>{
-    let s="",acum=0;
-    perfilData.forEach(p=>{
-      s+=`${p.color} ${acum}% ${acum+p.pct}%,`;
-      acum+=p.pct;
+  // ── Bloque 3A: Top 15 visitantes ──
+  const top15=useMemo(()=>{
+    const map={};
+    filtrados.filter(r=>r.tipoOp==="INGRESO"&&r.nombre&&r.grupoId).forEach(ing=>{
+      const eg=registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===ing.grupoId);
+      const m=eg?(new Date(eg.fechaHora)-new Date(ing.fechaHora))/60000:0;
+      if(!map[ing.nombre])map[ing.nombre]={visitas:0,totalMins:0,perfil:ing.perfil};
+      map[ing.nombre].visitas++;
+      if(m>0&&m<1440)map[ing.nombre].totalMins+=m;
     });
-    return s.slice(0,-1)||"var(--border) 0% 100%";
-  },[perfilData]);
+    return Object.entries(map).map(([nombre,v])=>({nombre,...v,avgMins:v.visitas>0?Math.round(v.totalMins/v.visitas):0})).sort((a,b)=>b.visitas-a.visitas).slice(0,15);
+  },[filtrados,registros]);
+  const top15max=top15.length?top15[0].visitas:1;
+
+  // ── Bloque 3B: permanencia por perfil min/avg/max ──
+  const permPerfilDetalle=useMemo(()=>{
+    const map={};
+    filtrados.filter(r=>r.tipoOp==="INGRESO"&&r.grupoId).forEach(ing=>{
+      const eg=registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===ing.grupoId);
+      if(!eg)return;
+      const m=(new Date(eg.fechaHora)-new Date(ing.fechaHora))/60000;
+      if(m>0&&m<1440){const p=ing.perfil||"Otro";if(!map[p])map[p]=[];map[p].push(m);}
+    });
+    return Object.entries(map).map(([perfil,arr])=>{
+      arr.sort((a,b)=>a-b);
+      return{perfil,min:Math.round(arr[0]),avg:Math.round(arr.reduce((a,b)=>a+b,0)/arr.length),max:Math.round(arr[arr.length-1]),n:arr.length};
+    }).sort((a,b)=>b.avg-a.avg);
+  },[filtrados,registros]);
+  const permMax=useMemo(()=>Math.max(1,...permPerfilDetalle.map(p=>p.max)),[permPerfilDetalle]);
+
+  // ── Bloque 4B: franjas horarias ──
+  const franjas=useMemo(()=>{
+    const f=[
+      {label:"Madrugada",sub:"0–6h",start:0,end:6,cnt:0,color:"var(--purple)"},
+      {label:"Mañana",sub:"6–12h",start:6,end:12,cnt:0,color:"var(--accent)"},
+      {label:"Mediodía",sub:"12–14h",start:12,end:14,cnt:0,color:"var(--amber)"},
+      {label:"Tarde",sub:"14–18h",start:14,end:18,cnt:0,color:"var(--green)"},
+      {label:"Noche",sub:"18–24h",start:18,end:24,cnt:0,color:"var(--red)"},
+    ];
+    filtrados.filter(r=>r.tipoOp==="INGRESO").forEach(r=>{
+      const h=new Date(r.fechaHora).getHours();
+      const fr=f.find(x=>h>=x.start&&h<x.end);
+      if(fr)fr.cnt++;
+    });
+    const mx=Math.max(1,...f.map(x=>x.cnt));
+    return f.map(x=>({...x,pct:Math.round((x.cnt/mx)*100)}));
+  },[filtrados]);
 
   const rangoOpts=[{v:"1",l:"Hoy"},{v:"7",l:"7 días"},{v:"30",l:"30 días"},{v:"todo",l:"Todo"}];
 
@@ -1354,176 +1323,169 @@ function Analytics({registros}){
   return(
     <div style={{maxWidth:"1100px",margin:"0 auto"}}>
 
-      {/* Header + selector de rango */}
+      {/* Header + rango */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
         <div>
           <div style={{fontSize:"20px",fontWeight:800,color:"var(--text)"}}>📊 Analytics</div>
-          <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"2px"}}>Métricas en tiempo real del sistema de acceso</div>
+          <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"2px"}}>Métricas operativas del sistema de acceso</div>
         </div>
         <div style={{display:"flex",gap:"6px"}}>
           {rangoOpts.map(o=>(
-            <button key={o.v} onClick={()=>setRango(o.v)} style={{padding:"6px 14px",borderRadius:"var(--radius)",border:"1px solid",borderColor:rango===o.v?"var(--accent)":"var(--border-light)",background:rango===o.v?"color-mix(in srgb, var(--accent) 15%, transparent)":"transparent",color:rango===o.v?"var(--accent)":"var(--text-muted)",fontSize:"12px",fontWeight:rango===o.v?700:400,cursor:"pointer"}}>
-              {o.l}
-            </button>
+            <button key={o.v} onClick={()=>setRango(o.v)} style={{padding:"6px 14px",borderRadius:"var(--radius)",border:"1px solid",borderColor:rango===o.v?"var(--accent)":"var(--border-light)",background:rango===o.v?"color-mix(in srgb, var(--accent) 15%, transparent)":"transparent",color:rango===o.v?"var(--accent)":"var(--text-muted)",fontSize:"12px",fontWeight:rango===o.v?700:400,cursor:"pointer"}}>{o.l}</button>
           ))}
         </div>
       </div>
 
-      {/* Fila 1 — KPI Cards */}
+      {/* Bloque 1: KPIs */}
       <div className="g4" style={{...d.g4,marginBottom:"18px"}}>
-        {kpiCard("👥","Dentro ahora",dentroAhora,"Ingresos sin egreso hoy","var(--green-t)")}
+        {kpiCard("👥","Dentro ahora",dentroAhora,"Personas en el establecimiento","var(--green-t)")}
         {kpiCard("🔄","Movimientos hoy",movHoy,
-          <span style={{color:pctDiff>=0?"var(--green-t)":"var(--red-t)"}}>
-            {pctDiff>=0?"↑":"↓"} {Math.abs(pctDiff)}% vs ayer ({movAyer})
-          </span>,
+          <span style={{color:pctDiff>=0?"var(--green-t)":"var(--red-t)"}}>{pctDiff>=0?"↑":"↓"} {Math.abs(pctDiff)}% vs ayer ({movAyer})</span>,
           "var(--blue-t)"
         )}
-        {kpiCard("⏰","Pendientes egreso",sinEgreso.length,"Sin egreso ahora","var(--amber-t)")}
-        {kpiCard("⌛","Permanencia prom.",fmtMin(tiempoPromedio),"Promedio hoy (min)","var(--purple-t)")}
-      </div>
-
-      {/* Fila 2 — Heatmap + Top 10 */}
-      <div className="g2" style={{...d.g2,marginBottom:"18px"}}>
-
-        {/* Heatmap */}
-        <div style={{...d.card,overflowX:"auto"}}>
-          <h3 style={d.h3}>🔥 Heatmap de Tráfico</h3>
-          <div style={{display:"flex",gap:"4px",marginBottom:"6px"}}>
-            <div style={{width:"28px",flexShrink:0}}/>
-            {Array.from({length:24},(_,h)=>(
-              <div key={h} style={{flex:1,fontSize:"9px",color:"var(--text-muted)",textAlign:"center",minWidth:"14px"}}>{h%4===0?h:""}</div>
-            ))}
-          </div>
-          {heatmapData.map((row,di)=>(
-            <div key={di} style={{display:"flex",gap:"4px",marginBottom:"3px",alignItems:"center"}}>
-              <div style={{width:"28px",fontSize:"10px",color:"var(--text-muted)",flexShrink:0,textAlign:"right",paddingRight:"4px"}}>{dias7[di]}</div>
-              {row.map((cnt,hi)=>{
-                const pct=cnt/heatmapMax;
-                const bg=pct===0?"var(--bg-input)":`color-mix(in srgb, var(--accent) ${Math.round(pct*85+5)}%, var(--bg-input))`;
-                return(
-                  <div key={hi} title={`${dias7[di]} ${hi}h: ${cnt} mov`} style={{flex:1,aspectRatio:"1",borderRadius:"3px",background:bg,minWidth:"14px",minHeight:"14px",cursor:"default"}}/>
-                );
-              })}
-            </div>
-          ))}
-          <div style={{display:"flex",alignItems:"center",gap:"6px",marginTop:"10px",justifyContent:"flex-end"}}>
-            <div style={{fontSize:"10px",color:"var(--text-muted)"}}>Menos</div>
-            {[0,.25,.5,.75,1].map(p=>(
-              <div key={p} style={{width:"14px",height:"14px",borderRadius:"3px",background:p===0?"var(--bg-input)":`color-mix(in srgb, var(--accent) ${Math.round(p*85+5)}%, var(--bg-input))`}}/>
-            ))}
-            <div style={{fontSize:"10px",color:"var(--text-muted)"}}>Más</div>
-          </div>
-        </div>
-
-        {/* Top 10 */}
-        <div style={d.card}>
-          <h3 style={d.h3}>🏆 Top 10 del Mes</h3>
-          {top10.length===0&&<p style={d.muted}>Sin datos para el mes actual.</p>}
-          {top10.map(([nombre,cnt],i)=>(
-            <div key={nombre} style={{marginBottom:"10px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"3px"}}>
-                <span style={{fontSize:"12px",color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"78%"}}>{i+1}. {nombre}</span>
-                <span style={{fontSize:"12px",fontWeight:700,color:"var(--accent)",flexShrink:0}}>{cnt}</span>
+        {kpiCard("⏰","Pendientes egreso",sinEgreso.length,criticos.length>0?<span style={{color:"var(--red-t)"}}>{criticos.length} crítico(s) &gt;4h</span>:"Sin alertas críticas","var(--amber-t)")}
+        <div style={{...d.card,display:"flex",flexDirection:"column",gap:"5px"}}>
+          <div style={{fontSize:"11px",fontWeight:600,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:"2px"}}>⌛ Permanencia por perfil</div>
+          {permPorPerfil.length===0
+            ?<div style={{fontSize:"12px",color:"var(--text-muted)"}}>Sin datos completos aún</div>
+            :permPorPerfil.map(p=>(
+              <div key={p.perfil} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"8px"}}>
+                <span style={{fontSize:"11px",color:"var(--text-muted)",flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.perfil}</span>
+                <span style={{fontSize:"12px",fontWeight:700,color:"var(--purple-t)",flexShrink:0}}>{fmtMin(p.avg)}</span>
               </div>
-              <div style={{height:"6px",borderRadius:"3px",background:"var(--bg-input)"}}>
-                <div style={{height:"100%",borderRadius:"3px",background:"var(--accent)",width:`${Math.round((cnt/top10max)*100)}%`,transition:"width .4s"}}/>
-              </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       </div>
 
-      {/* Fila 3 — Línea hoy + Torta perfil + Barras módulo */}
-      <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr",gap:"14px",marginBottom:"18px"}}>
+      {/* Bloque 2: Tráfico hoy vs ayer + Quién está adentro */}
+      <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:"14px",marginBottom:"18px"}}>
 
-        {/* Línea de tiempo hoy */}
         <div style={{...d.card,overflowX:"auto"}}>
-          <h3 style={d.h3}>📈 Ingresos vs Egresos — Hoy por hora</h3>
-          <div style={{display:"flex",alignItems:"flex-end",gap:"3px",height:"100px",paddingBottom:"2px"}}>
-            {lineaHoy.map(({h,ing,eg})=>(
-              <div key={h} title={`${h}h — Ing:${ing} Eg:${eg}`} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:"2px",height:"100%",justifyContent:"flex-end"}}>
-                <div style={{width:"100%",display:"flex",gap:"1px",justifyContent:"center",alignItems:"flex-end",height:"100%"}}>
-                  <div style={{flex:1,borderRadius:"2px 2px 0 0",background:"var(--green-dark)",height:`${Math.round((ing/lineaMax)*100)}%`,minHeight:ing?"2px":"0"}}/>
-                  <div style={{flex:1,borderRadius:"2px 2px 0 0",background:"var(--red-dark)",height:`${Math.round((eg/lineaMax)*100)}%`,minHeight:eg?"2px":"0"}}/>
-                </div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12px"}}>
+            <h3 style={{...d.h3,margin:0}}>📈 Ingresos — Hoy vs Ayer</h3>
+            {picoHoy.hoy>0&&<div style={{fontSize:"11px",color:"var(--text-muted)",background:"var(--bg-input)",padding:"4px 8px",borderRadius:"6px",flexShrink:0}}>Pico: {picoHoy.h}h ({picoHoy.hoy} ing.)</div>}
+          </div>
+          <div style={{display:"flex",alignItems:"flex-end",gap:"3px",height:"90px"}}>
+            {traficoHoy.map(({h,hoy:th,ayer:ta})=>(
+              <div key={h} title={`${h}h — Hoy:${th} Ayer:${ta}`} style={{flex:1,display:"flex",gap:"1px",alignItems:"flex-end",height:"100%"}}>
+                <div style={{flex:1,borderRadius:"2px 2px 0 0",background:th>0&&th===picoHoy.hoy?"var(--accent)":"var(--green-dark)",height:`${Math.round((th/traficoMax)*100)}%`,minHeight:th?"2px":"0"}}/>
+                <div style={{flex:1,borderRadius:"2px 2px 0 0",background:"color-mix(in srgb,var(--border) 80%,transparent)",height:`${Math.round((ta/traficoMax)*100)}%`,minHeight:ta?"2px":"0"}}/>
               </div>
             ))}
           </div>
           <div style={{display:"flex",gap:"3px",marginTop:"4px"}}>
-            {lineaHoy.map(({h})=>(
-              <div key={h} style={{flex:1,textAlign:"center",fontSize:"9px",color:"var(--text-dim)"}}>{h%4===0?h:""}</div>
-            ))}
+            {traficoHoy.map(({h})=><div key={h} style={{flex:1,textAlign:"center",fontSize:"9px",color:"var(--text-dim)"}}>{h%4===0?h:""}</div>)}
           </div>
           <div style={{display:"flex",gap:"14px",marginTop:"8px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}>
-              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--green-dark)"}}/> Ingresos
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}>
-              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--red-dark)"}}/> Egresos
-            </div>
+            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--green-dark)"}}/> Hoy</div>
+            <div style={{display:"flex",alignItems:"center",gap:"5px",fontSize:"11px",color:"var(--text-muted)"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:"var(--border)"}}/> Ayer</div>
           </div>
         </div>
 
-        {/* Torta perfil */}
         <div style={d.card}>
-          <h3 style={d.h3}>🥧 Por Perfil</h3>
-          <div style={{width:"100px",height:"100px",borderRadius:"50%",background:`conic-gradient(${conicStops})`,margin:"0 auto 14px",boxShadow:"0 2px 12px rgba(0,0,0,0.3)"}}/>
-          {perfilData.map(p=>(
-            <div key={p.perfil} style={{display:"flex",alignItems:"center",gap:"6px",marginBottom:"5px"}}>
-              <div style={{width:"10px",height:"10px",borderRadius:"2px",background:p.color,flexShrink:0}}/>
-              <span style={{fontSize:"11px",color:"var(--text)",flex:1}}>{p.perfil}</span>
-              <span style={{fontSize:"11px",color:"var(--text-muted)",fontWeight:700}}>{p.pct}%</span>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
+            <h3 style={{...d.h3,margin:0}}>🟢 Adentro ahora</h3>
+            {adentroAhora.length>0&&<button onClick={()=>setView("tempranos")} style={{...d.btnGhost,fontSize:"10px",padding:"3px 8px"}}>Ver todos</button>}
+          </div>
+          {adentroAhora.length===0
+            ?<p style={d.muted}>Nadie en el establecimiento.</p>
+            :<div style={{maxHeight:"220px",overflowY:"auto"}}>
+              {adentroAhora.map(r=>{
+                const mins=Math.round((ahora-new Date(r.fechaHora))/60000);
+                const alerta=mins>=240;
+                return(
+                  <div key={r.grupoId} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:"1px solid var(--border)"}}>
+                    <div style={{overflow:"hidden"}}>
+                      <div style={{fontSize:"12px",fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.nombre}</div>
+                      <div style={{fontSize:"10px",color:"var(--text-muted)"}}>{r.perfil}</div>
+                    </div>
+                    <div style={{fontSize:"11px",fontWeight:700,color:alerta?"var(--red-t)":"var(--text-muted)",flexShrink:0,marginLeft:"8px"}}>{alerta?"⚠️ ":""}{fmtMin(mins)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          }
+        </div>
+      </div>
+
+      {/* Bloque 3: Top 15 + Permanencia por perfil */}
+      <div className="g2" style={{...d.g2,marginBottom:"18px"}}>
+
+        <div style={d.card}>
+          <h3 style={d.h3}>🏆 Top 15 Visitantes</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"4px 10px",borderBottom:"1px solid var(--border)",paddingBottom:"6px",marginBottom:"4px"}}>
+            {["Visitante","Visitas","T. total","Prom."].map(h=><span key={h} style={{fontSize:"10px",color:"var(--text-muted)",fontWeight:700}}>{h}</span>)}
+          </div>
+          {top15.length===0&&<p style={d.muted}>Sin datos para el período.</p>}
+          {top15.map((v,i)=>(
+            <div key={v.nombre} style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:"4px 10px",alignItems:"center",padding:"5px 0",borderBottom:"1px solid var(--border)"}}>
+              <div>
+                <div style={{fontSize:"11px",color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i+1}. {v.nombre}</div>
+                <div style={{height:"3px",borderRadius:"2px",background:"var(--bg-input)",marginTop:"3px"}}>
+                  <div style={{height:"100%",borderRadius:"2px",background:"var(--accent)",width:`${Math.round((v.visitas/top15max)*100)}%`}}/>
+                </div>
+              </div>
+              <span style={{fontSize:"11px",fontWeight:700,color:"var(--accent)"}}>{v.visitas}</span>
+              <span style={{fontSize:"11px",color:"var(--text-muted)"}}>{v.totalMins>0?fmtMin(Math.round(v.totalMins)):"—"}</span>
+              <span style={{fontSize:"11px",color:"var(--text-muted)"}}>{v.avgMins>0?fmtMin(v.avgMins):"—"}</span>
             </div>
           ))}
-          {perfilData.length===0&&<p style={{...d.muted,fontSize:"11px"}}>Sin datos</p>}
         </div>
 
-        {/* Barras módulo */}
         <div style={d.card}>
-          <h3 style={d.h3}>📦 Por Módulo</h3>
-          {moduloData.map(m=>(
-            <div key={m.k} style={{marginBottom:"14px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
-                <span style={{fontSize:"12px",color:"var(--text)"}}>{m.label}</span>
-                <span style={{fontSize:"12px",fontWeight:700,color:m.color}}>{m.cnt}</span>
+          <h3 style={d.h3}>⏱️ Permanencia por Perfil</h3>
+          {permPerfilDetalle.length===0&&<p style={d.muted}>Sin pares ing+eg en el período.</p>}
+          {permPerfilDetalle.map(p=>(
+            <div key={p.perfil} style={{marginBottom:"16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:"5px"}}>
+                <span style={{fontSize:"12px",fontWeight:600,color:"var(--text)"}}>{p.perfil}</span>
+                <span style={{fontSize:"10px",color:"var(--text-muted)"}}>n={p.n}</span>
               </div>
-              <div style={{height:"8px",borderRadius:"4px",background:"var(--bg-input)"}}>
-                <div style={{height:"100%",borderRadius:"4px",background:m.color,width:`${m.pct}%`,transition:"width .4s"}}/>
+              <div style={{height:"8px",borderRadius:"4px",background:"var(--bg-input)",position:"relative",marginBottom:"4px"}}>
+                <div style={{position:"absolute",left:`${Math.round((p.min/permMax)*100)}%`,width:`${Math.max(2,Math.round(((p.max-p.min)/permMax)*100))}%`,height:"100%",borderRadius:"4px",background:"var(--purple)",opacity:.35}}/>
+                <div style={{position:"absolute",left:`${Math.round((p.avg/permMax)*100)}%`,width:"3px",height:"100%",background:"var(--purple-t)",borderRadius:"2px",transform:"translateX(-50%)"}}/>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:"10px",color:"var(--text-muted)"}}>
+                <span>{fmtMin(p.min)}</span>
+                <span style={{color:"var(--purple-t)",fontWeight:700}}>↑ {fmtMin(p.avg)}</span>
+                <span>{fmtMin(p.max)}</span>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Fila 4 — Anomalías */}
+      {/* Bloque 4: Críticos >4h + Franjas horarias */}
       <div className="g2" style={d.g2}>
 
-        {/* Ingresos sin egreso >4h */}
-        <div style={d.card}>
-          <h3 style={{...d.h3,color:"var(--amber-t)"}}>⏱️ Pendientes de Egreso</h3>
-          {sinEgreso.length===0&&<p style={d.muted}>No hay ingresos pendientes de egreso.</p>}
-          {sinEgreso.map(r=>{
-            const mins=Math.round((ahora-new Date(r.fechaHora))/60000);
-            return(
-              <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
+        <div style={{...d.card,border:criticos.length>0?"1px solid var(--red-dark)":undefined}}>
+          <h3 style={{...d.h3,color:criticos.length>0?"var(--red-t)":undefined}}>⚠️ Alertas — Más de 4 horas adentro</h3>
+          {criticos.length===0
+            ?<p style={d.muted}>Sin alertas críticas ahora.</p>
+            :criticos.map(r=>(
+              <div key={r.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:"1px solid var(--border)"}}>
                 <div>
-                  <div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.nombre||r.id}</div>
+                  <div style={{fontSize:"13px",fontWeight:700,color:"var(--red-t)"}}>{r.nombre}</div>
                   <div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.perfil} · {fmtDate(r.fechaHora)}</div>
                 </div>
-                <div style={{fontSize:"12px",fontWeight:700,color:"var(--amber-t)",flexShrink:0,marginLeft:"8px"}}>{fmtMin(mins)}</div>
+                <div style={{fontSize:"13px",fontWeight:800,color:"var(--red-t)",flexShrink:0,marginLeft:"8px"}}>{fmtMin(r.mins)}</div>
               </div>
-            );
-          })}
+            ))
+          }
         </div>
 
-        {/* Egresos tempranos últimos 7 días por perfil */}
         <div style={d.card}>
-          <h3 style={{...d.h3,color:"var(--red-t)"}}>📋 Ingresos con egreso — 7 días por perfil</h3>
-          {egresosTempPerfil.length===0&&<p style={d.muted}>Sin actividad en los últimos 7 días.</p>}
-          {egresosTempPerfil.map(([perfil,cnt])=>(
-            <div key={perfil} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--border)"}}>
-              <span style={{fontSize:"13px",color:"var(--text)"}}>{perfil}</span>
-              <span style={{fontSize:"13px",fontWeight:700,color:"var(--red-t)"}}>{cnt}</span>
+          <h3 style={d.h3}>🕐 Ingresos por Franja Horaria</h3>
+          {franjas.map(f=>(
+            <div key={f.label} style={{marginBottom:"12px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
+                <span style={{fontSize:"12px",color:"var(--text)"}}>{f.label} <span style={{fontSize:"10px",color:"var(--text-muted)"}}>{f.sub}</span></span>
+                <span style={{fontSize:"12px",fontWeight:700,color:f.color}}>{f.cnt}</span>
+              </div>
+              <div style={{height:"8px",borderRadius:"4px",background:"var(--bg-input)"}}>
+                <div style={{height:"100%",borderRadius:"4px",background:f.color,width:`${f.pct}%`,transition:"width .4s"}}/>
+              </div>
             </div>
           ))}
         </div>
@@ -1709,7 +1671,7 @@ function UsuariosAdmin(){
 
 function Admin({cfg,saveCfg,registros,onPurgeDB}){
   const[tab,setTab]=useState("usuarios");
-  const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📦 Estados Material",key:"estadosMaterial"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
+  const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📝 Motivos de Ingreso",key:"motivosIngreso"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
     <div style={{maxWidth:"700px",margin:"0 auto"}}>
@@ -1756,7 +1718,7 @@ function PurgarDB({registros,onPurgeDB}){
   const[done,setDone]=useState(null);
 
   const exportAll=()=>{
-    const headers=["ID","Fecha/Hora","Tipo","Perfil","Módulo","Nombre","Remito","Detalle","Estado","Obs","Egreso Temprano","Usuario"];
+    const headers=["ID","Fecha/Hora","Tipo","Perfil","Módulo","Nombre","Remito","Detalle","Motivo","Obs","Egreso Temprano","Usuario"];
     const rows=registros.map(r=>[r.id,fmtDate(r.fechaHora),r.tipoOp,r.perfil,r.modulo||"general",r.nombre,r.remito,r.detalle,r.estado,r.obs,r.egresoTemprano?"Sí":"No",r.usuario]);
     const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"});
@@ -2009,7 +1971,7 @@ function App(){
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
         <main className="main-pad" style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1100px",margin:"0 auto"}}>
           {view==="dashboard"&&<Dashboard registros={registros} setView={setView}/>}
-          {view==="analytics"&&<Analytics registros={registros}/>}
+          {view==="analytics"&&<Analytics registros={registros} setView={setView}/>}
           {view==="nueva"&&<NuevaOp registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="generadores"&&<Generadores registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="historial"&&<Historial registros={registros}/>}
