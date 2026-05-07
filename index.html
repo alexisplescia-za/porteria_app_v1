@@ -624,17 +624,18 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
 
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
-    const n=nextId();const now=nowISO();
-    const grupoId=`GRP-${n}`;
+    const now=nowISO();
+    const grupoId=`GRP-${Date.now()}`;
     const base={grupoId,fechaHora:now,perfil,nombre:nombre.trim(),modulo:"general",usuario:user.name};
     const lote=[];
 
     if(remitos.length===0){
-      const id=genId("INGRESO",n);
+      const id=genId("INGRESO",nextId());
       lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:"N/A",detalle:"N/A",estado:"N/A",obs:"Sin remitos",egresoTemprano:true});
     }else{
+      let n=nextId();
       for(const r of remitos){
-        const id=genId("INGRESO",n);
+        const id=genId("INGRESO",n++);
         lote.push({...base,id,idOperacion:id,tipoOp:"INGRESO",remito:r.remito,detalle:r.detalle,estado:r.estado,obs:r.obs||obsOtro||"N/A",egresoTemprano:true});
       }
     }
@@ -710,7 +711,7 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   
   const handleSubmit=async()=>{
     if(!validate())return;setSaving(true);
-    const n=nextId();const id=genId("INGRESO",n);const grupoId=`GRP-${n}`;
+    const n=nextId();const id=genId("INGRESO",n);const grupoId=`GRP-${Date.now()}`;
     const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:modelo.trim(),detalle:motivo,estado:"Dentro",obs:`Técnico: ${tecnico||"N/A"} | ${obs}`,tipoOp:"INGRESO",modulo:"generador",proveedor:proveedor.trim(),tecnico,modelo:modelo.trim(),motivo,usuario:user.name,egresoTemprano:true};
     await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setErrors({});setView("dashboard");
   };
@@ -768,9 +769,10 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
     registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo==="generador")
   ,[registros]);
 
-  const gruposConEgreso=useMemo(()=>
-    new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId))
-  ,[registros]);
+  const gruposConEgreso=useMemo(()=>{
+    const ingresoGrupos=new Set(ingTempranos.map(r=>r.grupoId));
+    return new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId&&ingresoGrupos.has(r.grupoId)).map(r=>r.grupoId));
+  },[registros,ingTempranos]);
 
   const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
 
@@ -993,10 +995,11 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
     registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo!=="generador")
   ,[registros]);
 
-  // grupoIds que ya tienen un EGRESO registrado
-  const gruposConEgreso=useMemo(()=>
-    new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId).map(r=>r.grupoId))
-  ,[registros]);
+  // grupoIds que ya tienen un EGRESO registrado (solo los que tienen INGRESO correspondiente)
+  const gruposConEgreso=useMemo(()=>{
+    const ingresoGrupos=new Set(ingTempranos.map(r=>r.grupoId));
+    return new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId&&ingresoGrupos.has(r.grupoId)).map(r=>r.grupoId));
+  },[registros,ingTempranos]);
 
   const unicos=(lista)=>{
     const seen=new Set();
