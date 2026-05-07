@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8"/>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>🛡️ Control de Acceso — Carrefour</title>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -11,23 +10,23 @@
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <style>
 :root{
-  --bg-deep:#0b0d16;--bg-card:#13162100;--bg-card-solid:#13162199;
-  --bg-sidebar:#0e1020;--bg-input:#1c1f30;--bg-hover:#22263a;
-  --border:#252840;--border-light:#2e3352;
-  --text:#dde1f0;--text-muted:#6b72a0;--text-dim:#3f4468;
-  --accent:#4a8fff;--accent-h:#6aa4ff;
-  --green:#22c55e;--green-bg:#0a2018;--green-dark:#16a34a;--green-t:#4ade80;
-  --red:#ef4444;--red-bg:#210d0d;--red-dark:#b91c1c;--red-t:#f87171;
-  --amber:#f59e0b;--amber-bg:#1f1506;--amber-t:#fbbf24;
-  --purple:#8b5cf6;--purple-bg:#160d2a;--purple-t:#a78bfa;
-  --blue-bg:#0a1628;--blue-t:#7eb8ff;
-  --radius:8px;--radius-lg:12px;--sidebar-w:220px;
+  --bg-deep:#000000;--bg-card:rgba(22,22,24,0.85);--bg-card-solid:#141414;
+  --bg-sidebar:#0d0d0d;--bg-input:#1c1c1e;--bg-hover:#2c2c2e;
+  --border:#2c2c2e;--border-light:#3a3a3c;
+  --text:#f2f2f7;--text-muted:#8e8e93;--text-dim:#48484a;
+  --accent:#0a84ff;--accent-h:#409cff;
+  --green:#30d158;--green-bg:rgba(48,209,88,.10);--green-dark:#248a3d;--green-t:#30d158;
+  --red:#ff453a;--red-bg:rgba(255,69,58,.10);--red-dark:#c0392b;--red-t:#ff6961;
+  --amber:#ff9f0a;--amber-bg:rgba(255,159,10,.10);--amber-t:#ffd60a;
+  --purple:#bf5af2;--purple-bg:rgba(191,90,242,.10);--purple-t:#da8fff;
+  --blue-bg:rgba(10,132,255,.10);--blue-t:#409cff;
+  --radius:10px;--radius-lg:14px;--sidebar-w:248px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg-deep);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+html,body{height:100%;background:var(--bg-deep);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased}
 input,select,textarea,button{font-family:inherit}
 select{appearance:auto;background:var(--bg-input);color:var(--text)}
-select option{background:#1c1f30;color:var(--text)}
+select option{background:#1c1c1e;color:var(--text)}
 a{color:var(--accent)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -258,20 +257,20 @@ const nowLocal=()=>new Date().toISOString().slice(0,16);
    ESTILOS (dark)
 ═══════════════════════════════════════════════════════ */
 const d={
-  card:{background:"#13162199",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"1.1rem 1.3rem",backdropFilter:"blur(8px)"},
-  input:{display:"block",width:"100%",boxSizing:"border-box",padding:"9px 12px",borderRadius:"var(--radius)",border:"1px solid var(--border-light)",background:"var(--bg-input)",color:"var(--text)",fontSize:"14px"},
-  label:{display:"block",fontSize:"11px",fontWeight:600,color:"var(--text-muted)",marginBottom:"5px",textTransform:"uppercase",letterSpacing:"0.07em"},
-  btnPrimary:{padding:"9px 18px",borderRadius:"var(--radius)",border:"none",background:"var(--accent)",color:"#fff",fontWeight:700,fontSize:"14px",cursor:"pointer",transition:"opacity .15s"},
-  btnGhost:{padding:"8px 14px",borderRadius:"var(--radius)",border:"1px solid var(--border-light)",background:"transparent",color:"var(--text-muted)",fontWeight:500,fontSize:"13px",cursor:"pointer"},
-  btnDanger:{padding:"6px 11px",borderRadius:"var(--radius)",border:"none",background:"var(--red-dark)",color:"#fca5a5",fontWeight:600,fontSize:"12px",cursor:"pointer"},
-  btnSuccess:{padding:"9px 18px",borderRadius:"var(--radius)",border:"none",background:"var(--green-dark)",color:"var(--green-t)",fontWeight:700,fontSize:"14px",cursor:"pointer"},
-  g2:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px"},
-  g3:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"14px"},
-  g4:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"14px"},
-  h3:{margin:"0 0 14px",fontSize:"15px",fontWeight:700,color:"var(--text)"},
-  muted:{fontSize:"13px",color:"var(--text-muted)"},
-  sec:{marginBottom:"14px"},
-  err:{fontSize:"11px",color:"var(--red-t)",fontWeight:500,marginTop:"3px"},
+  card:{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"22px 26px",backdropFilter:"blur(20px)",boxShadow:"0 2px 12px rgba(0,0,0,.4)"},
+  input:{display:"block",width:"100%",boxSizing:"border-box",padding:"11px 14px",borderRadius:"var(--radius)",border:"1px solid var(--border-light)",background:"var(--bg-input)",color:"var(--text)",fontSize:"15px"},
+  label:{display:"block",fontSize:"11px",fontWeight:600,color:"var(--text-muted)",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.06em"},
+  btnPrimary:{padding:"11px 20px",borderRadius:"var(--radius)",border:"none",background:"var(--accent)",color:"#fff",fontWeight:600,fontSize:"15px",cursor:"pointer",transition:"opacity .15s"},
+  btnGhost:{padding:"9px 16px",borderRadius:"var(--radius)",border:"1px solid var(--border-light)",background:"transparent",color:"var(--text-muted)",fontWeight:500,fontSize:"13px",cursor:"pointer"},
+  btnDanger:{padding:"7px 13px",borderRadius:"var(--radius)",border:"none",background:"var(--red-dark)",color:"#fca5a5",fontWeight:600,fontSize:"13px",cursor:"pointer"},
+  btnSuccess:{padding:"11px 20px",borderRadius:"var(--radius)",border:"none",background:"var(--green-dark)",color:"var(--green-t)",fontWeight:600,fontSize:"15px",cursor:"pointer"},
+  g2:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"18px"},
+  g3:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"18px"},
+  g4:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:"18px"},
+  h3:{margin:"0 0 16px",fontSize:"16px",fontWeight:700,color:"var(--text)",letterSpacing:"-.01em"},
+  muted:{fontSize:"13px",color:"var(--text-muted)",lineHeight:1.5},
+  sec:{marginBottom:"16px"},
+  err:{fontSize:"11px",color:"var(--red-t)",fontWeight:500,marginTop:"4px"},
   toggle:{display:"flex",alignItems:"center",gap:"10px",cursor:"pointer",userSelect:"none"},
 };
 
@@ -336,7 +335,7 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
     left:pos.left+"px",
     width:pos.width+"px",
     zIndex:99999,
-    background:"#1c1f30",
+    background:"var(--bg-input)",
     border:"1px solid var(--border-light)",
     borderRadius:"var(--radius)",
     maxHeight:"260px",
@@ -454,28 +453,28 @@ function Sidebar({view,setView,user,onLogout,sidebarOpen}){
     const active=view===item.id;
     const ac=accentColor||"var(--accent)";
     return(
-      <button key={item.id} onClick={()=>setView(item.id)} style={{display:"flex",alignItems:"center",gap:"10px",width:"100%",padding:"9px 12px",borderRadius:"var(--radius)",border:"none",background:active?`color-mix(in srgb, ${ac} 15%, transparent)`:"transparent",color:active?ac:"var(--text-muted)",fontWeight:active?700:400,fontSize:"13px",cursor:"pointer",textAlign:"left",marginBottom:"2px",borderLeft:active?`2px solid ${ac}`:"2px solid transparent",transition:"all .15s"}}>
-        <span style={{fontSize:"15px",lineHeight:1}}>{item.icon}</span>{item.label}
+      <button key={item.id} onClick={()=>setView(item.id)} style={{display:"flex",alignItems:"center",gap:"12px",width:"100%",padding:"10px 14px",borderRadius:"var(--radius)",border:"none",background:active?`color-mix(in srgb, ${ac} 12%, transparent)`:"transparent",color:active?ac:"var(--text-muted)",fontWeight:active?600:400,fontSize:"14px",cursor:"pointer",textAlign:"left",marginBottom:"2px",transition:"all .15s"}}>
+        <span style={{fontSize:"16px",lineHeight:1,opacity:active?1:.75}}>{item.icon}</span>{item.label}
       </button>
     );
   };
   return(
     <aside className={`sidebar${sidebarOpen?" open":""}`} style={{width:"var(--sidebar-w)",minHeight:"100vh",background:"var(--bg-sidebar)",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",position:"fixed",left:0,top:0,bottom:0,zIndex:10}}>
-      <div style={{padding:"18px 16px 14px",borderBottom:"1px solid var(--border)"}}>
-        <CarrefourLogo size={28}/>
-        <div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"6px"}}>Control de Acceso</div>
+      <div style={{padding:"22px 20px 16px",borderBottom:"1px solid var(--border)"}}>
+        <CarrefourLogo size={30}/>
+        <div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"7px",letterSpacing:".04em",fontWeight:500}}>Control de Acceso</div>
       </div>
-      <nav style={{flex:1,padding:"12px 8px",overflowY:"auto"}}>
+      <nav style={{flex:1,padding:"14px 10px",overflowY:"auto"}}>
         {NAV.map(item=>nb(item))}
-        <div style={{height:"1px",background:"var(--border)",margin:"10px 4px"}}/>
+        <div style={{height:"1px",background:"var(--border)",margin:"12px 4px"}}/>
         {user.role==="admin"&&nb({id:"admin",icon:"⚙️",label:"Administración"},"var(--purple)")}
       </nav>
-      <div style={{padding:"14px",borderTop:"1px solid var(--border)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"9px",marginBottom:"10px"}}>
-          <div style={{width:"32px",height:"32px",borderRadius:"50%",background:"var(--blue-bg)",border:"1px solid var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"13px",fontWeight:700,color:"var(--accent)",flexShrink:0}}>{user.name[0]}</div>
-          <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{user.name}</div><div style={{fontSize:"11px",color:"var(--text-muted)",textTransform:"capitalize"}}>{user.role}</div></div>
+      <div style={{padding:"16px",borderTop:"1px solid var(--border)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"12px"}}>
+          <div style={{width:"34px",height:"34px",borderRadius:"50%",background:"var(--blue-bg)",border:"1px solid var(--accent)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px",fontWeight:700,color:"var(--accent)",flexShrink:0}}>{user.name[0]}</div>
+          <div><div style={{fontSize:"14px",fontWeight:600,color:"var(--text)"}}>{user.name}</div><div style={{fontSize:"11px",color:"var(--text-muted)",textTransform:"capitalize"}}>{user.role}</div></div>
         </div>
-        <button onClick={onLogout} style={{...d.btnGhost,width:"100%",fontSize:"12px",padding:"7px"}}>Cerrar sesión</button>
+        <button onClick={onLogout} style={{...d.btnGhost,width:"100%",fontSize:"12px",padding:"8px"}}>Cerrar sesión</button>
       </div>
     </aside>
   );
@@ -487,7 +486,7 @@ function Sidebar({view,setView,user,onLogout,sidebarOpen}){
 function Header({view,onMenuToggle}){
   const dt=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   return(
-    <header style={{background:"#0e1020cc",borderBottom:"1px solid var(--border)",padding:"13px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:5,backdropFilter:"blur(12px)"}}>
+    <header style={{background:"rgba(13,13,13,0.85)",borderBottom:"1px solid var(--border)",padding:"14px 36px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:5,backdropFilter:"blur(24px)"}}>
       <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
         <button onClick={onMenuToggle} className="hide-desktop" style={{...d.btnGhost,padding:"6px 8px",fontSize:"16px"}}>☰</button>
         <div>
@@ -528,7 +527,7 @@ function Dashboard({registros,setView}){
     {l:"Generadores activos",v:stats.genDentro,bg:"var(--blue-bg)",c:"var(--blue-t)",bd:"var(--accent)"},
   ];
   return(
-    <div style={{maxWidth:"960px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1440px",margin:"0 auto"}}>
       <div className="g4" style={{...d.g4,marginBottom:"20px"}}>
         {SC.map(s=>(
           <div key={s.l} style={{background:s.bg,border:`1px solid ${s.bd}`,borderRadius:"var(--radius-lg)",padding:"1.1rem 1.2rem"}}>
@@ -650,7 +649,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
       {/* Ingreso */}
       <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)"}}>
         <span style={{fontSize:"22px"}}>▶</span>
@@ -722,7 +721,7 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   };
 
   return(
-    <div style={{maxWidth:"700px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
       <div style={{background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"13px"}}>
         <span style={{fontSize:"26px"}}>⚡</span>
         <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{genList.length} generador(es) registrado(s) en el sistema</div></div>
@@ -914,7 +913,7 @@ function Historial({registros}){
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));a.download=`porteria_${new Date().toISOString().slice(0,10)}.csv`;a.click();
   };
 
-  const th={padding:"9px 11px",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textAlign:"left",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid var(--border-light)",whiteSpace:"nowrap",background:"#0e1020"};
+  const th={padding:"9px 11px",fontSize:"11px",fontWeight:700,color:"var(--text-muted)",textAlign:"left",textTransform:"uppercase",letterSpacing:"0.06em",borderBottom:"1px solid var(--border-light)",whiteSpace:"nowrap",background:"var(--bg-sidebar)"};
   const td={padding:"9px 11px",fontSize:"12px",color:"var(--text)",borderBottom:"1px solid var(--border)"};
 
   return(
@@ -1059,7 +1058,7 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
   const labelMuted={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
 
   return(
-    <div style={{maxWidth:"900px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1120px",margin:"0 auto"}}>
 
       {/* Header */}
       <div style={{marginBottom:"22px"}}>
@@ -1321,7 +1320,7 @@ function Analytics({registros,setView}){
   );
 
   return(
-    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1440px",margin:"0 auto"}}>
 
       {/* Header + rango */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"20px",flexWrap:"wrap",gap:"10px"}}>
@@ -1674,7 +1673,7 @@ function Admin({cfg,saveCfg,registros,onPurgeDB}){
   const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📝 Motivos de Ingreso",key:"motivosIngreso"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
-    <div style={{maxWidth:"700px",margin:"0 auto"}}>
+    <div style={{maxWidth:"1100px",margin:"0 auto"}}>
       <div style={{background:"var(--purple-bg)",border:"1px solid var(--purple)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px"}}>
         <div style={{fontSize:"14px",fontWeight:700,color:"var(--purple-t)"}}>⚙️ Panel de Administración</div>
         <div style={{fontSize:"12px",color:"var(--purple)",marginTop:"2px"}}>Configurá los valores dinámicos — los cambios impactan inmediatamente en los formularios</div>
@@ -1969,7 +1968,7 @@ function App(){
       {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
       <div className="main-wrap" style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
-        <main className="main-pad" style={{flex:1,padding:"24px 28px",overflow:"auto"}}><div style={{maxWidth:"1100px",margin:"0 auto"}}>
+        <main className="main-pad" style={{flex:1,padding:"28px 36px",overflow:"auto"}}><div style={{maxWidth:"1440px",margin:"0 auto"}}>
           {view==="dashboard"&&<Dashboard registros={registros} setView={setView}/>}
           {view==="analytics"&&<Analytics registros={registros} setView={setView}/>}
           {view==="nueva"&&<NuevaOp registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
