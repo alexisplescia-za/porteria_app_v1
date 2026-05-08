@@ -1668,7 +1668,7 @@ function UsuariosAdmin(){
   );
 }
 
-function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB}){
+function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB,onSyncPendientes}){
   const[tab,setTab]=useState("usuarios");
   const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📝 Motivos de Ingreso",key:"motivosIngreso"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
   const ct=tabs.find(t=>t.id===tab);
@@ -1688,7 +1688,7 @@ function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB}){
       {tab==="usuarios"&&<UsuariosAdmin/>}
       {ct?.key&&<ListEditor key={ct.id} title={ct.label} items={cfg[ct.key]||[]} onSave={(list)=>saveCfg({...cfg,[ct.key]:list})}/>}
       {tab==="purgar"&&<PurgarDB registros={registros} onPurgeDB={onPurgeDB}/>}
-      {tab==="backend"&&<BackendPanel onReloadDB={onReloadDB} registros={registros}/>}
+      {tab==="backend"&&<BackendPanel onReloadDB={onReloadDB} onSyncPendientes={onSyncPendientes} registros={registros}/>}
     </div>
   );
 }
@@ -1696,54 +1696,85 @@ function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB}){
 /* ═══════════════════════════════════════════════════════
    BACKEND PANEL
 ═══════════════════════════════════════════════════════ */
-function BackendPanel({onReloadDB,registros}){
-  const[loading,setLoading]=useState(false);
-  const[result,setResult]=useState(null);
+function BackendPanel({onReloadDB,onSyncPendientes,registros}){
+  const[loadingReload,setLoadingReload]=useState(false);
+  const[loadingSync,setLoadingSync]=useState(false);
+  const[resultReload,setResultReload]=useState(null);
+  const[resultSync,setResultSync]=useState(null);
+  const[pendingCount,setPendingCount]=useState(0);
+
+  React.useEffect(()=>{
+    stGet("porteria_v2_pending",[]).then(p=>setPendingCount(p.length));
+  },[]);
 
   const handleReload=async()=>{
-    setLoading(true);setResult(null);
+    setLoadingReload(true);setResultReload(null);
     const r=await onReloadDB();
-    setResult(r);
-    setLoading(false);
+    setResultReload(r);setLoadingReload(false);
   };
+
+  const handleSync=async()=>{
+    setLoadingSync(true);setResultSync(null);
+    const r=await onSyncPendientes();
+    setResultSync(r);
+    if(r.ok) setPendingCount(0);
+    setLoadingSync(false);
+  };
+
+  const btnStyle=(color)=>({padding:"10px 20px",background:color,color:"#fff",border:"none",borderRadius:"var(--radius)",fontSize:"13px",fontWeight:700,cursor:"pointer"});
 
   return(
     <div style={d.card}>
       <h3 style={d.h3}>🔗 Backend / Supabase</h3>
-      <p style={{...d.muted,fontSize:"12px",marginBottom:"16px",lineHeight:1.7}}>
-        El backend conecta con Supabase. Los datos se guardan localmente y se sincronizan en segundo plano.
-        Si modificaste registros directo en Supabase, usá el botón para recargar.
-      </p>
-      <div style={{padding:"12px 16px",background:"var(--green-bg)",border:"1px solid var(--green)",borderRadius:"var(--radius)",fontSize:"12px",color:"var(--green-t)",marginBottom:"16px"}}>
+      <div style={{padding:"12px 16px",background:"var(--green-bg)",border:"1px solid var(--green)",borderRadius:"var(--radius)",fontSize:"12px",color:"var(--green-t)",marginBottom:"20px"}}>
         ✅ <strong>Backend:</strong> {BACKEND_URL}
       </div>
 
-      <div style={{background:"var(--bg-input)",borderRadius:"var(--radius)",padding:"14px",fontFamily:"monospace",fontSize:"11px",color:"var(--text-muted)",lineHeight:2,borderLeft:"2px solid var(--border-light)",marginBottom:"20px"}}>
-        {"GET  " + BACKEND_URL + "/api/ping"}<br/>
-        {"GET  " + BACKEND_URL + "/api/registros"}<br/>
-        {"POST " + BACKEND_URL + "/api/registros"}<br/>
-        {"GET  " + BACKEND_URL + "/api/config"}<br/>
-        {"POST " + BACKEND_URL + "/api/config"}
+      {/* BLOQUE 1: Pendientes offline */}
+      <div style={{background:pendingCount>0?"var(--amber-bg)":"var(--bg-input)",border:`1px solid ${pendingCount>0?"var(--amber)":"var(--border)"}`,borderRadius:"var(--radius)",padding:"16px",marginBottom:"16px"}}>
+        <div style={{fontSize:"13px",fontWeight:700,color:pendingCount>0?"var(--amber-t)":"var(--text)",marginBottom:"6px"}}>
+          {pendingCount>0?`⚠️ ${pendingCount} registro${pendingCount>1?"s":""} pendiente${pendingCount>1?"s":""} de subir`:"✅ Todo sincronizado con Supabase"}
+        </div>
+        <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:pendingCount>0?"14px":"0"}}>
+          {pendingCount>0
+            ? "Estos registros se guardaron localmente cuando no había conexión. Subílos a Supabase cuando tengas internet."
+            : "No hay registros guardados offline pendientes de sincronización."}
+        </div>
+        {pendingCount>0&&(
+          <>
+            <button onClick={handleSync} disabled={loadingSync} style={{...btnStyle("var(--amber)"),opacity:loadingSync?0.6:1,cursor:loadingSync?"not-allowed":"pointer"}}>
+              {loadingSync?"⏳ Subiendo...":"⬆️ Subir registros locales a Supabase"}
+            </button>
+            {resultSync&&(
+              <div style={{marginTop:"10px",padding:"10px 14px",borderRadius:"var(--radius)",fontSize:"12px",
+                background:resultSync.ok?"var(--green-bg)":"var(--red-bg)",
+                border:`1px solid ${resultSync.ok?"var(--green)":"var(--red)"}`,
+                color:resultSync.ok?"var(--green-t)":"var(--red-t)"}}>
+                {resultSync.ok
+                  ? `✅ ${resultSync.total} registros subidos correctamente.`
+                  : "❌ Error al subir. Verificá la conexión e intentá de nuevo."}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      <div style={{borderTop:"1px solid var(--border)",paddingTop:"18px"}}>
-        <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)",marginBottom:"8px"}}>Sincronización manual</div>
+      {/* BLOQUE 2: Recargar desde Supabase */}
+      <div style={{background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"16px"}}>
+        <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)",marginBottom:"6px"}}>☁️ Recargar desde Supabase</div>
         <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:"14px"}}>
           Actualmente hay <strong style={{color:"var(--text)"}}>{registros.length} registros</strong> en la app.
-          Al recargar, la app descarta el cache local y trae todos los registros directamente desde Supabase.
+          Si borraste o editaste registros directo en Supabase, usá esto para sincronizar.
         </div>
-        <button
-          onClick={handleReload}
-          disabled={loading}
-          style={{padding:"10px 20px",background:"var(--accent)",color:"#fff",border:"none",borderRadius:"var(--radius)",fontSize:"13px",fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.6:1}}>
-          {loading?"⏳ Cargando...":"☁️ Cargar datos desde Supabase"}
+        <button onClick={handleReload} disabled={loadingReload} style={{...btnStyle("var(--accent)"),opacity:loadingReload?0.6:1,cursor:loadingReload?"not-allowed":"pointer"}}>
+          {loadingReload?"⏳ Cargando...":"☁️ Cargar datos desde Supabase"}
         </button>
-        {result&&(
-          <div style={{marginTop:"12px",padding:"10px 14px",borderRadius:"var(--radius)",fontSize:"12px",
-            background:result.ok?"var(--green-bg)":"var(--red-bg)",
-            border:`1px solid ${result.ok?"var(--green)":"var(--red)"}`,
-            color:result.ok?"var(--green-t)":"var(--red-t)"}}>
-            {result.ok?`✅ ${result.total} registros cargados correctamente desde Supabase.`:"❌ Error al conectar con el backend. Verificá que esté activo."}
+        {resultReload&&(
+          <div style={{marginTop:"10px",padding:"10px 14px",borderRadius:"var(--radius)",fontSize:"12px",
+            background:resultReload.ok?"var(--green-bg)":"var(--red-bg)",
+            border:`1px solid ${resultReload.ok?"var(--green)":"var(--red)"}`,
+            color:resultReload.ok?"var(--green-t)":"var(--red-t)"}}>
+            {resultReload.ok?`✅ ${resultReload.total} registros cargados desde Supabase.`:"❌ Error al conectar con el backend."}
           </div>
         )}
       </div>
@@ -1993,6 +2024,26 @@ function App(){
     }catch(_){}
   };
 
+  const syncPendientes=async()=>{
+    const pending=await stGet("porteria_v2_pending",[]);
+    if(pending.length===0)return{ok:true,total:0,subidos:0};
+    try{
+      const res=await fetch(`${BACKEND_URL}/api/registros/lote`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(pending),
+      });
+      const data=await res.json();
+      if(!data.ok)throw new Error(data.error);
+      await stSet("porteria_v2_pending",[]);
+      showToast(`✓ ${pending.length} registro${pending.length>1?"s":""} sincronizado${pending.length>1?"s":""} con Supabase`);
+      return{ok:true,total:pending.length,subidos:data.guardados};
+    }catch(err){
+      showToast("Error al sincronizar: "+err.message,"error");
+      return{ok:false,total:pending.length};
+    }
+  };
+
   const reloadFromDB=async()=>{
     try{
       const res=await fetch(`${BACKEND_URL}/api/registros`);
@@ -2053,7 +2104,7 @@ function App(){
           {view==="generadores"&&<Generadores registros={registros} cfg={cfg} user={user} addRegistros={addRegistros} nextId={nextId} setView={setView}/>}
           {view==="historial"&&<Historial registros={registros}/>}
           {view==="tempranos"&&<EgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>}
-          {view==="admin"&&user.role==="admin"&&<Admin cfg={cfg} saveCfg={saveCfg} registros={registros} onPurgeDB={purgeDB} onReloadDB={reloadFromDB}/>}
+          {view==="admin"&&user.role==="admin"&&<Admin cfg={cfg} saveCfg={saveCfg} registros={registros} onPurgeDB={purgeDB} onReloadDB={reloadFromDB} onSyncPendientes={syncPendientes}/>}
         </div></main>
         <Footer/>
       </div>
