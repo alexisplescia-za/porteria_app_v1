@@ -1906,75 +1906,54 @@ function App(){
 
   useEffect(()=>{
     (async()=>{
-      // Detectar config corrupta: jefes/oficinaTecnica no deberían tener más de 50 items
-      // ni contener palabras de proveedores como "S.A." o "S.R.L."
       const esCfgCorrupta=(cfg)=>{
         const tieneProv=(arr)=>{
           if(!arr||!arr.length)return false;
-          if(arr.length>60)return true; // proveedores son 278, jefes son ~34
-          return arr.some(n=>{
-            const s=(n||"").toUpperCase();
-            return s.includes(" S.A")||s.includes("S.R.L")||s.includes(" SRL")||s.includes(" SA ");
-          });
+          if(arr.length>60)return true;
+          return arr.some(n=>{const s=(n||"").toUpperCase();return s.includes(" S.A")||s.includes("S.R.L")||s.includes(" SRL")||s.includes(" SA ");});
         };
         return tieneProv(cfg.jefes)||tieneProv(cfg.oficinaTecnica);
       };
 
-      // 1. Config local solo como fallback — siempre esperamos el backend
+      const mapReg=(r)=>({
+        id:r.id,fechaHora:r.fecha_hora,tipoOp:r.tipo_op,
+        perfil:r.perfil,nombre:r.nombre,remito:r.remito,
+        detalle:r.detalle,estado:r.estado,obs:r.obs,
+        modulo:r.modulo,egresoTemprano:r.egreso_temprano,
+        grupoId:r.grupo_id,usuario:r.usuario,
+      });
+
+      // PASO 1: mostrar localStorage inmediatamente → app instantánea
       const localCfg=await stGet("porteria_v2_cfg",null);
-      let cfg=DEF_CFG; // siempre arrancamos con defaults, backend los pisa
+      const localReg=await stGet("porteria_v2_reg",[]);
+      let cfg=localCfg&&!esCfgCorrupta(localCfg)?{...DEF_CFG,...localCfg}:DEF_CFG;
+      setRegistros(localReg);
+      setCfg(cfg);
+      setLoading(false); // app ya usable
 
-      // helper: fetch con timeout
-      const fetchTimeout=(url,ms=12000)=>{
-        const ctrl=new AbortController();
-        const t=setTimeout(()=>ctrl.abort(),ms);
-        return fetch(url,{signal:ctrl.signal}).finally(()=>clearTimeout(t));
-      };
-
-      // 2. Cargar desde backend — siempre es la fuente de verdad
+      // PASO 2: sincronizar con backend en segundo plano (sin timeout fijo — esperamos lo que sea)
       try{
         const [resReg,resCfg]=await Promise.all([
-          fetchTimeout(BACKEND_URL+"/api/registros").then(r=>r.json()).catch(()=>({ok:false})),
-          fetchTimeout(BACKEND_URL+"/api/config").then(r=>r.json()).catch(()=>({ok:false})),
+          fetch(BACKEND_URL+"/api/registros").then(r=>r.json()).catch(()=>({ok:false})),
+          fetch(BACKEND_URL+"/api/config").then(r=>r.json()).catch(()=>({ok:false})),
         ]);
 
-        // Registros desde backend — si ok:true, usamos esos datos SIN importar cantidad
         if(resReg.ok&&Array.isArray(resReg.data)){
-          const regs=resReg.data.map(r=>({
-            id:r.id,fechaHora:r.fecha_hora,tipoOp:r.tipo_op,
-            perfil:r.perfil,nombre:r.nombre,remito:r.remito,
-            detalle:r.detalle,estado:r.estado,obs:r.obs,
-            modulo:r.modulo,egresoTemprano:r.egreso_temprano,
-            grupoId:r.grupo_id,usuario:r.usuario,
-          }));
+          const regs=resReg.data.map(mapReg);
           setRegistros(regs);
-          await stSet("porteria_v2_reg",regs); // localStorage siempre en sync con backend
-        } else {
-          const localReg=await stGet("porteria_v2_reg",[]);
-          setRegistros(localReg);
+          await stSet("porteria_v2_reg",regs);
         }
 
-        // Config desde backend — solo aplicar si no está corrupta
         if(resCfg.ok&&resCfg.data&&Object.keys(resCfg.data).length>0){
-          if(esCfgCorrupta(resCfg.data)){
-            // Backend tiene datos corruptos → pisarlos con defaults
-            console.warn("Config corrupta en backend, reseteando...");
-            fetch(BACKEND_URL+"/api/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(DEF_CFG)}).catch(()=>{});
-          } else {
-            cfg={...DEF_CFG,...resCfg.data};
+          if(!esCfgCorrupta(resCfg.data)){
+            const nc={...DEF_CFG,...resCfg.data};
+            setCfg(nc);
+            await stSet("porteria_v2_cfg",nc);
           }
         }
       }catch(e){
-        console.warn("Backend no disponible, usando cache local:",e);
-        const localReg=await stGet("porteria_v2_reg",[]);
-        setRegistros(localReg);
-        // Si backend no está disponible, usar config local como fallback
-        if(localCfg&&!esCfgCorrupta(localCfg)) cfg={...DEF_CFG,...localCfg};
+        console.warn("Sync backend (background) falló:",e.message);
       }
-
-      await stSet("porteria_v2_cfg",cfg);
-      setCfg(cfg);
-      setLoading(false);
     })();
   },[]);
 
