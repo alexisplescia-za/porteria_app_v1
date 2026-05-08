@@ -1760,7 +1760,7 @@ function BackendPanel({onReloadDB,onSyncPendientes,registros}){
       </div>
 
       {/* BLOQUE 2: Recargar desde Supabase */}
-      <div style={{background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"16px"}}>
+      <div style={{background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"16px",marginBottom:"12px"}}>
         <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)",marginBottom:"6px"}}>☁️ Recargar desde Supabase</div>
         <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:"14px"}}>
           Actualmente hay <strong style={{color:"var(--text)"}}>{registros.length} registros</strong> en la app.
@@ -1774,9 +1774,25 @@ function BackendPanel({onReloadDB,onSyncPendientes,registros}){
             background:resultReload.ok?"var(--green-bg)":"var(--red-bg)",
             border:`1px solid ${resultReload.ok?"var(--green)":"var(--red)"}`,
             color:resultReload.ok?"var(--green-t)":"var(--red-t)"}}>
-            {resultReload.ok?`✅ ${resultReload.total} registros cargados desde Supabase.`:"❌ Error al conectar con el backend."}
+            {resultReload.ok?`✅ ${resultReload.total} registros cargados desde Supabase.`:"❌ Error al conectar con el backend. El servidor puede estar iniciando (Render tarda ~30 seg). Esperá un momento y volvé a intentar."}
           </div>
         )}
+      </div>
+
+      {/* BLOQUE 3: Limpiar caché local */}
+      <div style={{background:"var(--bg-input)",border:"1px solid var(--border)",borderRadius:"var(--radius)",padding:"16px"}}>
+        <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)",marginBottom:"6px"}}>🗑️ Limpiar caché local</div>
+        <div style={{fontSize:"12px",color:"var(--text-muted)",marginBottom:"14px"}}>
+          Si la app sigue mostrando registros viejos aunque los hayas borrado de Supabase, el caché del browser está desactualizado.
+          Esto lo limpia y recarga todo desde cero.
+        </div>
+        <button onClick={async()=>{
+          await stSet("porteria_v2_reg",[]);
+          await stSet("porteria_v2_pending",[]);
+          window.location.reload();
+        }} style={{...btnStyle("var(--red)"),opacity:1}}>
+          🗑️ Limpiar caché y recargar
+        </button>
       </div>
     </div>
   );
