@@ -257,7 +257,7 @@ const nowLocal=()=>new Date().toISOString().slice(0,16);
    ESTILOS (dark)
 ═══════════════════════════════════════════════════════ */
 const d={
-  card:{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"22px 26px",backdropFilter:"blur(20px)",boxShadow:"0 2px 12px rgba(0,0,0,.4)"},
+  card:{background:"var(--bg-card-solid)",border:"1px solid var(--border)",borderRadius:"var(--radius-lg)",padding:"22px 26px",boxShadow:"0 2px 16px rgba(0,0,0,.5)"},
   input:{display:"block",width:"100%",boxSizing:"border-box",padding:"11px 14px",borderRadius:"var(--radius)",border:"1px solid var(--border-light)",background:"var(--bg-input)",color:"var(--text)",fontSize:"15px"},
   label:{display:"block",fontSize:"11px",fontWeight:600,color:"var(--text-muted)",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.06em"},
   btnPrimary:{padding:"11px 20px",borderRadius:"var(--radius)",border:"none",background:"var(--accent)",color:"#fff",fontWeight:600,fontSize:"15px",cursor:"pointer",transition:"opacity .15s"},
@@ -282,7 +282,7 @@ function Badge({tipo,small,egresoTemprano}){
   return(
     <span style={{display:"inline-flex",alignItems:"center",gap:"4px",fontSize:small?"10px":"12px",fontWeight:700,padding:small?"2px 7px":"4px 10px",borderRadius:"6px",background:ok?"var(--green-bg)":"var(--red-bg)",color:ok?"var(--green-t)":"var(--red-t)",border:`1px solid ${ok?"var(--green-dark)":"var(--red-dark)"}`}}>
       {ok?"▶":"◀"} {ok?"INGRESO":"EGRESO"}
-      {egresoTemprano&&<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"1px 4px",borderRadius:"4px",marginLeft:"2px"}}>TEMPRANO</span>}
+      {egresoTemprano&&<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"1px 4px",borderRadius:"4px",marginLeft:"2px"}}>PTE. EGRESO</span>}
     </span>
   );
 }
@@ -486,7 +486,7 @@ function Sidebar({view,setView,user,onLogout,sidebarOpen}){
 function Header({view,onMenuToggle}){
   const dt=new Date().toLocaleDateString("es-AR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});
   return(
-    <header style={{background:"rgba(13,13,13,0.85)",borderBottom:"1px solid var(--border)",padding:"14px 36px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:5,backdropFilter:"blur(24px)"}}>
+    <header style={{background:"#0d0d0d",borderBottom:"1px solid var(--border)",padding:"14px 36px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:5}}>
       <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
         <button onClick={onMenuToggle} className="hide-desktop" style={{...d.btnGhost,padding:"6px 8px",fontSize:"16px"}}>☰</button>
         <div>
@@ -780,7 +780,7 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
 
   const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
 
-  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingTempranos,gruposConEgreso]);
+  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
   const cerrados=useMemo(()=>unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
 
   const[modalIng,setModalIng]=useState(null);
@@ -934,7 +934,7 @@ function Historial({registros}){
           <div style={{textAlign:"center",padding:"52px",color:"var(--text-muted)"}}>No hay registros con los filtros aplicados</div>
         ):(
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>{["ID","Fecha","Op","Perfil","Nombre / Empresa","Remito / OT","Detalle","Motivo","ET","Usuario"].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["ID","Fecha","Op","Perfil","Nombre / Empresa","Remito / OT","Detalle","Motivo","Egreso","Usuario"].map(h=><th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {filtered.map((r,i)=>(
                 <tr key={i} onMouseEnter={e=>e.currentTarget.style.background="var(--bg-hover)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"} style={{transition:"background .1s"}}>
@@ -946,7 +946,7 @@ function Historial({registros}){
                   <td style={{...td,fontFamily:"monospace",fontSize:"11px",color:"var(--text-muted)"}}>{r.remito}</td>
                   <td style={{...td,maxWidth:"140px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:"11px"}}>{r.detalle}</td>
                   <td style={{...td,fontSize:"11px"}}>{r.estado}</td>
-                  <td style={td}>{r.egresoTemprano?<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 5px",borderRadius:"4px",fontWeight:700}}>ET</span>:"—"}</td>
+                  <td style={td}>{r.egresoTemprano?<span style={{fontSize:"9px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 5px",borderRadius:"4px",fontWeight:700}}>PTE.</span>:"—"}</td>
                   <td style={{...td,color:"var(--text-muted)",fontSize:"11px"}}>{r.usuario}</td>
                 </tr>
               ))}
@@ -1850,15 +1850,22 @@ function App(){
       const localCfg=await stGet("porteria_v2_cfg",null);
       let cfg=DEF_CFG; // siempre arrancamos con defaults, backend los pisa
 
-      // 2. Cargar desde backend (sobreescribe local si es válida)
+      // helper: fetch con timeout
+      const fetchTimeout=(url,ms=12000)=>{
+        const ctrl=new AbortController();
+        const t=setTimeout(()=>ctrl.abort(),ms);
+        return fetch(url,{signal:ctrl.signal}).finally(()=>clearTimeout(t));
+      };
+
+      // 2. Cargar desde backend — siempre es la fuente de verdad
       try{
         const [resReg,resCfg]=await Promise.all([
-          fetch(BACKEND_URL+"/api/registros").then(r=>r.json()).catch(()=>({ok:false})),
-          fetch(BACKEND_URL+"/api/config").then(r=>r.json()).catch(()=>({ok:false})),
+          fetchTimeout(BACKEND_URL+"/api/registros").then(r=>r.json()).catch(()=>({ok:false})),
+          fetchTimeout(BACKEND_URL+"/api/config").then(r=>r.json()).catch(()=>({ok:false})),
         ]);
 
-        // Registros desde backend
-        if(resReg.ok&&resReg.data&&resReg.data.length>0){
+        // Registros desde backend — si ok:true, usamos esos datos SIN importar cantidad
+        if(resReg.ok&&Array.isArray(resReg.data)){
           const regs=resReg.data.map(r=>({
             id:r.id,fechaHora:r.fecha_hora,tipoOp:r.tipo_op,
             perfil:r.perfil,nombre:r.nombre,remito:r.remito,
@@ -1867,7 +1874,7 @@ function App(){
             grupoId:r.grupo_id,usuario:r.usuario,
           }));
           setRegistros(regs);
-          await stSet("porteria_v2_reg",regs);
+          await stSet("porteria_v2_reg",regs); // localStorage siempre en sync con backend
         } else {
           const localReg=await stGet("porteria_v2_reg",[]);
           setRegistros(localReg);
