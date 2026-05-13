@@ -780,7 +780,7 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
 
   const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
 
-  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
+  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingTempranos,gruposConEgreso]);
   const cerrados=useMemo(()=>unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
 
   const[modalIng,setModalIng]=useState(null);
