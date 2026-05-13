@@ -896,7 +896,7 @@ function Historial({registros}){
   const perfiles=useMemo(()=>["TODOS",...new Set(registros.map(r=>r.perfil))],[registros]);
   const filtered=useMemo(()=>{
     const q=search.toLowerCase();
-    return[...registros].reverse().filter(r=>{
+    return[...registros].filter(r=>{
       if(fTipo!=="TODOS"&&r.tipoOp!==fTipo)return false;
       if(fPerfil!=="TODOS"&&r.perfil!==fPerfil)return false;
       if(fModulo!=="TODOS"&&(r.modulo||"general")!==fModulo)return false;
@@ -1012,7 +1012,7 @@ function EgresosTemprano({registros,addRegistros,nextId,user}){
 
   const abiertos=useMemo(()=>
     unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId)))
-      .sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora))
+      .sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora))
   ,[ingTempranos,gruposConEgreso]);
 
   const cerrados=useMemo(()=>
