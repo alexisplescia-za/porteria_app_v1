@@ -701,6 +701,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
    GENERADORES
 ═══════════════════════════════════════════════════════ */
 function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
+  const[tab,setTab]=useState("ingreso");
   const[proveedor,setProveedor]=useState("");
   const[tecnico,setTecnico]=useState("");
   const[modelo,setModelo]=useState("");
@@ -709,61 +710,70 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
 
-  const genList=useMemo(()=>{const seen=new Set();return[...registros].filter(r=>r.modulo==="generador").filter(r=>{if(!seen.has(r.id)){seen.add(r.id);return true;}return false;});},[registros]);
-  
+  const pendientes=useMemo(()=>{
+    const ingresos=registros.filter(r=>r.modulo==="generador"&&r.tipoOp==="INGRESO");
+    const gruposEgresados=new Set(registros.filter(r=>r.modulo==="generador"&&r.tipoOp==="EGRESO").map(r=>r.grupoId));
+    const seen=new Set();
+    return ingresos.filter(r=>{if(gruposEgresados.has(r.grupoId)||seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});
+  },[registros]);
+
   const validate=()=>{const e={};if(!proveedor.trim())e.proveedor="Requerido";if(!modelo.trim())e.modelo="Requerido";setErrors(e);return!Object.keys(e).length;};
-  
-  const handleSubmit=async()=>{
+
+  const handleIngreso=async()=>{
     if(!validate())return;setSaving(true);
     const n=nextId();const id=genId("INGRESO",n);const grupoId=`GRP-${Date.now()}`;
     const base={id,idOperacion:id,grupoId,fechaHora:nowISO(),perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:modelo.trim(),detalle:motivo,estado:"Dentro",obs:`Técnico: ${tecnico||"N/A"} | ${obs}`,tipoOp:"INGRESO",modulo:"generador",proveedor:proveedor.trim(),tecnico,modelo:modelo.trim(),motivo,usuario:user.name,egresoTemprano:true};
-    await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setErrors({});setView("dashboard");
+    await addRegistros([base]);setSaving(false);setProveedor("");setTecnico("");setModelo("");setObs("");setErrors({});
   };
+
+  const tabBtn=(id,label,color)=>({
+    padding:"10px 28px",borderRadius:"var(--radius)",border:`2px solid ${tab===id?color:"var(--border)"}`,
+    background:tab===id?color:"transparent",color:tab===id?"#fff":"var(--text-muted)",
+    fontWeight:700,fontSize:"14px",cursor:"pointer",transition:"all .15s"
+  });
 
   return(
     <div style={{maxWidth:"1100px",margin:"0 auto"}}>
       <div style={{background:"var(--amber-bg)",border:"1px solid var(--amber)",borderRadius:"var(--radius-lg)",padding:"13px 18px",marginBottom:"18px",display:"flex",alignItems:"center",gap:"13px"}}>
         <span style={{fontSize:"26px"}}>⚡</span>
-        <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{genList.length} generador(es) registrado(s) en el sistema</div></div>
+        <div><div style={{fontSize:"14px",fontWeight:700,color:"var(--amber-t)"}}>Módulo: Grupos Electrógenos</div><div style={{fontSize:"12px",color:"var(--amber)",opacity:.8}}>{pendientes.length} generador(es) dentro actualmente</div></div>
       </div>
 
-      <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)"}}>
-        <span style={{fontSize:"22px"}}>⚡</span>
-        <div>
-          <div style={{fontSize:"15px",fontWeight:700,color:"var(--green-t)"}}>INGRESO DE GENERADOR</div>
-          <div style={{fontSize:"12px",color:"var(--green-t)",opacity:.7,marginTop:"2px"}}>Registrá el ingreso ahora. Cerrá el egreso desde "Pendientes de Egreso" cuando se retire el equipo.</div>
-        </div>
+      {/* Tabs */}
+      <div style={{display:"flex",gap:"10px",marginBottom:"20px"}}>
+        <button onClick={()=>setTab("ingreso")} style={tabBtn("ingreso","ingreso","var(--green-dark)")}>▶ INGRESO</button>
+        <button onClick={()=>setTab("egreso")} style={tabBtn("egreso","egreso","var(--red-dark)")}>◀ EGRESO</button>
       </div>
 
-      <div style={{...d.card,marginBottom:"16px"}}>
-        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-          <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..." error={errors.proveedor}/></div>
-          <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
-        </div>
-        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-          <div><label style={d.label}>Equipo / Grupo Electrógeno</label><select style={{...d.input,borderColor:errors.modelo?"var(--red-dark)":undefined}} value={modelo} onChange={e=>setModelo(e.target.value)}><option value="">— Seleccionar equipo —</option>{(cfg.generadores||DEF_CFG.generadores).map(g=><option key={g}>{g}</option>)}</select>{errors.modelo&&<span style={d.err}>{errors.modelo}</span>}</div>
-          <div><label style={d.label}>Motivo</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{cfg.motivosGenerador.map(m=><option key={m}>{m}</option>)}</select></div>
-        </div>
-        <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
-      </div>
-
-      <button onClick={handleSubmit} disabled={saving} style={{...d.btnSuccess,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1,marginBottom:"22px"}}>
-        {saving?"Guardando...":"⚡ Registrar Ingreso de Generador"}
-      </button>
-
-      {genList.length>0&&(
-        <div style={d.card}>
-          <h3 style={d.h3}>Generadores registrados</h3>
-          {genList.map((g,i)=>(
-            <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:i<genList.length-1?"1px solid var(--border)":"none"}}>
-              <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{g.modelo||g.remito}</div><div style={{fontSize:"11px",color:"var(--text-muted)"}}>{g.nombre} · {g.motivo||g.detalle}</div></div>
-              <Badge tipo={g.tipoOp} small egresoTemprano={g.egresoTemprano}/>
+      {tab==="ingreso"&&(
+        <>
+          <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--green-bg)",border:"1px solid var(--green-dark)"}}>
+            <span style={{fontSize:"22px"}}>▶</span>
+            <div>
+              <div style={{fontSize:"15px",fontWeight:700,color:"var(--green-t)"}}>INGRESO DE GENERADOR</div>
+              <div style={{fontSize:"12px",color:"var(--green-t)",opacity:.7,marginTop:"2px"}}>Registrá el ingreso del equipo. El egreso se registra por separado cuando se retire.</div>
             </div>
-          ))}
-        </div>
+          </div>
+          <div style={{...d.card,marginBottom:"16px"}}>
+            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+              <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..." error={errors.proveedor}/></div>
+              <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
+            </div>
+            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+              <div><label style={d.label}>Equipo / Grupo Electrógeno</label><select style={{...d.input,borderColor:errors.modelo?"var(--red-dark)":undefined}} value={modelo} onChange={e=>setModelo(e.target.value)}><option value="">— Seleccionar equipo —</option>{(cfg.generadores||DEF_CFG.generadores).map(g=><option key={g}>{g}</option>)}</select>{errors.modelo&&<span style={d.err}>{errors.modelo}</span>}</div>
+              <div><label style={d.label}>Motivo</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{cfg.motivosGenerador.map(m=><option key={m}>{m}</option>)}</select></div>
+            </div>
+            <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
+          </div>
+          <button onClick={handleIngreso} disabled={saving} style={{...d.btnSuccess,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?.6:1}}>
+            {saving?"Guardando...":"▶ Registrar Ingreso de Generador"}
+          </button>
+        </>
       )}
 
-      <GeEgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>
+      {tab==="egreso"&&(
+        <GeEgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>
+      )}
     </div>
   );
 }
@@ -800,10 +810,23 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
   const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 110px 150px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
   const lbl={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
 
-  if(!ingTempranos.length) return null;
+  if(!ingTempranos.length) return(
+    <div style={{...d.card,textAlign:"center",padding:"40px 20px",border:"1px solid var(--red-dark)",background:"var(--red-bg)"}}>
+      <div style={{fontSize:"32px",marginBottom:"10px"}}>◀</div>
+      <div style={{fontSize:"14px",fontWeight:700,color:"var(--red-t)",marginBottom:"6px"}}>EGRESO DE GENERADOR</div>
+      <p style={{...d.muted,margin:0}}>No hay generadores ingresados. Primero registrá un ingreso desde el tab INGRESO.</p>
+    </div>
+  );
 
   return(
-    <div style={{marginTop:"18px"}}>
+    <div style={{marginTop:"0"}}>
+      <div style={{...d.card,marginBottom:"16px",display:"flex",alignItems:"center",gap:"12px",background:"var(--red-bg)",border:"1px solid var(--red-dark)"}}>
+        <span style={{fontSize:"22px"}}>◀</span>
+        <div>
+          <div style={{fontSize:"15px",fontWeight:700,color:"var(--red-t)"}}>EGRESO DE GENERADOR</div>
+          <div style={{fontSize:"12px",color:"var(--red-t)",opacity:.7,marginTop:"2px"}}>Seleccioná el equipo que se retira y registrá el egreso.</div>
+        </div>
+      </div>
       {/* PENDIENTES */}
       <div style={{...d.card,marginBottom:"14px",border:"1px solid var(--amber)"}}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
