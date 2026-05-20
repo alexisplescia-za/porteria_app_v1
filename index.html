@@ -779,57 +779,37 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
 }
 
 function GeEgresosTemprano({registros,addRegistros,nextId,user,cfg}){
-  const ingresos=useMemo(()=>
-    registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo==="generador")
-  ,[registros]);
+  const egresados=useMemo(()=>{
+    const seen=new Set();
+    return[...registros].filter(r=>r.modulo==="generador"&&r.tipoOp==="EGRESO").filter(r=>{if(seen.has(r.id))return false;seen.add(r.id);return true;}).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora));
+  },[registros]);
 
-  const gruposConEgreso=useMemo(()=>{
-    const ingresoGrupos=new Set(ingresos.map(r=>r.grupoId));
-    return new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId&&ingresoGrupos.has(r.grupoId)).map(r=>r.grupoId));
-  },[registros,ingresos]);
-
-  const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
-
-  const abiertos=useMemo(()=>unicos(ingresos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingresos,gruposConEgreso]);
-  const cerrados=useMemo(()=>unicos(ingresos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingresos,gruposConEgreso]);
-
-  const[equipoGrupoId,setEquipoGrupoId]=useState("");
   const[proveedor,setProveedor]=useState("");
   const[tecnico,setTecnico]=useState("");
+  const[modelo,setModelo]=useState("");
   const[motivo,setMotivo]=useState(DEF_CFG.motivosGenerador[0]);
+  const[tienda,setTienda]=useState("");
   const[remito,setRemito]=useState("");
   const[obs,setObs]=useState("");
   const[saving,setSaving]=useState(false);
   const[errors,setErrors]=useState({});
 
-  const onEquipoChange=(grupoId)=>{
-    setEquipoGrupoId(grupoId);
-    const ing=abiertos.find(r=>r.grupoId===grupoId);
-    if(ing){setProveedor(ing.nombre||"");setTecnico(ing.tecnico||"");}
-    else{setProveedor("");setTecnico("");}
+  const validate=()=>{
+    const e={};
+    if(!proveedor.trim())e.proveedor="Requerido";
+    if(!modelo.trim())e.modelo="Requerido";
+    setErrors(e);return!Object.keys(e).length;
   };
-
-  const validate=()=>{const e={};if(!equipoGrupoId)e.equipo="Seleccioná un equipo";setErrors(e);return!Object.keys(e).length;};
 
   const handleEgreso=async()=>{
     if(!validate())return;setSaving(true);
-    const ing=abiertos.find(r=>r.grupoId===equipoGrupoId);
-    const n=nextId();const egId=genId("EGRESO",n);
-    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:"Grupo Electrógeno",nombre:proveedor||ing.nombre,remito:remito||ing.remito,detalle:motivo,estado:"Retirado",obs:`Técnico: ${tecnico||"N/A"} | ${obs||"Egreso registrado"}`,modulo:"generador",egresoTemprano:true,usuario:user.name,tecnico,motivo}]);
-    setSaving(false);setEquipoGrupoId("");setProveedor("");setTecnico("");setRemito("");setObs("");setMotivo(DEF_CFG.motivosGenerador[0]);setErrors({});
+    const n=nextId();const egId=genId("EGRESO",n);const grupoId=`GRP-${Date.now()}`;
+    await addRegistros([{id:egId,idOperacion:egId,grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:"Grupo Electrógeno",nombre:proveedor.trim(),remito:remito||"N/A",detalle:motivo,estado:"Retirado",obs:`Técnico: ${tecnico||"N/A"} | Tienda: ${tienda||"N/A"} | ${obs||"Egreso registrado"}`,modulo:"generador",egresoTemprano:false,usuario:user.name,tecnico,motivo,modelo:modelo.trim(),tienda:tienda.trim()}]);
+    setSaving(false);setProveedor("");setTecnico("");setModelo("");setRemito("");setObs("");setTienda("");setMotivo(DEF_CFG.motivosGenerador[0]);setErrors({});
   };
 
-  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 110px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
+  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 1fr",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
   const lbl={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
-  const egresoDelGrupo=(grupoId)=>registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===grupoId);
-
-  if(!ingresos.length) return(
-    <div style={{...d.card,textAlign:"center",padding:"40px 20px",border:"1px solid var(--red-dark)",background:"var(--red-bg)"}}>
-      <div style={{fontSize:"32px",marginBottom:"10px"}}>◀</div>
-      <div style={{fontSize:"14px",fontWeight:700,color:"var(--red-t)",marginBottom:"6px"}}>EGRESO DE GENERADOR</div>
-      <p style={{...d.muted,margin:0}}>No hay generadores ingresados. Primero registrá un ingreso desde el tab INGRESO.</p>
-    </div>
-  );
 
   return(
     <div style={{marginTop:"0"}}>
@@ -837,69 +817,55 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user,cfg}){
         <span style={{fontSize:"22px"}}>◀</span>
         <div>
           <div style={{fontSize:"15px",fontWeight:700,color:"var(--red-t)"}}>EGRESO DE GENERADOR</div>
-          <div style={{fontSize:"12px",color:"var(--red-t)",opacity:.7,marginTop:"2px"}}>Seleccioná el equipo que se retira y completá los datos.</div>
+          <div style={{fontSize:"12px",color:"var(--red-t)",opacity:.7,marginTop:"2px"}}>Completá los datos del equipo que se retira.</div>
         </div>
       </div>
 
-      {abiertos.length===0?(
-        <div style={{...d.card,marginBottom:"16px",textAlign:"center",padding:"24px 20px"}}>
-          <p style={{...d.muted,margin:0}}>No hay generadores pendientes de egreso.</p>
+      <div style={{...d.card,marginBottom:"16px"}}>
+        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+          <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..." error={errors.proveedor}/></div>
+          <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
         </div>
-      ):(
-        <>
-          <div style={{...d.card,marginBottom:"16px"}}>
-            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-              <div>
-                <label style={d.label}>Equipo / Grupo Electrógeno</label>
-                <select style={{...d.input,borderColor:errors.equipo?"var(--red-dark)":undefined}} value={equipoGrupoId} onChange={e=>onEquipoChange(e.target.value)}>
-                  <option value="">— Seleccionar equipo dentro —</option>
-                  {abiertos.map(r=><option key={r.grupoId} value={r.grupoId}>{r.remito||r.modelo} — {r.nombre}</option>)}
-                </select>
-                {errors.equipo&&<span style={d.err}>{errors.equipo}</span>}
-              </div>
-              <div><label style={d.label}>Motivo de Egreso</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{(cfg.motivosGenerador||DEF_CFG.motivosGenerador).map(m=><option key={m}>{m}</option>)}</select></div>
-            </div>
-            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-              <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..."/></div>
-              <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
-            </div>
-            <div className="g2" style={{...d.g2,marginBottom:"0"}}>
-              <div><label style={d.label}>Remito / OT (opcional)</label><input style={d.input} value={remito} onChange={e=>setRemito(e.target.value)} placeholder="Ej: 186757"/></div>
-              <div><label style={d.label}>Observaciones</label><input style={d.input} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
-            </div>
+        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+          <div>
+            <label style={d.label}>Equipo / Grupo Electrógeno</label>
+            <select style={{...d.input,borderColor:errors.modelo?"var(--red-dark)":undefined}} value={modelo} onChange={e=>setModelo(e.target.value)}>
+              <option value="">— Seleccionar equipo —</option>
+              {(cfg.generadores||DEF_CFG.generadores).map(g=><option key={g}>{g}</option>)}
+            </select>
+            {errors.modelo&&<span style={d.err}>{errors.modelo}</span>}
           </div>
-          <button onClick={handleEgreso} disabled={saving||!equipoGrupoId} style={{...d.btnDanger,width:"100%",padding:"14px",fontSize:"15px",opacity:(saving||!equipoGrupoId)?0.6:1,marginBottom:"22px",cursor:!equipoGrupoId?"not-allowed":"pointer"}}>
-            {saving?"Guardando...":"◀ Registrar Egreso de Generador"}
-          </button>
-        </>
-      )}
-
-      <div style={d.card}>
-        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
-          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>GENERADORES EGRESADOS</h3>
-          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{cerrados.length}</span>
+          <div><label style={d.label}>Motivo de Egreso</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{(cfg.motivosGenerador||DEF_CFG.motivosGenerador).map(m=><option key={m}>{m}</option>)}</select></div>
         </div>
-        {cerrados.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>Aún no hay generadores egresados.</p>}
-        {cerrados.length>0&&(
-          <>
-            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Ingreso</div><div style={lbl}>Egreso</div><div style={lbl}>Duración</div></div>
-            {cerrados.map(r=>{
-              const eg=egresoDelGrupo(r.grupoId);
-              const dur=eg?Math.round((new Date(eg.fechaHora)-new Date(r.fechaHora))/60000):null;
-              const durStr=dur===null?"—":dur<60?`${dur} min`:`${Math.floor(dur/60)}h ${dur%60}min`;
-              return(
-                <div key={r.grupoId} style={rowStyle}>
-                  <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.remito||r.modelo}</div><div style={{fontSize:"11px",color:"var(--text-muted)"}}>{r.nombre}</div></div>
-                  <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
-                  <div style={{fontSize:"12px",color:"var(--green-t)",fontWeight:600}}>{eg?fmtDate(eg.fechaHora):"—"}</div>
-                  <div style={{fontSize:"13px",fontWeight:700,color:"var(--text)"}}>{durStr}</div>
-                </div>
-              );
-            })}
-          </>
-        )}
+        <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+          <div><label style={d.label}>Tienda a la que se dirige</label><input style={d.input} value={tienda} onChange={e=>setTienda(e.target.value)} placeholder="Ej: Tienda 42 - Palermo"/></div>
+          <div><label style={d.label}>Remito / OT (opcional)</label><input style={d.input} value={remito} onChange={e=>setRemito(e.target.value)} placeholder="Ej: 186757"/></div>
+        </div>
+        <div><label style={d.label}>Observaciones generales</label><textarea style={{...d.input,height:"72px",resize:"vertical"}} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
       </div>
+
+      <button onClick={handleEgreso} disabled={saving} style={{...d.btnDanger,width:"100%",padding:"14px",fontSize:"15px",opacity:saving?0.6:1,marginBottom:"22px"}}>
+        {saving?"Guardando...":"◀ Registrar Egreso de Generador"}
+      </button>
+
+      {egresados.length>0&&(
+        <div style={d.card}>
+          <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
+            <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
+            <h3 style={{...d.h3,margin:0,color:"var(--green-t)"}}>GENERADORES EGRESADOS</h3>
+            <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--green-bg)",color:"var(--green-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{egresados.length}</span>
+          </div>
+          <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo</div><div style={lbl}>Empresa</div><div style={lbl}>Tienda destino</div><div style={lbl}>Fecha</div></div>
+          {egresados.map(r=>(
+            <div key={r.id} style={rowStyle}>
+              <div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.modelo||r.remito||"—"}</div>
+              <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{r.nombre}</div>
+              <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{r.tienda||"—"}</div>
+              <div style={{fontSize:"12px",color:"var(--green-t)",fontWeight:600}}>{fmtDate(r.fechaHora)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
