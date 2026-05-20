@@ -772,45 +772,58 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
       )}
 
       {tab==="egreso"&&(
-        <GeEgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user}/>
+        <GeEgresosTemprano registros={registros} addRegistros={addRegistros} nextId={nextId} user={user} cfg={cfg}/>
       )}
     </div>
   );
 }
 
-function GeEgresosTemprano({registros,addRegistros,nextId,user}){
-  const ingTempranos=useMemo(()=>
+function GeEgresosTemprano({registros,addRegistros,nextId,user,cfg}){
+  const ingresos=useMemo(()=>
     registros.filter(r=>r.tipoOp==="INGRESO"&&r.modulo==="generador")
   ,[registros]);
 
   const gruposConEgreso=useMemo(()=>{
-    const ingresoGrupos=new Set(ingTempranos.map(r=>r.grupoId));
+    const ingresoGrupos=new Set(ingresos.map(r=>r.grupoId));
     return new Set(registros.filter(r=>r.tipoOp==="EGRESO"&&r.grupoId&&ingresoGrupos.has(r.grupoId)).map(r=>r.grupoId));
-  },[registros,ingTempranos]);
+  },[registros,ingresos]);
 
   const unicos=(lista)=>{const seen=new Set();return lista.filter(r=>{if(seen.has(r.grupoId))return false;seen.add(r.grupoId);return true;});};
 
-  const abiertos=useMemo(()=>unicos(ingTempranos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingTempranos,gruposConEgreso]);
-  const cerrados=useMemo(()=>unicos(ingTempranos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingTempranos,gruposConEgreso]);
+  const abiertos=useMemo(()=>unicos(ingresos.filter(r=>!gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(a.fechaHora)-new Date(b.fechaHora)),[ingresos,gruposConEgreso]);
+  const cerrados=useMemo(()=>unicos(ingresos.filter(r=>gruposConEgreso.has(r.grupoId))).sort((a,b)=>new Date(b.fechaHora)-new Date(a.fechaHora)),[ingresos,gruposConEgreso]);
 
-  const[modalIng,setModalIng]=useState(null);
-  const[showRemito,setShowRemito]=useState(false);
-  const[remitoEg,setRemitoEg]=useState({remito:"",obs:""});
+  const[equipoGrupoId,setEquipoGrupoId]=useState("");
+  const[proveedor,setProveedor]=useState("");
+  const[tecnico,setTecnico]=useState("");
+  const[motivo,setMotivo]=useState(DEF_CFG.motivosGenerador[0]);
+  const[remito,setRemito]=useState("");
+  const[obs,setObs]=useState("");
+  const[saving,setSaving]=useState(false);
+  const[errors,setErrors]=useState({});
 
-  const abrirModal=(ing)=>{setModalIng(ing);setShowRemito(false);setRemitoEg({remito:"",obs:""});};
-
-  const confirmarEgreso=async(conRemito)=>{
-    const ing=modalIng;setModalIng(null);
-    const n=nextId();const egId=genId("EGRESO",n);
-    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:ing.perfil,nombre:ing.nombre,remito:conRemito&&remitoEg.remito?remitoEg.remito:ing.remito,detalle:ing.detalle,estado:"Retirado",obs:conRemito&&remitoEg.obs?remitoEg.obs:"Egreso registrado",modulo:"generador",egresoTemprano:true,usuario:user.name}]);
+  const onEquipoChange=(grupoId)=>{
+    setEquipoGrupoId(grupoId);
+    const ing=abiertos.find(r=>r.grupoId===grupoId);
+    if(ing){setProveedor(ing.nombre||"");setTecnico(ing.tecnico||"");}
+    else{setProveedor("");setTecnico("");}
   };
 
-  const tiempoDesde=(fechaHora)=>{const diff=Math.round((new Date()-new Date(fechaHora))/60000);if(diff<60)return`${diff} min`;return`${Math.floor(diff/60)}h ${diff%60}min`;};
-  const egresoDelGrupo=(grupoId)=>registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===grupoId);
-  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 110px 150px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
-  const lbl={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
+  const validate=()=>{const e={};if(!equipoGrupoId)e.equipo="Seleccioná un equipo";setErrors(e);return!Object.keys(e).length;};
 
-  if(!ingTempranos.length) return(
+  const handleEgreso=async()=>{
+    if(!validate())return;setSaving(true);
+    const ing=abiertos.find(r=>r.grupoId===equipoGrupoId);
+    const n=nextId();const egId=genId("EGRESO",n);
+    await addRegistros([{id:egId,idOperacion:egId,grupoId:ing.grupoId,fechaHora:nowISO(),tipoOp:"EGRESO",perfil:"Grupo Electrógeno",nombre:proveedor||ing.nombre,remito:remito||ing.remito,detalle:motivo,estado:"Retirado",obs:`Técnico: ${tecnico||"N/A"} | ${obs||"Egreso registrado"}`,modulo:"generador",egresoTemprano:true,usuario:user.name,tecnico,motivo}]);
+    setSaving(false);setEquipoGrupoId("");setProveedor("");setTecnico("");setRemito("");setObs("");setMotivo(DEF_CFG.motivosGenerador[0]);setErrors({});
+  };
+
+  const rowStyle={display:"grid",gridTemplateColumns:"2fr 1.5fr 1.5fr 110px",gap:"12px",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--border)"};
+  const lbl={fontSize:"10px",color:"var(--text-muted)",fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"};
+  const egresoDelGrupo=(grupoId)=>registros.find(r=>r.tipoOp==="EGRESO"&&r.grupoId===grupoId);
+
+  if(!ingresos.length) return(
     <div style={{...d.card,textAlign:"center",padding:"40px 20px",border:"1px solid var(--red-dark)",background:"var(--red-bg)"}}>
       <div style={{fontSize:"32px",marginBottom:"10px"}}>◀</div>
       <div style={{fontSize:"14px",fontWeight:700,color:"var(--red-t)",marginBottom:"6px"}}>EGRESO DE GENERADOR</div>
@@ -824,32 +837,43 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
         <span style={{fontSize:"22px"}}>◀</span>
         <div>
           <div style={{fontSize:"15px",fontWeight:700,color:"var(--red-t)"}}>EGRESO DE GENERADOR</div>
-          <div style={{fontSize:"12px",color:"var(--red-t)",opacity:.7,marginTop:"2px"}}>Seleccioná el equipo que se retira y registrá el egreso.</div>
+          <div style={{fontSize:"12px",color:"var(--red-t)",opacity:.7,marginTop:"2px"}}>Seleccioná el equipo que se retira y completá los datos.</div>
         </div>
       </div>
-      {/* PENDIENTES */}
-      <div style={{...d.card,marginBottom:"14px",border:"1px solid var(--amber)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
-          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--amber)",boxShadow:"0 0 6px var(--amber)"}}/>
-          <h3 style={{...d.h3,margin:0,color:"var(--amber-t)"}}>GENERADORES PENDIENTES DE EGRESO</h3>
-          <span style={{marginLeft:"auto",fontSize:"12px",background:"var(--amber-bg)",color:"var(--amber-t)",padding:"2px 10px",borderRadius:"12px",fontWeight:700}}>{abiertos.length}</span>
+
+      {abiertos.length===0?(
+        <div style={{...d.card,marginBottom:"16px",textAlign:"center",padding:"24px 20px"}}>
+          <p style={{...d.muted,margin:0}}>No hay generadores pendientes de egreso.</p>
         </div>
-        {abiertos.length===0&&<p style={{...d.muted,textAlign:"center",padding:"12px 0"}}>No hay generadores con egreso pendiente.</p>}
-        {abiertos.length>0&&(
-          <>
-            <div style={{...rowStyle,paddingTop:0,borderBottom:"2px solid var(--border)"}}><div style={lbl}>Equipo / Proveedor</div><div style={lbl}>Técnico</div><div style={lbl}>Tiempo</div><div style={lbl}>Acción</div></div>
-            {abiertos.map(r=>(
-              <div key={r.grupoId} style={rowStyle}>
-                <div><div style={{fontSize:"13px",fontWeight:600,color:"var(--text)"}}>{r.remito||r.modelo}</div><div style={{fontSize:"11px",color:"var(--text-muted)",marginTop:"2px"}}>{r.nombre}</div></div>
-                <div style={{fontSize:"12px",color:"var(--text-muted)"}}>{fmtDate(r.fechaHora)}</div>
-                <div style={{fontSize:"15px",fontWeight:700,color:"var(--amber-t)"}}>{tiempoDesde(r.fechaHora)}</div>
-                <button onClick={()=>abrirModal(r)} style={{padding:"8px 14px",borderRadius:"var(--radius)",border:"1px solid var(--amber)",background:"var(--amber-bg)",color:"var(--amber-t)",fontWeight:700,fontSize:"13px",cursor:"pointer",whiteSpace:"nowrap"}}>◀ Registrar Egreso</button>
+      ):(
+        <>
+          <div style={{...d.card,marginBottom:"16px"}}>
+            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+              <div>
+                <label style={d.label}>Equipo / Grupo Electrógeno</label>
+                <select style={{...d.input,borderColor:errors.equipo?"var(--red-dark)":undefined}} value={equipoGrupoId} onChange={e=>onEquipoChange(e.target.value)}>
+                  <option value="">— Seleccionar equipo dentro —</option>
+                  {abiertos.map(r=><option key={r.grupoId} value={r.grupoId}>{r.remito||r.modelo} — {r.nombre}</option>)}
+                </select>
+                {errors.equipo&&<span style={d.err}>{errors.equipo}</span>}
               </div>
-            ))}
-          </>
-        )}
-      </div>
-      {/* CERRADOS */}
+              <div><label style={d.label}>Motivo de Egreso</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{(cfg.motivosGenerador||DEF_CFG.motivosGenerador).map(m=><option key={m}>{m}</option>)}</select></div>
+            </div>
+            <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
+              <div><label style={d.label}>Empresa / Proveedor</label><AutoInput options={cfg.proveedores} value={proveedor} onChange={setProveedor} placeholder="Buscar proveedor..."/></div>
+              <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
+            </div>
+            <div className="g2" style={{...d.g2,marginBottom:"0"}}>
+              <div><label style={d.label}>Remito / OT (opcional)</label><input style={d.input} value={remito} onChange={e=>setRemito(e.target.value)} placeholder="Ej: 186757"/></div>
+              <div><label style={d.label}>Observaciones</label><input style={d.input} value={obs} onChange={e=>setObs(e.target.value)} placeholder="Observaciones adicionales..."/></div>
+            </div>
+          </div>
+          <button onClick={handleEgreso} disabled={saving||!equipoGrupoId} style={{...d.btnDanger,width:"100%",padding:"14px",fontSize:"15px",opacity:(saving||!equipoGrupoId)?0.6:1,marginBottom:"22px",cursor:!equipoGrupoId?"not-allowed":"pointer"}}>
+            {saving?"Guardando...":"◀ Registrar Egreso de Generador"}
+          </button>
+        </>
+      )}
+
       <div style={d.card}>
         <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"14px"}}>
           <div style={{width:"8px",height:"8px",borderRadius:"50%",background:"var(--green)"}}/>
@@ -876,37 +900,6 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user}){
           </>
         )}
       </div>
-
-      {/* Modal de egreso */}
-      {modalIng&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:"20px"}}>
-          <div style={{...d.card,width:"100%",maxWidth:"420px",border:"1px solid var(--amber)"}}>
-            <div style={{marginBottom:"18px"}}>
-              <div style={{fontSize:"16px",fontWeight:700,color:"var(--amber-t)"}}>◀ Registrar Egreso de Generador</div>
-              <div style={{fontSize:"12px",color:"var(--text-muted)",marginTop:"4px"}}>{modalIng.remito||modalIng.modelo} · {modalIng.nombre}</div>
-            </div>
-            {!showRemito?(
-              <div>
-                <p style={{fontSize:"14px",color:"var(--text)",marginBottom:"20px",lineHeight:1.6}}>¿Desea cargar un remito de egreso?</p>
-                <div style={{display:"flex",gap:"10px",flexWrap:"wrap"}}>
-                  <button onClick={()=>setModalIng(null)} style={{...d.btnGhost,flex:1}}>Cancelar</button>
-                  <button onClick={()=>confirmarEgreso(false)} style={{...d.btnPrimary,flex:1}}>Solo egreso</button>
-                  <button onClick={()=>setShowRemito(true)} style={{...d.btnSuccess,flex:1}}>+ Remito</button>
-                </div>
-              </div>
-            ):(
-              <div>
-                <div style={d.sec}><label style={d.label}>Nro Remito / OT (egreso)</label><input style={d.input} value={remitoEg.remito} onChange={e=>setRemitoEg(p=>({...p,remito:e.target.value}))} placeholder="Ej: 186757"/></div>
-                <div style={{marginBottom:"16px"}}><label style={d.label}>Observaciones</label><input style={d.input} value={remitoEg.obs} onChange={e=>setRemitoEg(p=>({...p,obs:e.target.value}))} placeholder="Observaciones (opcional)"/></div>
-                <div style={{display:"flex",gap:"10px"}}>
-                  <button onClick={()=>setShowRemito(false)} style={{...d.btnGhost,flex:1}}>Atrás</button>
-                  <button onClick={()=>confirmarEgreso(true)} style={{...d.btnSuccess,flex:1}}>Guardar Egreso</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
