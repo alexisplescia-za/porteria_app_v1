@@ -2061,7 +2061,11 @@ function App(){
       return{ok:false};
     }
   };
-  const nextId=()=>new Set(registros.map(r=>r.id)).size+1;
+  const nextId=()=>{
+    if(registros.length===0)return 1;
+    const nums=registros.map(r=>parseInt(r.id.replace(/^[A-Z]+-/,""),10)).filter(n=>!isNaN(n));
+    return nums.length===0?1:Math.max(...nums)+1;
+  };
 
   if(loading)return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"16px"}}>
