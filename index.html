@@ -236,6 +236,7 @@ const DEF_CFG={
   motivosIngreso:["Búsqueda de material","Reparaciones","Retiro de camioneta","Entrega de mercadería","Relevamiento / Inspección","Instalación / Mantenimiento","Otro"],
   motivosGenerador:["Mantenimiento preventivo","Reparación","Instalación","Retiro definitivo","Prueba técnica","Actualización"],
   generadores:["Pañol - TRAILER GRANDE","Pañol - TRAILER CHICO","Pañol - ESTATICO","A1","A2","A3"],
+  repartos:["Diego Vattimo","Juan Leguizamon"],
   gsUrl:"",
 };
 
@@ -612,7 +613,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
   const[errors,setErrors]=useState({});
 
   const perfiles=["Proveedor","Técnico","Oficina Técnica","Repartos","Express","Jefe","Otro"];
-  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;if(perfil==="Express")return cfg.express||[];return[];};
+  const getNombres=()=>{if(perfil==="Proveedor")return cfg.proveedores;if(perfil==="Técnico")return cfg.tecnicos||[];if(perfil==="Oficina Técnica")return cfg.oficinaTecnica;if(perfil==="Jefe")return cfg.jefes;if(perfil==="Express")return cfg.express||[];if(perfil==="Repartos")return cfg.repartos||[];return[];};
   const addRem=()=>setRemitos(p=>[...p,{id:Date.now(),remito:"",detalle:"",estado:"Búsqueda de material",obs:""}]);
   const updRem=(id,upd)=>setRemitos(p=>p.map(r=>r.id===id?{...r,...upd}:r));
   const delRem=(id)=>setRemitos(p=>p.filter(r=>r.id!==id));
@@ -672,9 +673,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
             <label style={d.label}>{perfil==="Proveedor"?"Empresa / Proveedor":"Nombre"}</label>
             {perfil==="Otro"
               ?<input style={{...d.input,borderColor:errors.nombre?"var(--red-dark)":undefined}} value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Nombre completo"/>
-              :perfil==="Repartos"
-                ?<select style={{...d.input,borderColor:errors.nombre?"var(--red-dark)":undefined}} value={nombre} onChange={e=>setNombre(e.target.value)}><option value="">Seleccionar...</option><option>Diego Vattimo</option><option>Juan Leguizamon</option></select>
-                :<AutoInput options={getNombres()} value={nombre} onChange={setNombre} placeholder="Escribir para buscar..." error={errors.nombre}/>
+              :<AutoInput options={getNombres()} value={nombre} onChange={setNombre} placeholder="Escribir para buscar..." error={errors.nombre}/>
             }
             {(perfil==="Otro"||perfil==="Repartos")&&errors.nombre&&<span style={d.err}>{errors.nombre}</span>}
           </div>
@@ -1656,7 +1655,7 @@ function UsuariosAdmin(){
 
 function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB,onSyncPendientes}){
   const[tab,setTab]=useState("usuarios");
-  const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📝 Motivos de Ingreso",key:"motivosIngreso"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
+  const tabs=[{id:"usuarios",label:"👥 Usuarios",key:null},{id:"proveedores",label:"🏢 Proveedores",key:"proveedores"},{id:"tecnicos",label:"🔩 Técnicos",key:"tecnicos"},{id:"oficina",label:"🔧 Oficina Técnica",key:"oficinaTecnica"},{id:"jefes",label:"👔 Jefes / Supervisores",key:"jefes"},{id:"repartos",label:"🚚 Repartos",key:"repartos"},{id:"generadores",label:"⚡ Equipos GE",key:"generadores"},{id:"estados",label:"📝 Motivos de Ingreso",key:"motivosIngreso"},{id:"motivos",label:"🔧 Motivos GE",key:"motivosGenerador"},{id:"backend",label:"🔗 Backend",key:null},{id:"purgar",label:"🗑️ Base de Datos",key:null}];
   const ct=tabs.find(t=>t.id===tab);
   return(
     <div style={{maxWidth:"1100px",margin:"0 auto"}}>
