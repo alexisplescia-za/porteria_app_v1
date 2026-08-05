@@ -377,6 +377,72 @@ function AutoInput({options=[],value,onChange,placeholder,error}){
   );
 }
 
+function Select({options=[],value,onChange,placeholder,error,style}){
+  const[open,setOpen]=useState(false);
+  const[pos,setPos]=useState({top:0,left:0,width:0});
+  const wrapRef=React.useRef(null);
+  const btnRef=React.useRef(null);
+
+  const norm=useMemo(()=>options.map(o=>(o&&typeof o==="object")?o:{value:o,label:o}),[options]);
+  const current=norm.find(o=>String(o.value)===String(value));
+
+  const updatePos=React.useCallback(()=>{
+    if(btnRef.current){
+      const rect=btnRef.current.getBoundingClientRect();
+      setPos({top:rect.bottom+window.scrollY+4,left:rect.left+window.scrollX,width:rect.width});
+    }
+  },[]);
+
+  React.useLayoutEffect(()=>{if(open)updatePos();},[open]);
+
+  React.useEffect(()=>{
+    if(!open)return;
+    const onScroll=()=>updatePos();
+    const onDown=(e)=>{if(wrapRef.current&&!wrapRef.current.contains(e.target)&&!e.target.closest("[data-select-panel]"))setOpen(false);};
+    const onKey=(e)=>{if(e.key==="Escape")setOpen(false);};
+    window.addEventListener("scroll",onScroll,true);
+    window.addEventListener("resize",updatePos);
+    document.addEventListener("mousedown",onDown);
+    document.addEventListener("keydown",onKey);
+    return()=>{
+      window.removeEventListener("scroll",onScroll,true);
+      window.removeEventListener("resize",updatePos);
+      document.removeEventListener("mousedown",onDown);
+      document.removeEventListener("keydown",onKey);
+    };
+  },[open,updatePos]);
+
+  return(
+    <div ref={wrapRef} style={{position:"relative"}}>
+      <button type="button" ref={btnRef} onClick={()=>setOpen(o=>!o)}
+        style={{...d.input,...style,display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",cursor:"pointer",textAlign:"left",borderColor:error?"var(--red-dark)":(open?"var(--accent)":undefined),color:current?"var(--text)":"var(--text-muted)"}}>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{current?current.label:(placeholder||"Seleccionar...")}</span>
+        <svg width="11" height="7" viewBox="0 0 11 7" fill="none" style={{flexShrink:0,transition:"transform .15s",transform:open?"rotate(180deg)":"none",opacity:.65}}>
+          <path d="M1 1L5.5 5.5L10 1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open&&ReactDOM.createPortal(
+        <div data-select-panel style={{position:"absolute",top:pos.top+"px",left:pos.left+"px",width:pos.width+"px",zIndex:99999,background:"var(--bg-input)",border:"1px solid var(--border-light)",borderRadius:"var(--radius)",maxHeight:"280px",overflowY:"auto",boxShadow:"0 12px 32px rgba(0,0,0,0.55)",padding:"4px"}}>
+          {norm.map(o=>{
+            const sel=String(o.value)===String(value);
+            return(
+              <div key={o.value} onMouseDown={()=>{onChange(o.value);setOpen(false);}}
+                style={{padding:"9px 12px",borderRadius:"7px",cursor:"pointer",fontSize:"14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px",color:sel?"var(--accent)":"var(--text)",background:sel?"color-mix(in srgb, var(--accent) 14%, transparent)":"transparent",fontWeight:sel?600:400}}
+                onMouseEnter={e=>{if(!sel)e.currentTarget.style.background="var(--bg-hover)";}}
+                onMouseLeave={e=>{if(!sel)e.currentTarget.style.background="transparent";}}>
+                <span>{o.label}</span>
+                {sel&&<svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{flexShrink:0}}><path d="M2.5 7.5L5.5 10.5L11.5 3.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              </div>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+      {error&&<span style={d.err}>{error}</span>}
+    </div>
+  );
+}
+
 function Toggle({checked,onChange,label,accent}){
   const col=accent||"var(--accent)";
   return(
@@ -591,7 +657,7 @@ function RemitoCard({rem,idx,onUpd,onDel,estados,canDel}){
         <div><label style={d.label}>Nro Remito / OT</label><input style={d.input} value={rem.remito} onChange={e=>u("remito",e.target.value)} placeholder="Ej: 186757"/></div>
         <div>
           <label style={d.label}>Motivo de Ingreso</label>
-          <select style={d.input} value={rem.estado} onChange={e=>u("estado",e.target.value)}>{estados.map(s=><option key={s}>{s}</option>)}</select>
+          <Select options={estados} value={rem.estado} onChange={v=>u("estado",v)}/>
           {esOtro&&<input style={{...d.input,marginTop:"6px"}} value={rem.motivoLibre||""} onChange={e=>u("motivoLibre",e.target.value)} placeholder="Describí el motivo..."/>}
         </div>
       </div>
@@ -665,9 +731,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
         <div className="g2" style={d.g2}>
           <div>
             <label style={d.label}>Perfil</label>
-            <select style={d.input} value={perfil} onChange={e=>{setPerfil(e.target.value);setNombre("");setErrors({});}}>
-              {perfiles.map(p=><option key={p}>{p}</option>)}
-            </select>
+            <Select options={perfiles} value={perfil} onChange={v=>{setPerfil(v);setNombre("");setErrors({});}}/>
           </div>
           <div>
             <label style={d.label}>{perfil==="Proveedor"?"Empresa / Proveedor":"Nombre"}</label>
@@ -675,7 +739,7 @@ function NuevaOp({registros,cfg,user,addRegistros,nextId,setView}){
               ?<input style={{...d.input,borderColor:errors.nombre?"var(--red-dark)":undefined}} value={nombre} onChange={e=>setNombre(e.target.value)} placeholder="Nombre completo"/>
               :<AutoInput options={getNombres()} value={nombre} onChange={setNombre} placeholder="Escribir para buscar..." error={errors.nombre}/>
             }
-            {(perfil==="Otro"||perfil==="Repartos")&&errors.nombre&&<span style={d.err}>{errors.nombre}</span>}
+            {perfil==="Otro"&&errors.nombre&&<span style={d.err}>{errors.nombre}</span>}
           </div>
         </div>
       </div>
@@ -760,8 +824,8 @@ function Generadores({registros,cfg,user,addRegistros,nextId,setView}){
               <div><label style={d.label}>Técnico Responsable</label><AutoInput options={cfg.tecnicos||[]} value={tecnico} onChange={setTecnico} placeholder="Buscar técnico..."/></div>
             </div>
             <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
-              <div><label style={d.label}>Equipo / Grupo Electrógeno</label><select style={{...d.input,borderColor:errors.modelo?"var(--red-dark)":undefined}} value={modelo} onChange={e=>setModelo(e.target.value)}><option value="">— Seleccionar equipo —</option>{(cfg.generadores||DEF_CFG.generadores).map(g=><option key={g}>{g}</option>)}</select>{errors.modelo&&<span style={d.err}>{errors.modelo}</span>}</div>
-              <div><label style={d.label}>Motivo</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{cfg.motivosGenerador.map(m=><option key={m}>{m}</option>)}</select></div>
+              <div><label style={d.label}>Equipo / Grupo Electrógeno</label><Select options={cfg.generadores||DEF_CFG.generadores} value={modelo} onChange={setModelo} placeholder="— Seleccionar equipo —" error={errors.modelo}/></div>
+              <div><label style={d.label}>Motivo</label><Select options={cfg.motivosGenerador} value={motivo} onChange={setMotivo}/></div>
             </div>
             <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
               <div><label style={d.label}>Tienda de la que viene</label><input style={d.input} value={tienda} onChange={e=>setTienda(e.target.value)} placeholder="Ej: Tienda 42 - Palermo"/></div>
@@ -832,13 +896,9 @@ function GeEgresosTemprano({registros,addRegistros,nextId,user,cfg}){
         <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
           <div>
             <label style={d.label}>Equipo / Grupo Electrógeno</label>
-            <select style={{...d.input,borderColor:errors.modelo?"var(--red-dark)":undefined}} value={modelo} onChange={e=>setModelo(e.target.value)}>
-              <option value="">— Seleccionar equipo —</option>
-              {(cfg.generadores||DEF_CFG.generadores).map(g=><option key={g}>{g}</option>)}
-            </select>
-            {errors.modelo&&<span style={d.err}>{errors.modelo}</span>}
+            <Select options={cfg.generadores||DEF_CFG.generadores} value={modelo} onChange={setModelo} placeholder="— Seleccionar equipo —" error={errors.modelo}/>
           </div>
-          <div><label style={d.label}>Motivo de Egreso</label><select style={d.input} value={motivo} onChange={e=>setMotivo(e.target.value)}>{(cfg.motivosGenerador||DEF_CFG.motivosGenerador).map(m=><option key={m}>{m}</option>)}</select></div>
+          <div><label style={d.label}>Motivo de Egreso</label><Select options={cfg.motivosGenerador||DEF_CFG.motivosGenerador} value={motivo} onChange={setMotivo}/></div>
         </div>
         <div className="g2" style={{...d.g2,marginBottom:"12px"}}>
           <div><label style={d.label}>Tienda a la que se dirige</label><input style={d.input} value={tienda} onChange={e=>setTienda(e.target.value)} placeholder="Ej: Tienda 42 - Palermo"/></div>
@@ -905,9 +965,9 @@ function Historial({registros}){
     <div>
       <div className="filter-row" style={{...d.card,marginBottom:"16px",display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",gap:"12px"}}>
         <div><label style={d.label}>Búsqueda</label><input style={d.input} value={search} onChange={e=>setSearch(e.target.value)} placeholder="ID, nombre, remito..."/></div>
-        <div><label style={d.label}>Operación</label><select style={d.input} value={fTipo} onChange={e=>setFTipo(e.target.value)}><option value="TODOS">Todos</option><option value="INGRESO">Ingreso</option><option value="EGRESO">Egreso</option></select></div>
-        <div><label style={d.label}>Módulo</label><select style={d.input} value={fModulo} onChange={e=>setFModulo(e.target.value)}><option value="TODOS">Todos</option><option value="general">General</option><option value="generador">Generadores</option></select></div>
-        <div><label style={d.label}>Perfil</label><select style={d.input} value={fPerfil} onChange={e=>setFPerfil(e.target.value)}>{perfiles.map(p=><option key={p}>{p}</option>)}</select></div>
+        <div><label style={d.label}>Operación</label><Select options={[{value:"TODOS",label:"Todos"},{value:"INGRESO",label:"Ingreso"},{value:"EGRESO",label:"Egreso"}]} value={fTipo} onChange={setFTipo}/></div>
+        <div><label style={d.label}>Módulo</label><Select options={[{value:"TODOS",label:"Todos"},{value:"general",label:"General"},{value:"generador",label:"Generadores"}]} value={fModulo} onChange={setFModulo}/></div>
+        <div><label style={d.label}>Perfil</label><Select options={perfiles} value={fPerfil} onChange={setFPerfil}/></div>
         <div><label style={d.label}>Fecha</label><input type="date" style={d.input} value={fFecha} onChange={e=>setFFecha(e.target.value)}/></div>
       </div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"12px"}}>
@@ -1584,10 +1644,7 @@ function UsuariosAdmin(){
             </div>
             <div>
               <label style={d.label}>Rol</label>
-              <select style={d.input} value={newUser.rol} onChange={e=>setNewUser(p=>({...p,rol:e.target.value}))}>
-                <option value="porteria">Portería</option>
-                <option value="admin">Admin</option>
-              </select>
+              <Select options={[{value:"porteria",label:"Portería"},{value:"admin",label:"Admin"}]} value={newUser.rol} onChange={v=>setNewUser(p=>({...p,rol:v}))}/>
             </div>
           </div>
           {newErr&&<p style={{...d.err,marginBottom:"10px"}}>{newErr}</p>}
@@ -1615,10 +1672,7 @@ function UsuariosAdmin(){
                     </div>
                     <div style={{minWidth:"130px"}}>
                       <label style={d.label}>Rol</label>
-                      <select style={d.input} value={editing.rol} onChange={e=>setEditing(p=>({...p,rol:e.target.value}))}>
-                        <option value="porteria">Portería</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                      <Select options={[{value:"porteria",label:"Portería"},{value:"admin",label:"Admin"}]} value={editing.rol} onChange={v=>setEditing(p=>({...p,rol:v}))}/>
                     </div>
                     <div style={{display:"flex",gap:"6px"}}>
                       <button onClick={()=>guardarEdicion(u)} style={d.btnPrimary}>Guardar</button>
