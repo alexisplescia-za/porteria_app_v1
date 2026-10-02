@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Carga de Frío Alimentario</title>
+  <link rel="stylesheet" href="/frio-alimentario/style.css">
+</head>
+<body>
+
+  <div class="frame">
+
+    <!-- ============ Login por mail ============ -->
+    <div id="view-login" class="view active">
+      <div class="header">
+        <div class="eyebrow">Mantenimiento &middot; Fr&iacute;o Alimentario</div>
+        <h1 style="color:#fff;font-size:19px;margin-top:5px;">Carga de relevamiento</h1>
+      </div>
+      <div class="content" style="display:flex;flex-direction:column;justify-content:center;gap:16px;padding-top:40px;">
+        <div style="text-align:center;margin-bottom:8px;">
+          <h2 style="font-size:16.5px;margin-bottom:8px;">Ingres&aacute; tu mail de Carrefour</h2>
+          <p style="font-size:13px;color:var(--text-2);line-height:1.5;">Lo usamos para mostrarte tus tiendas a cargo.</p>
+        </div>
+        <div class="card">
+          <input id="login-input" class="input-search" type="email" placeholder="tunombre@carrefour.com" style="border:none;padding:0;width:100%;font-size:15px;">
+        </div>
+        <div id="login-error" class="card" style="display:none;background:var(--red-tint);border:none;">
+          <p style="font-size:13px;color:var(--red);line-height:1.5;">S&oacute;lo se puede ingresar con un mail <strong>@carrefour.com</strong>. Revis&aacute; lo que escribiste e intent&aacute; de nuevo.</p>
+        </div>
+        <button class="btn-primary" id="btn-login">Entrar</button>
+      </div>
+    </div>
+
+    <!-- ============ HOME: Mis tiendas ============ -->
+    <div id="view-home" class="view">
+      <div class="header">
+        <div class="header-row" style="justify-content:space-between;">
+          <div>
+            <div class="eyebrow">Mantenimiento &middot; Fr&iacute;o Alimentario</div>
+            <h1 id="home-saludo" style="color:#fff;font-size:21px;margin-top:5px;">Hola</h1>
+          </div>
+          <div class="avatar" id="home-avatar">--</div>
+        </div>
+      </div>
+      <div class="content">
+        <div style="text-align:right;margin:-6px 0 10px;">
+          <a href="#" id="link-cambiar-cuenta" style="font-size:12px;color:var(--text-2);">Cambiar cuenta</a>
+        </div>
+        <div id="home-buscador" class="card" style="display:none;margin-bottom:14px;">
+          <input id="home-buscar-input" class="input-search" placeholder="Busc&aacute; por tienda, local o jefe&hellip;" style="border:none;padding:0;">
+        </div>
+        <div class="section-title" id="home-titulo-lista">Tus tiendas a cargo</div>
+        <div id="home-lista" style="display:flex;flex-direction:column;gap:12px;"></div>
+      </div>
+    </div>
+
+    <!-- ============ Ficha de tienda ============ -->
+    <div id="view-ficha" class="view">
+      <div class="header">
+        <div class="header-row">
+          <button class="icon-btn" id="btn-volver-home">&lsaquo;</button>
+          <div>
+            <div class="eyebrow">Ficha de tienda</div>
+            <h1 id="ficha-titulo" style="color:#fff;font-size:18px;margin-top:3px;"></h1>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card" style="display:flex;flex-direction:column;gap:14px;">
+          <div><span id="ficha-formato" class="chip"></span></div>
+          <div style="display:flex;flex-direction:column;gap:11px;">
+            <div class="fila-dato"><span>Direcci&oacute;n</span><span id="ficha-direccion"></span></div>
+            <div class="fila-dato"><span>Regi&oacute;n</span><span id="ficha-region"></span></div>
+            <div class="fila-dato"><span>M&sup2; sal&oacute;n</span><span id="ficha-m2"></span></div>
+            <div class="fila-dato"><span>&Uacute;ltima carga</span><span id="ficha-estado"></span></div>
+          </div>
+        </div>
+        <div class="card" id="ficha-aviso" style="margin-top:14px;background:var(--cf-green-tint);border:none;">
+          <p style="font-size:13px;color:var(--cf-green-dark);line-height:1.5;"></p>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <button class="btn-primary" id="ficha-btn">Comenzar carga</button>
+      </div>
+    </div>
+
+    <!-- ============ Carga MT ============ -->
+    <div id="view-mt" class="view">
+      <div class="header">
+        <div class="header-row" style="margin-bottom:14px;">
+          <button class="icon-btn" id="btn-volver-ficha">&lsaquo;</button>
+          <div class="eyebrow" id="mt-tienda"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h1 style="color:#fff;font-size:20px;">Media Temperatura</h1>
+          <div style="text-align:right;">
+            <div style="color:rgba(255,255,255,.72);font-size:11px;font-family:var(--font-display);font-weight:700;margin-bottom:6px;">PASO 1 DE 2</div>
+            <div class="progress-dots" style="justify-content:flex-end;"><div class="dot active"></div><div class="dot"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card" style="margin-bottom:16px;">
+          <p style="font-family:var(--font-display);font-weight:700;font-size:13.5px;margin-bottom:10px;">&iquest;Hiciste cambios en las centrales de MT en el &uacute;ltimo a&ntilde;o?</p>
+          <div class="segmented" id="toggle-cambioMT">
+            <div class="segmented-opt" data-val="S&iacute;">S&iacute;</div>
+            <div class="segmented-opt" data-val="No">No</div>
+          </div>
+        </div>
+        <div class="card" id="steppers-mt"></div>
+      </div>
+      <div class="footer-bar">
+        <button class="btn-primary" id="btn-ir-bt">Siguiente &middot; Baja Temperatura</button>
+      </div>
+    </div>
+
+    <!-- ============ Carga BT ============ -->
+    <div id="view-bt" class="view">
+      <div class="header">
+        <div class="header-row" style="margin-bottom:14px;">
+          <button class="icon-btn" id="btn-volver-mt">&lsaquo;</button>
+          <div class="eyebrow" id="bt-tienda"></div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <h1 style="color:#fff;font-size:20px;">Baja Temperatura</h1>
+          <div style="text-align:right;">
+            <div style="color:rgba(255,255,255,.72);font-size:11px;font-family:var(--font-display);font-weight:700;margin-bottom:6px;">PASO 2 DE 2</div>
+            <div class="progress-dots" style="justify-content:flex-end;"><div class="dot active"></div><div class="dot active"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card" style="margin-bottom:16px;">
+          <p style="font-family:var(--font-display);font-weight:700;font-size:13.5px;margin-bottom:10px;">&iquest;Hiciste cambios en las centrales de BT en el &uacute;ltimo a&ntilde;o?</p>
+          <div class="segmented" id="toggle-cambioBT">
+            <div class="segmented-opt" data-val="S&iacute;">S&iacute;</div>
+            <div class="segmented-opt" data-val="No">No</div>
+          </div>
+        </div>
+        <div class="card" id="steppers-bt"></div>
+      </div>
+      <div class="footer-bar">
+        <button class="btn-primary" id="btn-ir-revision">Siguiente &middot; Revisi&oacute;n</button>
+      </div>
+    </div>
+
+    <!-- ============ Revisi&oacute;n ============ -->
+    <div id="view-revision" class="view">
+      <div class="header">
+        <div class="header-row">
+          <button class="icon-btn" id="btn-volver-bt">&lsaquo;</button>
+          <div>
+            <div class="eyebrow" id="revision-tienda"></div>
+            <h1 style="color:#fff;font-size:18px;margin-top:3px;">Revis&aacute; antes de enviar</h1>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="section-title">Observaciones</div>
+        <textarea id="revision-observaciones" class="textarea" placeholder="Ej: sin novedades, todo funcionando correctamente."></textarea>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;">
+          <div class="section-title" style="margin-bottom:0;">Media Temperatura</div>
+          <a href="#" id="link-editar-mt" style="font-size:12.5px;font-weight:700;font-family:var(--font-display);">Editar</a>
+        </div>
+        <div class="card" id="revision-mt"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;">
+          <div class="section-title" style="margin-bottom:0;">Baja Temperatura</div>
+          <a href="#" id="link-editar-bt" style="font-size:12.5px;font-weight:700;font-family:var(--font-display);">Editar</a>
+        </div>
+        <div class="card" id="revision-bt"></div>
+      </div>
+      <div class="footer-bar">
+        <button class="btn-primary" id="btn-enviar">Confirmar y enviar</button>
+      </div>
+    </div>
+
+    <!-- ============ Confirmaci&oacute;n ============ -->
+    <div id="view-confirm" class="view">
+      <div class="header" style="padding-bottom:20px;">
+        <div class="eyebrow" id="confirm-tienda"></div>
+      </div>
+      <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;padding-top:40px;">
+        <div style="width:84px;height:84px;border-radius:50%;background:var(--green-ok);display:flex;align-items:center;justify-content:center;">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div>
+          <h1 style="font-size:22px;margin-bottom:8px;">&iexcl;Listo!</h1>
+          <p id="confirm-msg" style="font-size:14px;color:var(--text-2);line-height:1.5;max-width:260px;"></p>
+        </div>
+        <span class="badge badge-actualizado" id="confirm-badge" style="font-size:13px;padding:7px 14px;"></span>
+      </div>
+      <div class="footer-bar" style="display:flex;flex-direction:column;gap:10px;">
+        <button class="btn-primary" id="btn-volver-mis-tiendas">Volver a mis tiendas</button>
+        <button class="btn-secondary" id="btn-cargar-otra">Cargar otra tienda</button>
+      </div>
+    </div>
+
+    <!-- ============ Sin tiendas asignadas ============ -->
+    <div id="view-empty" class="view">
+      <div class="header">
+        <div class="eyebrow">Mantenimiento &middot; Fr&iacute;o Alimentario</div>
+        <h1 style="color:#fff;font-size:19px;margin-top:5px;">Carga de relevamiento</h1>
+      </div>
+      <div class="content">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px;padding:28px 8px 24px;">
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--cf-green-tint);display:flex;align-items:center;justify-content:center;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#93A39B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </div>
+          <h2 style="font-size:16.5px;">No encontramos tiendas asignadas a tu usuario</h2>
+          <p style="font-size:13px;color:var(--text-2);line-height:1.5;max-width:280px;">Puede que tu email no est&eacute; cargado en el Organigrama. Busc&aacute; tu nombre para continuar.</p>
+        </div>
+        <div class="card" style="margin-bottom:12px;">
+          <input id="buscar-jefe" class="input-search" placeholder="Busc&aacute; tu nombre&hellip;">
+        </div>
+        <div id="empty-resultados" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </div>
+
+    <div id="view-loading" class="view" style="align-items:center;justify-content:center;">
+      <div style="color:var(--text-2);font-family:var(--font-display);font-weight:700;">Cargando&hellip;</div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/frio-alimentario/config.js"></script>
+  <script src="/frio-alimentario/app.js"></script>
+</body>
+</html>
