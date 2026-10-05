@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/frioalimentario_relevamiento", "destination": "/frio-alimentario/index.html" },
-    { "source": "/frioalimentario_relevamiento/", "destination": "/frio-alimentario/index.html" }
+    { "source": "/frioalimentario_relevamiento/", "destination": "/frio-alimentario/index.html" },
+    { "source": "/porteria", "destination": "/porteria/index.html" },
+    { "source": "/porteria/", "destination": "/porteria/index.html" }
   ]
 }
