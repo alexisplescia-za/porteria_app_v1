@@ -202,7 +202,8 @@ function armarTienda_(t, rel, incluirJefe) {
     direccion: t.domicilio,
     m2: t.m2,
     estado: rel ? rel.estado : null,
-    fecha: rel ? formatearFecha_(rel.ultima_carga) : null
+    fecha: rel ? formatearFecha_(rel.ultima_carga) : null,
+    rel: rel || null
   };
   if (incluirJefe) obj.jefeNombre = t.jefe_nombre;
   return obj;
@@ -263,7 +264,7 @@ async function guardarRelevamiento(payload) {
   }
   var r = await supabase.from('relevamientos').upsert(row, { onConflict: 'tienda_numero' });
   if (r.error) throw r.error;
-  return { ok: true, estado: estado };
+  return { ok: true, estado: estado, row: row };
 }
 
 async function buscarJefes(query) {
@@ -324,6 +325,7 @@ function calcularCapacidad_(tienda, form, params) {
   var porRef = {};
   var total = 0;
   var faltantes = [];
+  var detalle = [];
   EQUIPOS.forEach(function (eq) {
     var cant = Number(form[eq.key]) || 0;
     if (!cant) return;
@@ -332,8 +334,17 @@ function calcularCapacidad_(tienda, form, params) {
     var kg = cant * Number(p.kg);
     porRef[p.refrigerante] = (porRef[p.refrigerante] || 0) + kg;
     total += kg;
+    detalle.push({ label: eq.label, cant: cant, kgUnidad: Number(p.kg), refrigerante: p.refrigerante, kg: kg });
   });
-  return { grupo: grupo, porRef: porRef, total: total, faltantes: faltantes };
+  return { grupo: grupo, porRef: porRef, total: total, faltantes: faltantes, detalle: detalle };
+}
+
+// Capacidad instalada de una tienda de la lista, a partir de su relevamiento guardado.
+function capacidadTienda_(t) {
+  if (!t.rel || !STATE.params.length) return null;
+  var form = {};
+  EQUIPOS.forEach(function (eq) { form[eq.key] = t.rel[eq.col] || 0; });
+  return calcularCapacidad_(t, form, STATE.params);
 }
 
 function fmtKg_(n) {
@@ -406,6 +417,7 @@ function pintarListaHome_(lista) {
       ? (info.label + (t.fecha ? ' · Cargado ' + t.fecha : ''))
       : 'Sin carga registrada';
     if (t.jefeNombre) meta += ' · ' + t.jefeNombre;
+    var cap = capacidadTienda_(t);
     var card = document.createElement('div');
     card.className = 'card tienda-card';
     card.onclick = function () { abrirFicha(t); };
@@ -413,7 +425,8 @@ function pintarListaHome_(lista) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">' +
         '<div>' +
           '<div style="font-family:var(--font-display);font-weight:800;font-size:15.5px;">' + t.tienda + ' · ' + esc_(t.local) + '</div>' +
-          '<div style="margin-top:6px;"><span class="chip">' + esc_(t.formato) + '</span></div>' +
+          '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;"><span class="chip">' + esc_(t.formato) + '</span>' +
+            (cap ? '<span class="chip chip-kg">' + fmtKg_(cap.total) + ' instalados</span>' : '') + '</div>' +
         '</div>' +
         '<span class="badge ' + info.cls + '">' + info.label + '</span>' +
       '</div>' +
@@ -442,6 +455,7 @@ function abrirFicha(t) {
   document.getElementById('ficha-direccion').textContent = t.direccion || '—';
   document.getElementById('ficha-region').textContent = t.region || '—';
   document.getElementById('ficha-m2').textContent = (t.m2 ? t.m2 + ' m²' : '—');
+  renderCapacidadFicha_(t);
 
   var info = infoEstado_(t.estado);
   document.getElementById('ficha-estado').innerHTML = '<span class="badge ' + info.cls + '">' + info.label + '</span>';
@@ -456,6 +470,30 @@ function abrirFicha(t) {
     btn.textContent = 'Comenzar carga';
   }
   irA('ficha');
+}
+
+function renderCapacidadFicha_(t) {
+  var cont = document.getElementById('ficha-capacidad');
+  var cap = capacidadTienda_(t);
+  if (!cap) { cont.style.display = 'none'; return; }
+  cont.style.display = 'block';
+  var html = '<div class="cap-cabecera"><div><div class="section-title" style="margin-bottom:4px;">Capacidad instalada</div>' +
+    '<div class="cap-total">' + fmtKg_(cap.total) + '</div></div>' +
+    '<div class="cap-refs">' + Object.keys(cap.porRef).sort().map(function (ref) {
+      return '<span class="chip">' + esc_(ref) + ' · ' + fmtKg_(cap.porRef[ref]) + '</span>';
+    }).join('') + '</div></div>';
+  if (cap.detalle.length) {
+    html += cap.detalle.map(function (d) {
+      return '<div class="resumen-fila"><span>' + esc_(d.label) + ' <span class="cap-calc">' + d.cant + ' × ' +
+        d.kgUnidad.toLocaleString('es-AR') + ' kg ' + esc_(d.refrigerante) + '</span></span><span>' + fmtKg_(d.kg) + '</span></div>';
+    }).join('');
+  } else {
+    html += '<p style="font-size:13px;color:var(--text-2);">El relevamiento no tiene equipos cargados.</p>';
+  }
+  if (cap.faltantes.length) {
+    html += '<p class="nota-aviso">Sin parámetro para: ' + esc_(cap.faltantes.join(', ')) + '.</p>';
+  }
+  cont.innerHTML = html;
 }
 
 async function comenzarCarga() {
@@ -596,6 +634,10 @@ async function enviarRelevamiento() {
 }
 
 function onEnviado_(res) {
+  STATE.tienda.rel = Object.assign({}, STATE.tienda.rel, res.row);
+  STATE.tienda.estado = res.estado;
+  STATE.tienda.fecha = formatearFecha_(res.row.ultima_carga);
+  pintarListaHome_(STATE.tiendas);
   document.getElementById('confirm-tienda').textContent = STATE.tienda.tienda + ' · ' + STATE.tienda.local;
   document.getElementById('confirm-msg').innerHTML =
     'El relevamiento de <strong>' + STATE.tienda.tienda + ' · ' + esc_(STATE.tienda.local) + '</strong> se envió correctamente.';
