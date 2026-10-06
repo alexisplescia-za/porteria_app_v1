@@ -174,3 +174,6 @@ input,textarea{font-family:inherit;}
 .cap-refs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
 .resumen-fila .cap-calc{display:block;font-size:11.5px;font-weight:400;font-family:var(--font-body);color:var(--text-3);margin-top:2px;}
 .badge-cerrada{background:#ECEBE7;color:#52514e;}
+.dash-scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:6px;}
+.dash-scroll-top>div{height:1px;}
+.dash-tabla .th-comp{background:var(--bg);}
