@@ -648,11 +648,26 @@ window.addEventListener('resize', function () {
 function sincronizarScrollTabla_() {
   var abajo = document.getElementById('dash-tabla');
   var arriba = document.getElementById('dash-tabla-scroll-top');
-  arriba.firstElementChild.style.width = abajo.scrollWidth + 'px';
-  arriba.style.display = abajo.scrollWidth > abajo.clientWidth ? 'block' : 'none';
-  // Sólo se copia si difiere, así un scroll no rebota en el otro.
-  arriba.onscroll = function () { if (abajo.scrollLeft !== arriba.scrollLeft) abajo.scrollLeft = arriba.scrollLeft; };
-  abajo.onscroll = function () { if (arriba.scrollLeft !== abajo.scrollLeft) arriba.scrollLeft = abajo.scrollLeft; };
+  var hayScroll = abajo.scrollWidth > abajo.clientWidth;
+  arriba.style.display = hayScroll ? 'block' : 'none';
+  if (!hayScroll) return;
+  // Mismo recorrido en las dos barras: (ancho interno - ancho visible) igual arriba y abajo.
+  arriba.firstElementChild.style.width = (abajo.scrollWidth - abajo.clientWidth + arriba.clientWidth) + 'px';
+  arriba.scrollLeft = abajo.scrollLeft;
+  // Manda la barra que se está moviendo; la otra sólo la sigue y no devuelve la posición
+  // (si las dos se copian entre sí, los redondeos de píxeles generan tirones).
+  var lider = null, soltar = null;
+  var seguir = function (origen, destino, nombre) {
+    return function () {
+      if (lider && lider !== nombre) return;
+      lider = nombre;
+      destino.scrollLeft = origen.scrollLeft;
+      clearTimeout(soltar);
+      soltar = setTimeout(function () { lider = null; }, 120);
+    };
+  };
+  arriba.onscroll = seguir(arriba, abajo, 'arriba');
+  abajo.onscroll = seguir(abajo, arriba, 'abajo');
 }
 
 function exportarDashboardCSV() {
