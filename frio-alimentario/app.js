@@ -520,19 +520,28 @@ async function renderConsumoFicha_(t) {
   var cont = document.getElementById('ficha-consumo');
   cont.style.display = 'none';
   var anio = new Date().getFullYear();
-  var r = await supabase.from('consumos_mensuales').select('mes,tipo,kg').eq('tienda_numero', t.tienda).eq('anio', anio);
+  var r = await supabase.from('consumos_mensuales').select('anio,mes,tipo,kg').eq('tienda_numero', t.tienda).in('anio', [anio, anio - 1]);
   if (r.error || STATE.tienda !== t) return;
-  var fa = 0, sc = 0, ultimoMes = 0;
+  var fa = 0, sc = 0, prev = 0, hayAct = false;
   (r.data || []).forEach(function (c) {
-    if (c.tipo === 'FA') fa += Number(c.kg) || 0; else sc += Number(c.kg) || 0;
-    if (c.mes > ultimoMes) ultimoMes = c.mes;
+    var kg = Number(c.kg) || 0;
+    if (c.anio === anio - 1) { prev += kg; return; }
+    hayAct = true;
+    if (c.tipo === 'FA') fa += kg; else sc += kg;
   });
   var cap = capacidadTienda_(t);
   var html = '<div class="section-title" style="margin-bottom:8px;">Consumo de refrigerante ' + anio + '</div>' +
     '<div class="resumen-fila"><span>Frío alimentario</span><span>' + fmtKg_(fa) + '</span></div>' +
     '<div class="resumen-fila"><span>Aire acondicionado</span><span>' + fmtKg_(sc) + '</span></div>' +
-    '<div class="resumen-fila resumen-total"><span>Total FA + AA</span><span>' + fmtKg_(fa + sc) + '</span></div>';
-  if (!r.data || !r.data.length) {
+    '<div class="resumen-fila resumen-total"><span>Total FA + AA</span><span>' + fmtKg_(fa + sc) + '</span></div>' +
+    '<div class="resumen-fila"><span>Total ' + (anio - 1) + ' (FA + AA)</span><span>' + fmtKg_(prev) + '</span></div>';
+  if (prev > 0) {
+    var v = (fa + sc) / prev - 1;
+    html += '<p style="font-size:12.5px;color:var(--text-2);margin-top:8px;">Acumulado ' + anio + ' vs total ' + (anio - 1) + ': <strong>' +
+      (v > 0 ? '+' : v < 0 ? '−' : '') + (Math.round(Math.abs(v) * 1000) / 10).toLocaleString('es-AR') + '%</strong>' +
+      (v > 0 ? ' (ya superó el consumo del año anterior)' : '') + '.</p>';
+  }
+  if (!hayAct) {
     html += '<p style="font-size:12.5px;color:var(--text-2);margin-top:8px;">Sin consumo registrado en ' + anio + '.</p>';
   } else if (cap && cap.total > 0) {
     html += '<p style="font-size:12.5px;color:var(--text-2);margin-top:8px;">Consumo FA sobre capacidad instalada: <strong>' +

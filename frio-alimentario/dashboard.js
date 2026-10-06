@@ -48,7 +48,7 @@ async function cargarDatosDashboard_() {
   var r = await Promise.all([
     traerTodo_('tiendas', 'numero,local,formato,region,m2,jefe_nombre'),
     traerTodo_('relevamientos', '*'),
-    traerOpcional_('consumos_mensuales', 'tienda_numero,anio,mes,refrigerante,tipo,kg,importe', function (q) { return q.eq('tipo', 'FA'); }),
+    traerOpcional_('consumos_mensuales', 'tienda_numero,anio,mes,refrigerante,tipo,kg,importe'),
     traerOpcional_('objetivos_tienda', 'tienda_numero,anio,objetivo_kg,capacidad_topes_kg')
   ]);
   if (!STATE.params.length) STATE.params = await cargarParametros_();
@@ -127,19 +127,20 @@ function nivelFuga_(tasa) {
 function calcularDashboard_() {
   var d = DASH.datos, f = DASH.filtros;
   var per = periodos_().find(function (p) { return p.key === f.periodo; }) || periodos_()[0];
-  var objAnio = per ? Math.floor((per.hasta - 1) / 12) : null;
+  // Comparación anual (igual que el Indicador de imputaciones): acumulado del año en curso
+  // contra el total del año anterior, frío alimentario + aire acondicionado.
+  var anioAct = Math.floor((d.ultimoMes - 1) / 12), anioPrev = anioAct - 1;
+  var mesesAct = ((d.ultimoMes - 1) % 12) + 1;
 
   var consumoPorTienda = {};
   var mensual = {};
   d.consumos.forEach(function (c) {
     var k = c.anio * 12 + c.mes;
-    (consumoPorTienda[c.tienda_numero] = consumoPorTienda[c.tienda_numero] || []).push({ k: k, ref: c.refrigerante, kg: Number(c.kg) || 0, importe: Number(c.importe) || 0 });
+    (consumoPorTienda[c.tienda_numero] = consumoPorTienda[c.tienda_numero] || []).push({ k: k, anio: c.anio, tipo: c.tipo, ref: c.refrigerante, kg: Number(c.kg) || 0, importe: Number(c.importe) || 0 });
   });
-  var objetivos = {};
-  d.objetivos.forEach(function (o) { if (o.anio === objAnio) objetivos[o.tienda_numero] = o; });
 
   var filas = [];
-  var tot = { cap: {}, capTotal: 0, porEquipo: {}, cons: {}, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0 };
+  var tot = { cap: {}, capTotal: 0, porEquipo: {}, cons: {}, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0, cAct: 0, cPrev: 0 };
   d.tiendas.forEach(function (t) {
     if (f.region && regionDe_(t) !== f.region) return;
     if (f.formato && t.formato !== f.formato) return;
@@ -162,8 +163,11 @@ function calcularDashboard_() {
     });
     tot.capTotal += cap.total;
 
-    var cons = 0, imp = 0, co2 = 0;
+    var cons = 0, imp = 0, co2 = 0, cAct = 0, cPrev = 0;
     (consumoPorTienda[t.numero] || []).forEach(function (c) {
+      if (c.anio === anioAct) cAct += c.kg;
+      if (c.anio === anioPrev) cPrev += c.kg;
+      if (c.tipo !== 'FA') return;
       if (c.k >= per.desde && c.k <= per.hasta) {
         cons += c.kg; imp += c.importe; co2 += c.kg * (GWP[c.ref] || 0) / 1000;
         tot.cons[c.ref] = (tot.cons[c.ref] || 0) + c.kg;
@@ -172,17 +176,18 @@ function calcularDashboard_() {
     });
     var anual = cons * (per ? per.factor : 1);
     tot.consTotal += cons; tot.consAnual += anual; tot.importe += imp; tot.co2 += co2;
-    var obj = objetivos[t.numero];
+    tot.cAct += cAct; tot.cPrev += cPrev;
     filas.push({
       t: t, est: est, cap: cap.total, capRef: cap.porRef, cons: cons, anual: anual,
       tasa: cap.total > 0 ? anual / cap.total : null,
       exceso: anual - cap.total * OBJETIVO_FUGA,
-      objetivo: obj ? obj.objetivo_kg : null,
-      vsObjetivo: obj && obj.objetivo_kg ? anual / obj.objetivo_kg : null
+      cAct: cAct, cPrev: cPrev,
+      vsPrev: cPrev > 0 ? cAct / cPrev - 1 : null
     });
   });
   tot.tasa = tot.capTotal > 0 ? tot.consAnual / tot.capTotal : null;
-  return { per: per, filas: filas, tot: tot, mensual: mensual };
+  tot.vsPrev = tot.cPrev > 0 ? tot.cAct / tot.cPrev - 1 : null;
+  return { per: per, filas: filas, tot: tot, mensual: mensual, anioAct: anioAct, anioPrev: anioPrev, mesesAct: mesesAct };
 }
 
 // ---------------------------------------------------------------
@@ -214,6 +219,7 @@ function llenarSelect_(id, todos, valores, actual) {
 function renderDashboard_() {
   var c = calcularDashboard_();
   var tot = c.tot;
+  DASH.mesesAct = c.mesesAct;
   var hay = DASH.datos.hayConsumos;
 
   // Aviso si falta la base de consumos
@@ -243,6 +249,8 @@ function renderDashboard_() {
   ];
   if (hay) {
     tiles.push({ label: 'Consumo de refrigerante', valor: num_(tot.consTotal) + ' kg', sub: c.per.factor !== 1 ? 'anualizado: ' + num_(tot.consAnual) + ' kg' : esc_(c.per.label) });
+    tiles.push({ label: 'Consumo ' + c.anioAct + ' vs ' + c.anioPrev + ' (FA + AA)', valor: variacion_(tot.vsPrev),
+      sub: num_(tot.cAct) + ' kg acumulados de ' + num_(tot.cPrev) + ' kg en ' + c.anioPrev + ' · ' + c.mesesAct + ' de 12 meses' });
     tiles.push({ label: 'Emisiones por fugas', valor: num_(tot.co2) + ' tCO₂e', sub: 'consumo × GWP de cada gas' });
     tiles.push({ label: 'Costo del refrigerante', valor: '$ ' + compacto_(tot.importe), sub: 'importe SAP del período' });
     tiles.push({ label: 'Tiendas sobre el 20%', valor: sobre + ' de ' + conCap, sub: revisar + ' con capacidad a revisar (consumo > 125%)' });
@@ -492,8 +500,9 @@ var COLS_TABLA = [
   { key: 'anual', label: 'Consumo anual (kg)', num: true, consumo: true, val: function (f) { return f.anual; } },
   { key: 'tasa', label: 'Fuga', num: true, consumo: true, val: function (f) { return f.tasa; } },
   { key: 'exceso', label: 'Kg sobre el 20%', num: true, consumo: true, val: function (f) { return f.exceso; } },
-  { key: 'objetivo', label: 'Objetivo topes (kg)', num: true, consumo: true, val: function (f) { return f.objetivo; } },
-  { key: 'vsObjetivo', label: 'Consumo vs objetivo', num: true, consumo: true, val: function (f) { return f.vsObjetivo; } },
+  { key: 'cPrev', label: 'Año anterior FA+AA (kg)', num: true, consumo: true, val: function (f) { return f.cPrev; } },
+  { key: 'cAct', label: 'Año en curso FA+AA (kg)', num: true, consumo: true, val: function (f) { return f.cAct; } },
+  { key: 'vsPrev', label: 'Vs año anterior', num: true, consumo: true, val: function (f) { return f.vsPrev; } },
   { key: 'est', label: 'Relevamiento', val: function (f) { return f.est; } }
 ];
 
@@ -524,8 +533,7 @@ function renderTablaDashboard_(filas, hay) {
         case 'tienda': return '<td><strong>' + f.t.numero + '</strong> · ' + esc_(f.t.local) + '</td>';
         case 'tasa': return '<td class="num">' + (f.tasa == null ? '–' : '<span class="status-dot" style="background:' + nv.color + '">' + nv.icono + '</span>' + pct_(f.tasa)) + '</td>';
         case 'exceso': return '<td class="num">' + (f.exceso > 0 ? '+' + num_(f.exceso) : '–') + '</td>';
-        case 'vsObjetivo': return '<td class="num">' + (f.vsObjetivo == null ? '–' : pct_(f.vsObjetivo)) + '</td>';
-        case 'objetivo': return '<td class="num">' + (f.objetivo == null ? '–' : num_(f.objetivo)) + '</td>';
+        case 'vsPrev': return '<td class="num">' + celdaVsPrev_(f) + '</td>';
         case 'est': return '<td><span class="status-dot" style="background:' + est.color + '">' + est.icono + '</span>' + esc_(est.label) + '</td>';
         default: return c.num ? '<td class="num">' + num_(c.val(f)) + '</td>' : '<td>' + esc_(c.val(f)) + '</td>';
       }
@@ -550,11 +558,11 @@ function renderTablaDashboard_(filas, hay) {
 function exportarDashboardCSV() {
   var c = calcularDashboard_();
   var sep = ';';
-  var lineas = [['Tienda', 'Local', 'Región', 'Formato', 'Jefe', 'Capacidad kg', 'R22 kg', 'R404 kg', 'R290 kg', 'Consumo período kg', 'Consumo anual kg', 'Fuga %', 'Objetivo topes kg', 'Estado relevamiento'].join(sep)];
+  var lineas = [['Tienda', 'Local', 'Región', 'Formato', 'Jefe', 'Capacidad kg', 'R22 kg', 'R404 kg', 'R290 kg', 'Consumo período FA kg', 'Consumo anual FA kg', 'Fuga %', 'Consumo ' + c.anioPrev + ' FA+AA kg', 'Consumo ' + c.anioAct + ' FA+AA kg', 'Variación vs ' + c.anioPrev + ' %', 'Estado relevamiento'].join(sep)];
   c.filas.forEach(function (f) {
     var n = function (v) { return v == null ? '' : String(Math.round(v * 100) / 100).replace('.', ','); };
     lineas.push([f.t.numero, f.t.local, regionDe_(f.t), f.t.formato, f.t.jefe_nombre, n(f.cap), n(f.capRef.R22), n(f.capRef.R404), n(f.capRef.R290),
-      n(f.cons), n(f.anual), f.tasa == null ? '' : n(f.tasa * 100), n(f.objetivo), f.est]
+      n(f.cons), n(f.anual), f.tasa == null ? '' : n(f.tasa * 100), n(f.cPrev), n(f.cAct), f.vsPrev == null ? '' : n(f.vsPrev * 100), f.est]
       .map(function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }).join(sep));
   });
   var a = document.createElement('a');
@@ -585,6 +593,22 @@ function activarTooltips_() {
 // ---------------------------------------------------------------
 // Formatos
 // ---------------------------------------------------------------
+
+function variacion_(v) {
+  if (v == null || isNaN(v)) return '–';
+  return (v > 0 ? '+' : v < 0 ? '−' : '') + (Math.round(Math.abs(v) * 1000) / 10).toLocaleString('es-AR') + '%';
+}
+
+// Acumulado del año vs total del año anterior: ya lo superó (crítico), va por encima del ritmo
+// del año (meses transcurridos / 12) o va por debajo.
+function celdaVsPrev_(f) {
+  if (f.vsPrev == null) return f.cAct > 0 ? 'Sin consumo año anterior' : '–';
+  var ritmo = DASH.mesesAct / 12, uso = f.vsPrev + 1;
+  var nv = uso > 1 ? { color: STATUS.critical, icono: '!', label: 'Ya superó el consumo del año anterior' }
+    : uso > ritmo ? { color: STATUS.serious, icono: '▲', label: 'Va por encima del ritmo del año anterior' }
+    : { color: STATUS.good, icono: '✓', label: 'Por debajo del año anterior' };
+  return '<span class="status-dot" style="background:' + nv.color + '" title="' + nv.label + '">' + nv.icono + '</span>' + variacion_(f.vsPrev);
+}
 
 function num_(v) { return v == null || isNaN(v) ? '–' : Math.round(v).toLocaleString('es-AR'); }
 function pct_(v) { return v == null || isNaN(v) ? '–' : (Math.round(v * 1000) / 10).toLocaleString('es-AR') + '%'; }
