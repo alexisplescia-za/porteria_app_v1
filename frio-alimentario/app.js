@@ -9,7 +9,8 @@ var STEPPERS_MT = [
   { key: 'gondolasAutocontMT', col: 'gondolas_autocont_mt', label: 'Góndolas autocontenidas MT' },
   { key: 'pozosMT', col: 'pozos_mt', label: 'Pozos MT' },
   { key: 'centralesDual', col: 'centrales_dual', label: 'Centrales Dual (MT+BT)' },
-  { key: 'autocontMTCarnes', col: 'autocont_mt_carnes', label: 'Autocontenidos MT carnes', soloExpress: true }
+  { key: 'autocontMTCarnes', col: 'autocont_mt_carnes', label: 'Autocontenidos MT carnes', soloExpress: true },
+  { key: 'autocontMTR404', col: 'autocont_mt_r404', label: 'Autocontenidos MT con R404', soloExpress: true }
 ];
 var STEPPERS_BT = [
   { key: 'centralesBT', col: 'centrales_bt', label: 'Centrales BT' },
@@ -17,7 +18,8 @@ var STEPPERS_BT = [
   { key: 'gondolasAutocontBT', col: 'gondolas_autocont_bt', label: 'Góndolas autocontenidas BT' },
   { key: 'pozosBT', col: 'pozos_bt', label: 'Pozos BT' },
   { key: 'camarasMTBTDual', col: 'camaras_mtbt_dual', label: 'Cámaras MT+BT (Dual)' },
-  { key: 'autocontReemplazoBT', col: 'autocont_reemplazo_bt', label: 'Autocont. que reemplazaron central BT' }
+  { key: 'autocontReemplazoBT', col: 'autocont_reemplazo_bt', label: 'Autocont. que reemplazaron central BT' },
+  { key: 'autocontBTR404', col: 'autocont_bt_r404', label: 'Autocontenidos BT con R404', soloExpress: true }
 ];
 var EQUIPOS = STEPPERS_MT.concat(STEPPERS_BT);
 var GRUPOS = [
@@ -33,7 +35,7 @@ var REFRIGERANTES = ['R22', 'R404', 'R290', 'R448A', 'R449A', 'R507', 'R134a', '
 
 function formVacio() {
   return {
-    cambioMT: 'No', centralesMT: 0, camarasAutocontMT: 0, gondolasAutocontMT: 0, pozosMT: 0, centralesDual: 0, autocontMTCarnes: 0,
+    cambioMT: 'No', centralesMT: 0, camarasAutocontMT: 0, gondolasAutocontMT: 0, pozosMT: 0, centralesDual: 0, autocontMTCarnes: 0, autocontMTR404: 0, autocontBTR404: 0,
     cambioBT: 'No', centralesBT: 0, camarasAutocontBT: 0, gondolasAutocontBT: 0, pozosBT: 0, camarasMTBTDual: 0, autocontReemplazoBT: 0,
     observaciones: ''
   };
@@ -226,6 +228,7 @@ async function getDatosTienda(numero) {
     gondolasAutocontMT: v.gondolas_autocont_mt || 0, pozosMT: v.pozos_mt || 0, centralesDual: v.centrales_dual || 0,
     cambioBT: v.cambio_bt || 'No', centralesBT: v.centrales_bt || 0, camarasAutocontBT: v.camaras_autocont_bt || 0,
     gondolasAutocontBT: v.gondolas_autocont_bt || 0, pozosBT: v.pozos_bt || 0, camarasMTBTDual: v.camaras_mtbt_dual || 0, autocontMTCarnes: v.autocont_mt_carnes || 0,
+    autocontMTR404: v.autocont_mt_r404 || 0, autocontBTR404: v.autocont_bt_r404 || 0,
     autocontReemplazoBT: v.autocont_reemplazo_bt || 0, observaciones: v.observaciones || ''
   };
 }
@@ -253,7 +256,11 @@ async function guardarRelevamiento(payload) {
     cargado_por: payload.email || ''
   };
   // La columna sólo se manda para Express: así las demás tiendas no dependen de ella.
-  if (payload.esExpress) row.autocont_mt_carnes = payload.autocontMTCarnes || 0;
+  if (payload.esExpress) {
+    row.autocont_mt_carnes = payload.autocontMTCarnes || 0;
+    row.autocont_mt_r404 = payload.autocontMTR404 || 0;
+    row.autocont_bt_r404 = payload.autocontBTR404 || 0;
+  }
   var r = await supabase.from('relevamientos').upsert(row, { onConflict: 'tienda_numero' });
   if (r.error) throw r.error;
   return { ok: true, estado: estado };
@@ -540,7 +547,7 @@ function avanzarARevision() {
 
   var btCont = document.getElementById('revision-bt');
   btCont.innerHTML = '';
-  STEPPERS_BT.forEach(function (it) {
+  equiposDe_(STEPPERS_BT, grupoDeFormato_(STATE.tienda.formato)).forEach(function (it) {
     btCont.innerHTML += '<div class="resumen-fila"><span>' + it.label + '</span><span>' + STATE.form[it.key] + '</span></div>';
   });
 
