@@ -26,6 +26,19 @@ var GRUPOS = [
   { key: 'HMM', label: 'Hiper / Market / Maxi' },
   { key: 'EXPRESS', label: 'Express' }
 ];
+// Lo que suma capacidad instalada: los 6 tipos de equipo del Excel. Los demás campos del
+// relevamiento se cargan igual pero no suman kg. En Express, los autocontenidos con R404 y
+// los de carnes son góndolas autocontenidas con otro refrigerante/carga.
+var CATEGORIAS_CAPACIDAD = [
+  { label: 'Centrales MT', cols: ['centrales_mt'] },
+  { label: 'Centrales BT', cols: ['centrales_bt'] },
+  { label: 'Góndolas autocontenidas MT', cols: ['gondolas_autocont_mt', 'autocont_mt_r404', 'autocont_mt_carnes'] },
+  { label: 'Góndolas autocontenidas BT', cols: ['gondolas_autocont_bt', 'autocont_bt_r404'] },
+  { label: 'Pozos BT', cols: ['pozos_bt'] },
+  { label: 'Cámaras autocontenidas MT+BT', cols: ['camaras_mtbt_dual'] }
+];
+var COLS_CAPACIDAD = CATEGORIAS_CAPACIDAD.reduce(function (a, c) { return a.concat(c.cols); }, []);
+
 // Equipos que aplican a una tienda/grupo (algunos existen sólo en Express).
 function equiposDe_(lista, grupo) {
   return lista.filter(function (eq) { return !eq.soloExpress || grupo === 'EXPRESS'; });
@@ -325,16 +338,22 @@ function calcularCapacidad_(tienda, form, params) {
   var porRef = {};
   var total = 0;
   var faltantes = [];
-  var detalle = [];
-  EQUIPOS.forEach(function (eq) {
-    var cant = Number(form[eq.key]) || 0;
-    if (!cant) return;
-    var p = buscarParametro_(params, grupo, eq.col, tienda.m2);
-    if (!p) { faltantes.push(eq.label); return; }
-    var kg = cant * Number(p.kg);
-    porRef[p.refrigerante] = (porRef[p.refrigerante] || 0) + kg;
-    total += kg;
-    detalle.push({ label: eq.label, cant: cant, kgUnidad: Number(p.kg), refrigerante: p.refrigerante, kg: kg });
+  var detalle = CATEGORIAS_CAPACIDAD.map(function (cat) {
+    var item = { label: cat.label, cant: 0, kg: 0, partes: [] };
+    cat.cols.forEach(function (col) {
+      var eq = EQUIPOS.find(function (e) { return e.col === col; });
+      var cant = Number(form[eq.key]) || 0;
+      if (!cant) return;
+      var p = buscarParametro_(params, grupo, col, tienda.m2);
+      if (!p) { faltantes.push(eq.label); return; }
+      var kg = cant * Number(p.kg);
+      porRef[p.refrigerante] = (porRef[p.refrigerante] || 0) + kg;
+      total += kg;
+      item.cant += cant;
+      item.kg += kg;
+      item.partes.push({ cant: cant, kgUnidad: Number(p.kg), refrigerante: p.refrigerante, kg: kg });
+    });
+    return item;
   });
   return { grupo: grupo, porRef: porRef, total: total, faltantes: faltantes, detalle: detalle };
 }
@@ -482,14 +501,12 @@ function renderCapacidadFicha_(t) {
     '<div class="cap-refs">' + Object.keys(cap.porRef).sort().map(function (ref) {
       return '<span class="chip">' + esc_(ref) + ' · ' + fmtKg_(cap.porRef[ref]) + '</span>';
     }).join('') + '</div></div>';
-  if (cap.detalle.length) {
-    html += cap.detalle.map(function (d) {
-      return '<div class="resumen-fila"><span>' + esc_(d.label) + ' <span class="cap-calc">' + d.cant + ' × ' +
-        d.kgUnidad.toLocaleString('es-AR') + ' kg ' + esc_(d.refrigerante) + '</span></span><span>' + fmtKg_(d.kg) + '</span></div>';
-    }).join('');
-  } else {
-    html += '<p style="font-size:13px;color:var(--text-2);">El relevamiento no tiene equipos cargados.</p>';
-  }
+  html += cap.detalle.map(function (d) {
+    var calc = d.partes.length
+      ? d.partes.map(function (p) { return p.cant + ' × ' + p.kgUnidad.toLocaleString('es-AR') + ' kg ' + esc_(p.refrigerante); }).join(' + ')
+      : 'Sin equipos';
+    return '<div class="resumen-fila"><span>' + esc_(d.label) + ' <span class="cap-calc">' + calc + '</span></span><span>' + fmtKg_(d.kg) + '</span></div>';
+  }).join('');
   if (cap.faltantes.length) {
     html += '<p class="nota-aviso">Sin parámetro para: ' + esc_(cap.faltantes.join(', ')) + '.</p>';
   }
@@ -692,7 +709,7 @@ function renderParametros_() {
     return;
   }
 
-  equiposDe_(EQUIPOS, PARAMS_EDIT.grupo).forEach(function (eq) {
+  equiposDe_(EQUIPOS, PARAMS_EDIT.grupo).filter(function (eq) { return COLS_CAPACIDAD.indexOf(eq.col) !== -1; }).forEach(function (eq) {
     var filas = PARAMS_EDIT.filas
       .filter(function (f) { return f.grupo === PARAMS_EDIT.grupo && f.equipo === eq.col; })
       .sort(ordenarTramos_);

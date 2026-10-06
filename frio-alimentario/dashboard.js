@@ -138,7 +138,7 @@ function calcularDashboard_() {
   d.objetivos.forEach(function (o) { if (o.anio === objAnio) objetivos[o.tienda_numero] = o; });
 
   var filas = [];
-  var tot = { cap: {}, capTotal: 0, cons: {}, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0 };
+  var tot = { cap: {}, capTotal: 0, porEquipo: {}, cons: {}, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0 };
   d.tiendas.forEach(function (t) {
     if (f.region && regionDe_(t) !== f.region) return;
     if (f.formato && t.formato !== f.formato) return;
@@ -155,6 +155,11 @@ function calcularDashboard_() {
       cap = calcularCapacidad_(t, form, STATE.params);
     }
     Object.keys(cap.porRef).forEach(function (ref) { tot.cap[ref] = (tot.cap[ref] || 0) + cap.porRef[ref]; });
+    (cap.detalle || []).forEach(function (d) {
+      var e = tot.porEquipo[d.label] = tot.porEquipo[d.label] || { label: d.label, cant: 0, kg: 0, refs: {} };
+      e.cant += d.cant; e.kg += d.kg;
+      d.partes.forEach(function (p) { e.refs[p.refrigerante] = true; });
+    });
     tot.capTotal += cap.total;
 
     var cons = 0, imp = 0, co2 = 0;
@@ -256,6 +261,8 @@ function renderDashboard_() {
     return { label: e.icono + ' ' + e.label, valor: tot.estados[e.key] || 0, color: e.color };
   }), 'tiendas', true));
   document.getElementById('dash-anillos').innerHTML = anillos.join('');
+
+  document.getElementById('dash-equipos').innerHTML = barrasEquipo_(tot.porEquipo, tot.capTotal);
 
   // Barras por región / formato
   document.getElementById('dash-barras').innerHTML = hay
@@ -359,6 +366,28 @@ function barrasKg_(titulo, grupos) {
   });
   return '<div class="card dash-chart"><div class="dash-chart-titulo">' + titulo + '</div>' + s + '</svg></div>';
 }
+
+// Capacidad por tipo de equipo (el cuadro "Total Kg por equipo" del Excel).
+function barrasEquipo_(porEquipo, total) {
+  // Siempre los 6 tipos, en el mismo orden que el cuadro del Excel.
+  var grupos = CATEGORIAS_CAPACIDAD.map(function (c) { return porEquipo[c.label] || { label: c.label, cant: 0, kg: 0, refs: {} }; });
+  var max = grupos.reduce(function (m, g) { return Math.max(m, g.kg); }, 1);
+  var LW = 230, BW = 520, ROW = 30, H = grupos.length * ROW + 10;
+  var s = '<svg viewBox="0 0 ' + (LW + BW + 220) + ' ' + H + '" class="chart-svg" role="img" aria-label="Capacidad instalada por tipo de equipo">';
+  grupos.forEach(function (g, i) {
+    var y = 4 + i * ROW, w = Math.max(g.kg / max * BW, 1);
+    var refs = Object.keys(g.refs).join(' / ');
+    var detalle = num_(g.cant) + ' equipos · ' + refs;
+    s += '<text x="' + (LW - 10) + '" y="' + (y + 14) + '" text-anchor="end" class="bar-label">' + esc_(g.label) + '</text>' +
+      '<path d="' + barraH_(LW, y + 3, w, 16) + '" fill="#2a78d6" data-tip="' + esc_(g.label) + ': ' + num_(g.kg) + ' kg (' + pct_(g.kg / total) + ') · ' + detalle + '"/>' +
+      '<text x="' + (LW + w + 8) + '" y="' + (y + 15) + '" class="bar-valor">' + fmtKgDash_(g.kg) + '</text>' +
+      '<text x="' + (LW + w + 8 + 12 + fmtKgDash_(g.kg).length * 7) + '" y="' + (y + 15) + '" class="tick">' + detalle + '</text>';
+  });
+  s += '</svg>';
+  return '<div class="card dash-chart"><div class="dash-chart-titulo">Capacidad instalada por tipo de equipo</div>' + s + '</div>';
+}
+
+function fmtKgDash_(v) { return (Math.round(v * 10) / 10).toLocaleString('es-AR') + ' kg'; }
 
 // Barra horizontal: cuadrada en la base, redondeada (4px) en la punta.
 function barraH_(x, y, w, h) {
