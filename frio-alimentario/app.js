@@ -8,7 +8,8 @@ var STEPPERS_MT = [
   { key: 'camarasAutocontMT', col: 'camaras_autocont_mt', label: 'Cámaras autocontenidas MT' },
   { key: 'gondolasAutocontMT', col: 'gondolas_autocont_mt', label: 'Góndolas autocontenidas MT' },
   { key: 'pozosMT', col: 'pozos_mt', label: 'Pozos MT' },
-  { key: 'centralesDual', col: 'centrales_dual', label: 'Centrales Dual (MT+BT)' }
+  { key: 'centralesDual', col: 'centrales_dual', label: 'Centrales Dual (MT+BT)' },
+  { key: 'autocontMTCarnes', col: 'autocont_mt_carnes', label: 'Autocontenidos MT carnes', soloExpress: true }
 ];
 var STEPPERS_BT = [
   { key: 'centralesBT', col: 'centrales_bt', label: 'Centrales BT' },
@@ -23,11 +24,16 @@ var GRUPOS = [
   { key: 'HMM', label: 'Hiper / Market / Maxi' },
   { key: 'EXPRESS', label: 'Express' }
 ];
+// Equipos que aplican a una tienda/grupo (algunos existen sólo en Express).
+function equiposDe_(lista, grupo) {
+  return lista.filter(function (eq) { return !eq.soloExpress || grupo === 'EXPRESS'; });
+}
+
 var REFRIGERANTES = ['R22', 'R404', 'R290', 'R448A', 'R449A', 'R507', 'R134a', 'CO2'];
 
 function formVacio() {
   return {
-    cambioMT: 'No', centralesMT: 0, camarasAutocontMT: 0, gondolasAutocontMT: 0, pozosMT: 0, centralesDual: 0,
+    cambioMT: 'No', centralesMT: 0, camarasAutocontMT: 0, gondolasAutocontMT: 0, pozosMT: 0, centralesDual: 0, autocontMTCarnes: 0,
     cambioBT: 'No', centralesBT: 0, camarasAutocontBT: 0, gondolasAutocontBT: 0, pozosBT: 0, camarasMTBTDual: 0, autocontReemplazoBT: 0,
     observaciones: ''
   };
@@ -216,7 +222,7 @@ async function getDatosTienda(numero) {
     cambioMT: v.cambio_mt || 'No', centralesMT: v.centrales_mt || 0, camarasAutocontMT: v.camaras_autocont_mt || 0,
     gondolasAutocontMT: v.gondolas_autocont_mt || 0, pozosMT: v.pozos_mt || 0, centralesDual: v.centrales_dual || 0,
     cambioBT: v.cambio_bt || 'No', centralesBT: v.centrales_bt || 0, camarasAutocontBT: v.camaras_autocont_bt || 0,
-    gondolasAutocontBT: v.gondolas_autocont_bt || 0, pozosBT: v.pozos_bt || 0, camarasMTBTDual: v.camaras_mtbt_dual || 0,
+    gondolasAutocontBT: v.gondolas_autocont_bt || 0, pozosBT: v.pozos_bt || 0, camarasMTBTDual: v.camaras_mtbt_dual || 0, autocontMTCarnes: v.autocont_mt_carnes || 0,
     autocontReemplazoBT: v.autocont_reemplazo_bt || 0, observaciones: v.observaciones || ''
   };
 }
@@ -243,6 +249,8 @@ async function guardarRelevamiento(payload) {
     ultima_carga: new Date().toISOString(),
     cargado_por: payload.email || ''
   };
+  // La columna sólo se manda para Express: así las demás tiendas no dependen de ella.
+  if (payload.esExpress) row.autocont_mt_carnes = payload.autocontMTCarnes || 0;
   var r = await supabase.from('relevamientos').upsert(row, { onConflict: 'tienda_numero' });
   if (r.error) throw r.error;
   return { ok: true, estado: estado };
@@ -469,7 +477,7 @@ function abrirPasoMT() {
 function renderSteppers(contId, config) {
   var cont = document.getElementById(contId);
   cont.innerHTML = '';
-  config.forEach(function (it) {
+  equiposDe_(config, grupoDeFormato_(STATE.tienda.formato)).forEach(function (it) {
     var row = document.createElement('div');
     row.className = 'stepper-row';
     row.innerHTML =
@@ -522,7 +530,7 @@ function avanzarARevision() {
 
   var mtCont = document.getElementById('revision-mt');
   mtCont.innerHTML = '';
-  STEPPERS_MT.forEach(function (it) {
+  equiposDe_(STEPPERS_MT, grupoDeFormato_(STATE.tienda.formato)).forEach(function (it) {
     mtCont.innerHTML += '<div class="resumen-fila"><span>' + it.label + '</span><span>' + STATE.form[it.key] + '</span></div>';
   });
 
@@ -558,6 +566,7 @@ async function enviarRelevamiento() {
   var payload = Object.assign({}, STATE.form, {
     tienda: STATE.tienda.tienda,
     email: STATE.email,
+    esExpress: grupoDeFormato_(STATE.tienda.formato) === 'EXPRESS',
     pozosGondolasIncompleto: false
   });
 
@@ -630,7 +639,7 @@ function renderParametros_() {
     return;
   }
 
-  EQUIPOS.forEach(function (eq) {
+  equiposDe_(EQUIPOS, PARAMS_EDIT.grupo).forEach(function (eq) {
     var filas = PARAMS_EDIT.filas
       .filter(function (f) { return f.grupo === PARAMS_EDIT.grupo && f.equipo === eq.col; })
       .sort(ordenarTramos_);
