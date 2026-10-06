@@ -69,6 +69,9 @@ function wireUpEvents_() {
   document.getElementById('btn-ir-params').onclick = abrirParametros;
   document.getElementById('btn-volver-params').onclick = function () { irA('home'); };
   document.getElementById('btn-guardar-params').onclick = guardarParametros;
+  document.getElementById('btn-ir-dashboard').onclick = abrirDashboard;
+  document.getElementById('btn-volver-dashboard').onclick = function () { irA('home'); };
+  document.getElementById('btn-exportar-dashboard').onclick = exportarDashboardCSV;
 }
 
 // ---------------------------------------------------------------
@@ -337,6 +340,7 @@ function fmtKg_(n) {
 function irA(vista) {
   document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
   document.getElementById('view-' + vista).classList.add('active');
+  document.querySelector('.frame').classList.toggle('wide', vista === 'dashboard');
   window.scrollTo(0, 0);
 }
 

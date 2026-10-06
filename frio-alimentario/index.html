@@ -47,6 +47,7 @@
           <a href="#" id="link-cambiar-cuenta" style="font-size:12px;color:var(--text-2);">Cambiar cuenta</a>
         </div>
         <div id="home-acciones-maestro" style="display:none;margin-bottom:14px;">
+          <button class="btn-primary" id="btn-ir-dashboard" style="margin-bottom:10px;">Dashboard de capacidad instalada</button>
           <button class="btn-secondary" id="btn-ir-params">&#9881; Par&aacute;metros de kg por equipo</button>
         </div>
         <div id="home-buscador" class="card" style="display:none;margin-bottom:14px;">
@@ -249,6 +250,47 @@
       </div>
     </div>
 
+    <!-- ============ Dashboard (cuentas maestras) ============ -->
+    <div id="view-dashboard" class="view">
+      <div class="header">
+        <div class="header-row" style="justify-content:space-between;flex-wrap:wrap;">
+          <div class="header-row">
+            <button class="icon-btn" id="btn-volver-dashboard">&lsaquo;</button>
+            <div>
+              <div class="eyebrow">Fr&iacute;o Alimentario</div>
+              <h1 style="color:#fff;font-size:19px;margin-top:3px;">Capacidad instalada vs consumo real</h1>
+            </div>
+          </div>
+          <button class="btn-header" id="btn-exportar-dashboard">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="content dash">
+        <div class="dash-filtros">
+          <label>Regi&oacute;n<select id="dash-f-region" class="param-input"></select></label>
+          <label>Formato<select id="dash-f-formato" class="param-input"></select></label>
+          <label>Per&iacute;odo de consumo<select id="dash-f-periodo" class="param-input"></select></label>
+        </div>
+        <div id="dash-aviso"></div>
+        <div class="dash-kpis">
+          <div class="card dash-hero" id="dash-hero"></div>
+          <div class="dash-tiles" id="dash-tiles"></div>
+        </div>
+        <div class="dash-grid-3" id="dash-anillos"></div>
+        <div class="dash-grid-2" id="dash-barras"></div>
+        <div id="dash-tendencia"></div>
+        <div id="dash-dispersion"></div>
+        <div class="card dash-chart">
+          <div class="dash-tabla-cabecera">
+            <div class="dash-chart-titulo" style="margin:0;">Tiendas</div>
+            <input id="dash-buscar" class="param-input" placeholder="Buscar tienda, local o jefe&hellip;" style="max-width:260px;">
+          </div>
+          <div class="dash-tabla-scroll" id="dash-tabla"></div>
+          <div class="dash-sub" id="dash-tabla-pie" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <div id="dash-tooltip" class="dash-tooltip" role="tooltip"></div>
+    </div>
+
     <div id="view-loading" class="view" style="align-items:center;justify-content:center;">
       <div style="color:var(--text-2);font-family:var(--font-display);font-weight:700;">Cargando&hellip;</div>
     </div>
@@ -258,5 +300,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/frio-alimentario/config.js"></script>
   <script src="/frio-alimentario/app.js"></script>
+  <script src="/frio-alimentario/dashboard.js"></script>
 </body>
 </html>
