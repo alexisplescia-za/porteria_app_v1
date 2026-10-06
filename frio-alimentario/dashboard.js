@@ -165,9 +165,10 @@ function calcularDashboard_() {
     tot.capTotal += cap.total;
 
     // cons = sólo FA (para la tasa de fuga, contra la capacidad de FA); consTot = FA + AA (como el indicador).
-    var cons = 0, consTot = 0, imp = 0, co2 = 0, cAct = 0, cPrev = 0;
+    var cons = 0, consTot = 0, imp = 0, co2 = 0, cAct = 0, cPrev = 0, faAct = 0;
     (consumoPorTienda[t.numero] || []).forEach(function (c) {
       if (c.anio === anioAct) cAct += c.kg;
+      if (c.anio === anioAct && c.tipo === 'FA') faAct += c.kg;
       if (c.anio === anioPrev) cPrev += c.kg;
       if (c.anio === anioAct || c.anio === anioPrev) mensual[c.k] = (mensual[c.k] || 0) + c.kg;
       if (c.k >= per.desde && c.k <= per.hasta) {
@@ -184,7 +185,7 @@ function calcularDashboard_() {
     filas.push({
       t: t, est: est, cap: cap.total, capRef: cap.porRef, comp: comp, cons: cons, anual: anual,
       tasa: cap.total > 0 ? anual / cap.total : null,
-      cAct: cAct, cPrev: cPrev, sobrePrev: cAct - cPrev,
+      cAct: cAct, cPrev: cPrev, sobrePrev: cAct - cPrev, faAct: faAct,
       vsPrev: cPrev > 0 ? cAct / cPrev - 1 : null
     });
   });
@@ -257,6 +258,10 @@ function renderDashboard_() {
       sub: num_(tot.cAct) + ' kg acumulados de ' + num_(tot.cPrev) + ' kg en ' + c.anioPrev + ' · ' + c.mesesAct + ' de 12 meses' });
     tiles.push({ label: 'Tiendas que consumieron más que en ' + c.anioPrev, valor: masQuePrev + ' de ' + conConsumo,
       sub: 'acumulado ' + c.anioAct + ' mayor al total ' + c.anioPrev + ' · ' + arribaRitmo + ' más van por encima del ritmo' });
+    var sobreCap = c.filas.filter(function (f) { return f.cap > 0 && f.faAct > f.cap; });
+    var conCapYConsumo = c.filas.filter(function (f) { return f.cap > 0 && f.faAct > 0; }).length;
+    tiles.push({ label: 'Tiendas que consumieron más que su capacidad instalada en ' + c.anioAct, valor: sobreCap.length + ' de ' + conCapYConsumo,
+      sub: 'consumo FA ' + c.anioAct + ' mayor a su capacidad instalada de FA · ' + num_(sobreCap.reduce(function (s, f) { return s + f.faAct - f.cap; }, 0)) + ' kg por encima' });
     tiles.push({ label: 'Emisiones de CO₂ equivalente', valor: num_(tot.co2) + ' t', sub: 'kg recargados × poder de calentamiento (GWP) de cada gas' });
     tiles.push({ label: 'Costo del refrigerante', valor: '$ ' + compacto_(tot.importe), sub: 'importe SAP del período' });
   }
@@ -429,7 +434,7 @@ function mensualComparado_(mensual, c) {
     meses.push({ m: m, prev: mensual[c.anioPrev * 12 + m] || 0, act: m <= c.mesesAct ? (mensual[c.anioAct * 12 + m] || 0) : null });
   }
   var tope = topeRedondo_(meses.reduce(function (mx, x) { return Math.max(mx, x.prev, x.act || 0); }, 1));
-  var L = 56, W = 1100, H = 240, B = 205, slot = (W - L) / 12, bw = Math.min(22, (slot - 14) / 2);
+  var L = 56, W = 1100, H = 262, B = 205, slot = (W - L) / 12, bw = Math.min(22, (slot - 14) / 2);
   var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart-svg" role="img" aria-label="Consumo mensual ' + c.anioPrev + ' vs ' + c.anioAct + '">';
   [0, 0.25, 0.5, 0.75, 1].forEach(function (f) {
     var y = B - f * (B - 10);
@@ -445,9 +450,18 @@ function mensualComparado_(mensual, c) {
     if (d.act != null) s += '<path d="' + barraV_(x0 + bw + 2, B, bw, Math.max(ha, d.act > 0 ? 1 : 0)) + '" fill="' + COLOR_ACT + '"/>';
     s += '<rect x="' + (L + i * slot) + '" y="10" width="' + slot + '" height="' + (B - 10) + '" fill="transparent" data-tip="' + tip + '"/>' +
       '<text x="' + (L + i * slot + slot / 2) + '" y="' + (B + 18) + '" text-anchor="middle" class="tick">' + MESES_CORTOS[d.m - 1] + '</text>';
+    if (v != null) {
+      // ▼ ahorro (consumió menos que el mismo mes del año anterior) · ▲ desvío (consumió más)
+      var ahorro = v < 0;
+      s += '<text x="' + (L + i * slot + slot / 2) + '" y="' + (B + 40) + '" text-anchor="middle" class="var-mes">' +
+        '<tspan fill="' + (ahorro ? STATUS.good : STATUS.critical) + '">' + (ahorro ? '▼' : '▲') + '</tspan> ' +
+        (Math.round(Math.abs(v) * 1000) / 10).toLocaleString('es-AR') + '%</text>';
+    }
   });
   s += '</svg>';
-  return '<div class="card dash-chart"><div class="dash-chart-titulo">Consumo mensual de refrigerante · ' + c.anioAct + ' vs ' + c.anioPrev + ' (kg, FA + AA)</div>' + leyendaAnios_(c) + s + '</div>';
+  var leyendaVar = '<div class="leyenda-linea" style="margin-top:6px;"><span class="leyenda-inline"><span style="color:' + STATUS.good + ';margin-right:4px;">▼</span>ahorro vs mismo mes ' + c.anioPrev + '</span>' +
+    '<span class="leyenda-inline"><span style="color:' + STATUS.critical + ';margin-right:4px;">▲</span>desvío (consumió más)</span></div>';
+  return '<div class="card dash-chart"><div class="dash-chart-titulo">Consumo mensual de refrigerante · ' + c.anioAct + ' vs ' + c.anioPrev + ' (kg, FA + AA)</div>' + leyendaAnios_(c) + s + leyendaVar + '</div>';
 }
 
 // Estado de una tienda frente al año anterior (acumulado del año vs total del año anterior).

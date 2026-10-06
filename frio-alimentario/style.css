@@ -177,3 +177,4 @@ input,textarea{font-family:inherit;}
 .dash-scroll-top{overflow-x:auto;overflow-y:hidden;height:14px;margin-bottom:6px;}
 .dash-scroll-top>div{height:1px;}
 .dash-tabla .th-comp{background:var(--bg);}
+.chart-svg .var-mes{font-size:12px;font-weight:700;fill:var(--text);font-variant-numeric:tabular-nums;}
