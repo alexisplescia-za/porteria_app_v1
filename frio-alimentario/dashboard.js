@@ -109,7 +109,8 @@ var ESTADOS = [
   { key: 'parcial', label: 'Parcial (falta pozos/góndolas)', color: STATUS.warning, icono: '◐' },
   { key: 'pendiente', label: 'Pendiente', color: STATUS.critical, icono: '!' },
   { key: 'importado', label: 'Importado del Excel, sin confirmar', color: '#86b6ef', icono: '↓' },
-  { key: 'sin', label: 'Sin datos', color: STATUS.muted, icono: '–' }
+  { key: 'sin', label: 'Sin datos', color: STATUS.muted, icono: '–' },
+  { key: 'cerrada', label: 'Tienda cerrada', color: '#52514e', icono: '×' }
 ];
 
 function nivelFuga_(tasa) {
@@ -145,8 +146,7 @@ function calcularDashboard_() {
     var rel = d.rel[t.numero];
     var est = categoriaEstado_(rel);
     tot.estados[est] = (tot.estados[est] || 0) + 1;
-    if (est === 'cerrada') return;
-    tot.tiendas++;
+    if (est !== 'cerrada') tot.tiendas++;
 
     var cap = { porRef: {}, total: 0 };
     if (rel) {
@@ -239,7 +239,7 @@ function renderDashboard_() {
   var conCap = c.filas.filter(function (f) { return f.tasa != null; }).length;
   var ok = tot.estados.ok || 0;
   var tiles = [
-    { label: 'Capacidad instalada', valor: num_(tot.capTotal) + ' kg', sub: tot.tiendas + ' tiendas activas' }
+    { label: 'Capacidad instalada', valor: num_(tot.capTotal) + ' kg', sub: tot.tiendas + ' tiendas activas' + (tot.estados.cerrada ? ' + ' + tot.estados.cerrada + ' cerradas' : '') }
   ];
   if (hay) {
     tiles.push({ label: 'Consumo de refrigerante', valor: num_(tot.consTotal) + ' kg', sub: c.per.factor !== 1 ? 'anualizado: ' + num_(tot.consAnual) + ' kg' : esc_(c.per.label) });

@@ -458,6 +458,7 @@ function pintarListaHome_(lista) {
 }
 
 function infoEstado_(estado) {
+  if (estado === 'CERRADA') return { cls: 'badge-cerrada', label: 'Cerrada' };
   if (estado === 'ACTUALIZADO' || estado === 'SIN NOVEDADES') return { cls: 'badge-actualizado', label: 'Actualizado' };
   if (estado === 'PENDIENTE POZOS Y GONDOLAS') return { cls: 'badge-parcial', label: 'Parcial' };
   return { cls: 'badge-pendiente', label: 'Pendiente' };
@@ -475,6 +476,7 @@ function abrirFicha(t) {
   document.getElementById('ficha-region').textContent = t.region || '—';
   document.getElementById('ficha-m2').textContent = (t.m2 ? t.m2 + ' m²' : '—');
   renderCapacidadFicha_(t);
+  renderConsumoFicha_(t);
 
   var info = infoEstado_(t.estado);
   document.getElementById('ficha-estado').innerHTML = '<span class="badge ' + info.cls + '">' + info.label + '</span>';
@@ -511,6 +513,33 @@ function renderCapacidadFicha_(t) {
     html += '<p class="nota-aviso">Sin parámetro para: ' + esc_(cap.faltantes.join(', ')) + '.</p>';
   }
   cont.innerHTML = html;
+}
+
+// Consumo real del año en curso (salidas de SAP): frío alimentario y aire acondicionado por separado.
+async function renderConsumoFicha_(t) {
+  var cont = document.getElementById('ficha-consumo');
+  cont.style.display = 'none';
+  var anio = new Date().getFullYear();
+  var r = await supabase.from('consumos_mensuales').select('mes,tipo,kg').eq('tienda_numero', t.tienda).eq('anio', anio);
+  if (r.error || STATE.tienda !== t) return;
+  var fa = 0, sc = 0, ultimoMes = 0;
+  (r.data || []).forEach(function (c) {
+    if (c.tipo === 'FA') fa += Number(c.kg) || 0; else sc += Number(c.kg) || 0;
+    if (c.mes > ultimoMes) ultimoMes = c.mes;
+  });
+  var cap = capacidadTienda_(t);
+  var html = '<div class="section-title" style="margin-bottom:8px;">Consumo de refrigerante ' + anio + '</div>' +
+    '<div class="resumen-fila"><span>Frío alimentario</span><span>' + fmtKg_(fa) + '</span></div>' +
+    '<div class="resumen-fila"><span>Aire acondicionado</span><span>' + fmtKg_(sc) + '</span></div>' +
+    '<div class="resumen-fila resumen-total"><span>Total FA + AA</span><span>' + fmtKg_(fa + sc) + '</span></div>';
+  if (!r.data || !r.data.length) {
+    html += '<p style="font-size:12.5px;color:var(--text-2);margin-top:8px;">Sin consumo registrado en ' + anio + '.</p>';
+  } else if (cap && cap.total > 0) {
+    html += '<p style="font-size:12.5px;color:var(--text-2);margin-top:8px;">Consumo FA sobre capacidad instalada: <strong>' +
+      (Math.round(fa / cap.total * 1000) / 10).toLocaleString('es-AR') + '%</strong> en lo que va del año.</p>';
+  }
+  cont.innerHTML = html;
+  cont.style.display = 'block';
 }
 
 async function comenzarCarga() {

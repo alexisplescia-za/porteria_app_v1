@@ -173,3 +173,4 @@ input,textarea{font-family:inherit;}
 .cap-total{font-family:var(--font-display);font-weight:800;font-size:24px;color:var(--text);}
 .cap-refs{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
 .resumen-fila .cap-calc{display:block;font-size:11.5px;font-weight:400;font-family:var(--font-body);color:var(--text-3);margin-top:2px;}
+.badge-cerrada{background:#ECEBE7;color:#52514e;}
