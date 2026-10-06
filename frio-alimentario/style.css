@@ -178,3 +178,19 @@ input,textarea{font-family:inherit;}
 .dash-scroll-top>div{height:1px;}
 .dash-tabla .th-comp{background:var(--bg);}
 .chart-svg .var-mes{font-size:12px;font-weight:700;fill:var(--text);font-variant-numeric:tabular-nums;}
+
+/* ============ Filtros cruzados ============ */
+.dash-tile.clicable,.leyenda-fila.clicable{cursor:pointer;transition:border-color .12s,background .12s;}
+.dash-tile.clicable:hover{border-color:#2a78d6;}
+.dash-tile.activa{border-color:#2a78d6;box-shadow:0 0 0 2px #2a78d6 inset;}
+.leyenda-fila.clicable{border-radius:6px;padding:2px 4px;margin:0 -4px;}
+.leyenda-fila.clicable:hover{background:var(--bg);}
+.leyenda-fila.activa{background:#E5EFFA;}
+.donut .seg{cursor:pointer;}
+.donut .seg.activo{stroke-width:21;}
+.chart-svg .fila-clic{cursor:pointer;}
+.chart-svg .fila-clic:hover{fill:rgba(42,120,214,.06);}
+.dash-pista{font-family:var(--font-body);font-weight:400;font-size:11px;color:var(--text-3);margin-left:6px;}
+.sel-chip{display:inline-flex;align-items:center;gap:8px;background:#E5EFFA;color:#1E3FAE;border-radius:20px;padding:7px 8px 7px 14px;font-size:13px;}
+.sel-chip button{border:none;background:#1E3FAE;color:#fff;width:22px;height:22px;border-radius:50%;font-size:14px;line-height:1;cursor:pointer;}
+.dash-tile.clicable:focus-visible,.leyenda-fila.clicable:focus-visible{outline:2px solid #2a78d6;outline-offset:2px;}

@@ -11,7 +11,7 @@ var STATUS = { good: '#0ca30c', warning: '#fab219', serious: '#ec835a', critical
 var OBJETIVO_FUGA = 0.20;     // objetivo de tasa de fuga de Carrefour
 var REFERENCIA_GREENCHILL = 0.14;
 
-var DASH = { datos: null, filtros: { region: '', formato: '', periodo: '12m' }, tabla: { orden: 'sobrePrev', desc: true, limite: 30, buscar: '' } };
+var DASH = { datos: null, filtros: { region: '', formato: '', periodo: '12m', sel: null }, tabla: { orden: 'sobrePrev', desc: true, limite: 30, buscar: '' } };
 
 async function abrirDashboard() {
   irA('loading');
@@ -125,6 +125,26 @@ function nivelFuga_(tasa) {
   return { key: 'critical', label: 'Crítica (>35%)', color: STATUS.critical, icono: '!' };
 }
 
+// Filtros cruzados: al hacer clic en una tarjeta o en un anillo se filtran las tiendas que cumplen
+// la condición, y todo el dashboard se recalcula sólo con ellas.
+var SELECCIONES = {
+  masQuePrev: { label: function (c) { return 'Consumieron más que en ' + c.anioPrev; }, ok: function (f) { return f.cAct > f.cPrev && (f.cAct > 0 || f.cPrev > 0); } },
+  sobreCap: { label: function (c) { return 'Consumieron más que su capacidad en ' + c.anioAct; }, ok: function (f) { return f.cap > 0 && f.faAct > f.cap; } },
+  pendientes: { label: function () { return 'Pendientes de relevar (sin confirmar)'; }, ok: function (f) { return f.est !== 'ok' && f.est !== 'cerrada'; } }
+};
+
+function seleccionDe_(clave) {
+  if (SELECCIONES[clave]) return SELECCIONES[clave];
+  var p = clave.split(':'), tipo = p[0], valor = p.slice(1).join(':');
+  if (tipo === 'capRef') return { label: function () { return 'Capacidad con ' + valor; }, ok: function (f) { return (f.capRef[valor] || 0) > 0; } };
+  if (tipo === 'consRef') return { label: function () { return 'Consumieron ' + valor + ' en el período'; }, ok: function (f) { return (f.consRef[valor] || 0) > 0; } };
+  if (tipo === 'estado') {
+    var e = ESTADOS.find(function (x) { return x.key === valor; });
+    return { label: function () { return 'Relevamiento: ' + (e ? e.label : valor); }, ok: function (f) { return f.est === valor; } };
+  }
+  return null;
+}
+
 function calcularDashboard_() {
   var d = DASH.datos, f = DASH.filtros;
   var per = periodos_().find(function (p) { return p.key === f.periodo; }) || periodos_()[0];
@@ -134,38 +154,25 @@ function calcularDashboard_() {
   var mesesAct = ((d.ultimoMes - 1) % 12) + 1;
 
   var consumoPorTienda = {};
-  var mensual = {};
   d.consumos.forEach(function (c) {
     var k = c.anio * 12 + c.mes;
     (consumoPorTienda[c.tienda_numero] = consumoPorTienda[c.tienda_numero] || []).push({ k: k, anio: c.anio, tipo: c.tipo, ref: c.refrigerante, kg: Number(c.kg) || 0, importe: Number(c.importe) || 0 });
   });
 
-  var filas = [];
-  var tot = { cap: {}, capTotal: 0, porEquipo: {}, cons: {}, consFA: 0, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0, cAct: 0, cPrev: 0 };
+  // 1) Datos de cada tienda
+  var todas = [];
   d.tiendas.forEach(function (t) {
     if (f.region && regionDe_(t) !== f.region) return;
     if (f.formato && t.formato !== f.formato) return;
     var rel = d.rel[t.numero];
-    var est = categoriaEstado_(rel);
-    tot.estados[est] = (tot.estados[est] || 0) + 1;
-    if (est !== 'cerrada') tot.tiendas++;
-
-    var cap = { porRef: {}, total: 0 };
+    var cap = { porRef: {}, total: 0, detalle: [] };
     if (rel) {
       var form = {};
       EQUIPOS.forEach(function (eq) { form[eq.key] = rel[eq.col] || 0; });
       cap = calcularCapacidad_(t, form, STATE.params);
     }
-    Object.keys(cap.porRef).forEach(function (ref) { tot.cap[ref] = (tot.cap[ref] || 0) + cap.porRef[ref]; });
-    (cap.detalle || []).forEach(function (d) {
-      var e = tot.porEquipo[d.label] = tot.porEquipo[d.label] || { label: d.label, cant: 0, kg: 0, refs: {} };
-      e.cant += d.cant; e.kg += d.kg;
-      d.partes.forEach(function (p) { e.refs[p.refrigerante] = true; });
-    });
-    tot.capTotal += cap.total;
-
     // cons = sólo FA (para la tasa de fuga, contra la capacidad de FA); consTot = FA + AA (como el indicador).
-    var cons = 0, consTot = 0, imp = 0, co2 = 0, cAct = 0, cPrev = 0, faAct = 0;
+    var cons = 0, consTot = 0, imp = 0, co2 = 0, cAct = 0, cPrev = 0, faAct = 0, consRef = {}, mensual = {};
     (consumoPorTienda[t.numero] || []).forEach(function (c) {
       if (c.anio === anioAct) cAct += c.kg;
       if (c.anio === anioAct && c.tipo === 'FA') faAct += c.kg;
@@ -173,25 +180,47 @@ function calcularDashboard_() {
       if (c.anio === anioAct || c.anio === anioPrev) mensual[c.k] = (mensual[c.k] || 0) + c.kg;
       if (c.k >= per.desde && c.k <= per.hasta) {
         consTot += c.kg; imp += c.importe; co2 += c.kg * (GWP[c.ref] || 0) / 1000;
-        tot.cons[c.ref] = (tot.cons[c.ref] || 0) + c.kg;
+        consRef[c.ref] = (consRef[c.ref] || 0) + c.kg;
         if (c.tipo === 'FA') cons += c.kg;
       }
     });
     var anual = cons * (per ? per.factor : 1);
-    tot.consFA += cons; tot.consTotal += consTot; tot.consAnual += anual; tot.importe += imp; tot.co2 += co2;
-    tot.cAct += cAct; tot.cPrev += cPrev;
     var comp = {};
-    (cap.detalle || []).forEach(function (d) { comp[d.label] = d.cant; });
-    filas.push({
-      t: t, est: est, cap: cap.total, capRef: cap.porRef, comp: comp, cons: cons, anual: anual,
+    cap.detalle.forEach(function (x) { comp[x.label] = x.cant; });
+    todas.push({
+      t: t, est: categoriaEstado_(rel), cap: cap.total, capRef: cap.porRef, detalle: cap.detalle, comp: comp,
+      cons: cons, consTot: consTot, consRef: consRef, imp: imp, co2: co2, mensual: mensual, anual: anual,
       tasa: cap.total > 0 ? anual / cap.total : null,
       cAct: cAct, cPrev: cPrev, sobrePrev: cAct - cPrev, faAct: faAct,
       vsPrev: cPrev > 0 ? cAct / cPrev - 1 : null
     });
   });
+
+  // 2) Filtro cruzado activo
+  var sel = f.sel ? seleccionDe_(f.sel) : null;
+  var filas = sel ? todas.filter(sel.ok) : todas;
+
+  // 3) Totales
+  var tot = { cap: {}, capTotal: 0, porEquipo: {}, cons: {}, consFA: 0, consTotal: 0, consAnual: 0, importe: 0, co2: 0, estados: {}, tiendas: 0, cAct: 0, cPrev: 0 };
+  var mensual = {};
+  filas.forEach(function (x) {
+    tot.estados[x.est] = (tot.estados[x.est] || 0) + 1;
+    if (x.est !== 'cerrada') tot.tiendas++;
+    Object.keys(x.capRef).forEach(function (ref) { tot.cap[ref] = (tot.cap[ref] || 0) + x.capRef[ref]; });
+    x.detalle.forEach(function (dd) {
+      var e = tot.porEquipo[dd.label] = tot.porEquipo[dd.label] || { label: dd.label, cant: 0, kg: 0, refs: {} };
+      e.cant += dd.cant; e.kg += dd.kg;
+      dd.partes.forEach(function (p) { e.refs[p.refrigerante] = true; });
+    });
+    tot.capTotal += x.cap;
+    Object.keys(x.consRef).forEach(function (ref) { tot.cons[ref] = (tot.cons[ref] || 0) + x.consRef[ref]; });
+    Object.keys(x.mensual).forEach(function (k) { mensual[k] = (mensual[k] || 0) + x.mensual[k]; });
+    tot.consFA += x.cons; tot.consTotal += x.consTot; tot.consAnual += x.anual; tot.importe += x.imp; tot.co2 += x.co2;
+    tot.cAct += x.cAct; tot.cPrev += x.cPrev;
+  });
   tot.tasa = tot.capTotal > 0 ? tot.consAnual / tot.capTotal : null;
   tot.vsPrev = tot.cPrev > 0 ? tot.cAct / tot.cPrev - 1 : null;
-  return { per: per, filas: filas, tot: tot, mensual: mensual, anioAct: anioAct, anioPrev: anioPrev, mesesAct: mesesAct };
+  return { per: per, filas: filas, todas: todas, sel: sel, tot: tot, mensual: mensual, anioAct: anioAct, anioPrev: anioPrev, mesesAct: mesesAct };
 }
 
 // ---------------------------------------------------------------
@@ -226,6 +255,15 @@ function renderDashboard_() {
   DASH.mesesAct = c.mesesAct;
   var hay = DASH.datos.hayConsumos;
 
+  var chip = document.getElementById('dash-seleccion');
+  if (c.sel) {
+    chip.innerHTML = '<span class="sel-chip">Filtrando: <strong>' + esc_(c.sel.label(c)) + '</strong> · ' + c.filas.length + ' tiendas' +
+      '<button type="button" data-sel-quitar title="Quitar filtro">×</button></span>';
+    chip.style.display = 'block';
+  } else {
+    chip.innerHTML = ''; chip.style.display = 'none';
+  }
+
   // Aviso si falta la base de consumos
   document.getElementById('dash-aviso').innerHTML = hay ? '' :
     '<div class="card"><p class="nota-aviso" style="margin:0;">Todavía no está cargada la base de consumos. Se muestra sólo la capacidad instalada. ' +
@@ -256,27 +294,30 @@ function renderDashboard_() {
       sub: esc_(c.per.label) + ' · FA ' + num_(tot.consFA) + ' kg · AA ' + num_(tot.consTotal - tot.consFA) + ' kg' });
     tiles.push({ label: 'Consumo ' + c.anioAct + ' vs ' + c.anioPrev + ' (FA + AA)', valor: variacion_(tot.vsPrev),
       sub: num_(tot.cAct) + ' kg acumulados de ' + num_(tot.cPrev) + ' kg en ' + c.anioPrev + ' · ' + c.mesesAct + ' de 12 meses' });
-    tiles.push({ label: 'Tiendas que consumieron más que en ' + c.anioPrev, valor: masQuePrev + ' de ' + conConsumo,
+    tiles.push({ sel: 'masQuePrev', label: 'Tiendas que consumieron más que en ' + c.anioPrev, valor: masQuePrev + ' de ' + conConsumo,
       sub: 'acumulado ' + c.anioAct + ' mayor al total ' + c.anioPrev + ' · ' + arribaRitmo + ' más van por encima del ritmo' });
     var sobreCap = c.filas.filter(function (f) { return f.cap > 0 && f.faAct > f.cap; });
     var conCapYConsumo = c.filas.filter(function (f) { return f.cap > 0 && f.faAct > 0; }).length;
-    tiles.push({ label: 'Tiendas que consumieron más que su capacidad instalada en ' + c.anioAct, valor: sobreCap.length + ' de ' + conCapYConsumo,
+    tiles.push({ sel: 'sobreCap', label: 'Tiendas que consumieron más que su capacidad instalada en ' + c.anioAct, valor: sobreCap.length + ' de ' + conCapYConsumo,
       sub: 'consumo FA ' + c.anioAct + ' mayor a su capacidad instalada de FA · ' + num_(sobreCap.reduce(function (s, f) { return s + f.faAct - f.cap; }, 0)) + ' kg por encima' });
     tiles.push({ label: 'Emisiones de CO₂ equivalente', valor: num_(tot.co2) + ' t', sub: 'kg recargados × poder de calentamiento (GWP) de cada gas' });
     tiles.push({ label: 'Costo del refrigerante', valor: '$ ' + compacto_(tot.importe), sub: 'importe SAP del período' });
   }
-  tiles.push({ label: 'Avance del relevamiento', valor: pct_(tot.tiendas ? ok / tot.tiendas : 0), sub: ok + ' de ' + tot.tiendas + ' confirmadas', meter: tot.tiendas ? ok / tot.tiendas : 0 });
+  tiles.push({ sel: 'pendientes', label: 'Avance del relevamiento', valor: pct_(tot.tiendas ? ok / tot.tiendas : 0), sub: ok + ' de ' + tot.tiendas + ' confirmadas', meter: tot.tiendas ? ok / tot.tiendas : 0 });
   document.getElementById('dash-tiles').innerHTML = tiles.map(function (t) {
-    return '<div class="card dash-tile"><div class="dash-label">' + t.label + '</div><div class="dash-tile-valor">' + t.valor + '</div>' +
+    var activa = t.sel && DASH.filtros.sel === t.sel;
+    return '<div class="card dash-tile' + (t.sel ? ' clicable' : '') + (activa ? ' activa' : '') + '"' +
+      (t.sel ? ' data-sel="' + t.sel + '" role="button" tabindex="0" title="' + (activa ? 'Quitar filtro' : 'Filtrar el dashboard por estas tiendas') + '"' : '') + '>' +
+      '<div class="dash-label">' + t.label + '</div><div class="dash-tile-valor">' + t.valor + '</div>' +
       (t.meter != null ? '<div class="meter"><div style="width:' + Math.round(t.meter * 100) + '%"></div></div>' : '') +
-      '<div class="dash-sub">' + t.sub + '</div></div>';
+      '<div class="dash-sub">' + t.sub + (t.sel === 'pendientes' ? ' · clic: ver las pendientes' : '') + '</div></div>';
   }).join('');
 
   // Anillos
-  var anillos = [donut_('Capacidad instalada por refrigerante', segmentosRef_(tot.cap), 'kg instalados')];
-  if (hay) anillos.push(donut_('Consumo por refrigerante (FA + AA)', segmentosRef_(tot.cons), 'kg consumidos'));
+  var anillos = [donut_('Capacidad instalada por refrigerante', segmentosRef_(tot.cap, 'capRef'), 'kg instalados')];
+  if (hay) anillos.push(donut_('Consumo por refrigerante (FA + AA)', segmentosRef_(tot.cons, 'consRef'), 'kg consumidos'));
   anillos.push(donut_('Estado del relevamiento', ESTADOS.map(function (e) {
-    return { label: e.icono + ' ' + e.label, valor: tot.estados[e.key] || 0, color: e.color };
+    return { label: e.icono + ' ' + e.label, valor: tot.estados[e.key] || 0, color: e.color, sel: 'estado:' + e.key };
   }), 'tiendas', true));
   document.getElementById('dash-anillos').innerHTML = anillos.join('');
 
@@ -284,14 +325,15 @@ function renderDashboard_() {
 
   // Barras por región / formato
   document.getElementById('dash-barras').innerHTML = hay
-    ? barrasVsPrev_('Consumo por región · ' + c.anioAct + ' vs ' + c.anioPrev, agrupar_(c.filas, function (f) { return regionDe_(f.t); }), c) +
-      barrasVsPrev_('Consumo por formato · ' + c.anioAct + ' vs ' + c.anioPrev, agrupar_(c.filas, function (f) { return f.t.formato || 'Sin formato'; }), c)
+    ? barrasVsPrev_('Consumo por región · ' + c.anioAct + ' vs ' + c.anioPrev, agrupar_(c.filas, function (f) { return regionDe_(f.t); }), c, 'region') +
+      barrasVsPrev_('Consumo por formato · ' + c.anioAct + ' vs ' + c.anioPrev, agrupar_(c.filas, function (f) { return f.t.formato || 'Sin formato'; }), c, 'formato')
     : barrasKg_('Capacidad instalada por región', agrupar_(c.filas, function (f) { return regionDe_(f.t); }));
 
   document.getElementById('dash-tendencia').innerHTML = hay ? mensualComparado_(c.mensual, c) : '';
   document.getElementById('dash-dispersion').innerHTML = hay ? dispersionVsPrev_(c.filas, c) : '';
   renderTablaDashboard_(c.filas, hay);
   activarTooltips_();
+  activarClicsDashboard_();
 }
 
 function agrupar_(filas, clave) {
@@ -304,14 +346,14 @@ function agrupar_(filas, clave) {
   return Object.keys(g).map(function (k) { var x = g[k]; x.tasa = x.cap > 0 ? x.anual / x.cap : null; return x; });
 }
 
-function segmentosRef_(porRef) {
+function segmentosRef_(porRef, prefijo) {
   var orden = ['R22', 'R404', 'R290', 'R410A', 'R134a'];
   var claves = Object.keys(porRef).filter(function (k) { return porRef[k] > 0; });
   claves.sort(function (a, b) {
     var ia = orden.indexOf(a), ib = orden.indexOf(b);
     return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
   });
-  return claves.map(function (k) { return { label: k, valor: porRef[k], color: COLOR_REF[k] || COLOR_OTRO }; });
+  return claves.map(function (k) { return { label: k, valor: porRef[k], color: COLOR_REF[k] || COLOR_OTRO, sel: prefijo ? prefijo + ':' + k : null }; });
 }
 
 // ---------------------------------------------------------------
@@ -329,17 +371,19 @@ function donut_(titulo, segs, unidad, enteros) {
     var tip = esc_(s.label) + ': ' + (enteros ? s.valor : num_(s.valor) + ' kg') + ' (' + pct_(s.valor / total) + ')';
     arcs += '<circle r="' + R + '" cx="80" cy="80" fill="none" stroke="' + s.color + '" stroke-width="' + W + '"' +
       ' stroke-dasharray="' + visible + ' ' + (C - visible) + '" stroke-dashoffset="' + (-off) + '"' +
-      ' transform="rotate(-90 80 80)" data-tip="' + tip + '"></circle>';
+      ' transform="rotate(-90 80 80)" data-tip="' + tip + '"' + (s.sel ? ' data-sel="' + esc_(s.sel) + '" class="seg' + (DASH.filtros.sel === s.sel ? ' activo' : '') + '"' : '') + '></circle>';
     off += len;
   });
   if (!total) arcs = '<circle r="' + R + '" cx="80" cy="80" fill="none" stroke="#e1e0d9" stroke-width="' + W + '"></circle>';
   var leyenda = segs.map(function (s) {
-    return '<div class="leyenda-fila"><span class="swatch" style="background:' + s.color + '"></span>' +
+    var activa = s.sel && DASH.filtros.sel === s.sel;
+    return '<div class="leyenda-fila' + (s.sel ? ' clicable' : '') + (activa ? ' activa' : '') + '"' + (s.sel ? ' data-sel="' + esc_(s.sel) + '" role="button" tabindex="0"' : '') + '>' +
+      '<span class="swatch" style="background:' + s.color + '"></span>' +
       '<span class="leyenda-label">' + esc_(s.label) + '</span>' +
       '<span class="leyenda-valor">' + (enteros ? s.valor : num_(s.valor)) + '</span>' +
       '<span class="leyenda-pct">' + (total ? pct_(s.valor / total) : '–') + '</span></div>';
   }).join('');
-  return '<div class="card dash-chart"><div class="dash-chart-titulo">' + titulo + '</div>' +
+  return '<div class="card dash-chart"><div class="dash-chart-titulo">' + titulo + (segs.some(function (x) { return x.sel; }) ? ' <span class="dash-pista">clic para filtrar</span>' : '') + '</div>' +
     '<div class="donut-wrap"><svg viewBox="0 0 160 160" class="donut" role="img" aria-label="' + esc_(titulo) + '">' + arcs +
     '<text x="80" y="78" text-anchor="middle" class="donut-total">' + (enteros ? total : compacto_(total)) + '</text>' +
     '<text x="80" y="96" text-anchor="middle" class="donut-unidad">' + unidad + '</text></svg>' +
@@ -355,7 +399,7 @@ function leyendaAnios_(c) {
 }
 
 // Dos barras por grupo: total del año anterior y acumulado del año en curso, con la variación.
-function barrasVsPrev_(titulo, grupos, c) {
+function barrasVsPrev_(titulo, grupos, c, campo) {
   grupos = grupos.filter(function (g) { return g.cAct > 0 || g.cPrev > 0; }).sort(function (a, b) { return b.cPrev - a.cPrev; });
   var max = topeRedondo_(grupos.reduce(function (m, g) { return Math.max(m, g.cAct, g.cPrev); }, 1));
   var LW = 120, BW = 300, ROW = 44, BH = 13, H = grupos.length * ROW + 26;
@@ -369,14 +413,15 @@ function barrasVsPrev_(titulo, grupos, c) {
     var y = 4 + i * ROW;
     var v = g.cPrev > 0 ? g.cAct / g.cPrev - 1 : null;
     var wp = Math.max(x(g.cPrev) - LW, g.cPrev > 0 ? 1 : 0), wa = Math.max(x(g.cAct) - LW, g.cAct > 0 ? 1 : 0);
-    s += '<text x="' + (LW - 8) + '" y="' + (y + 18) + '" text-anchor="end" class="bar-label">' + esc_(g.label) + '</text>' +
+    s += '<rect x="0" y="' + (y - 4) + '" width="' + (LW + BW + 110) + '" height="' + (ROW - 4) + '" fill="transparent" class="fila-clic" data-filtro="' + campo + '" data-valor="' + esc_(g.label) + '"/>' +
+      '<text x="' + (LW - 8) + '" y="' + (y + 18) + '" text-anchor="end" class="bar-label">' + esc_(g.label) + '</text>' +
       '<path d="' + barraH_(LW, y, wp, BH) + '" fill="' + COLOR_PREV + '" data-tip="' + esc_(g.label) + ' · ' + c.anioPrev + ': ' + num_(g.cPrev) + ' kg"/>' +
       '<text x="' + (LW + wp + 6) + '" y="' + (y + 11) + '" class="tick">' + num_(g.cPrev) + '</text>' +
       '<path d="' + barraH_(LW, y + BH + 2, wa, BH) + '" fill="' + COLOR_ACT + '" data-tip="' + esc_(g.label) + ' · ' + c.anioAct + ': ' + num_(g.cAct) + ' kg (' + variacion_(v) + ' vs ' + c.anioPrev + ')"/>' +
       '<text x="' + (LW + wa + 6) + '" y="' + (y + BH + 13) + '" class="bar-valor">' + num_(g.cAct) + ' · ' + variacion_(v) + '</text>';
   });
   s += '</svg>';
-  return '<div class="card dash-chart"><div class="dash-chart-titulo">' + titulo + ' (kg, FA + AA)</div>' + leyendaAnios_(c) + s + '</div>';
+  return '<div class="card dash-chart"><div class="dash-chart-titulo">' + titulo + ' (kg, FA + AA) <span class="dash-pista">clic en una fila para filtrar</span></div>' + leyendaAnios_(c) + s + '</div>';
 }
 
 function barrasKg_(titulo, grupos) {
@@ -632,6 +677,29 @@ function exportarDashboardCSV() {
 // ---------------------------------------------------------------
 // Tooltip compartido
 // ---------------------------------------------------------------
+
+function activarClicsDashboard_() {
+  var cont = document.getElementById('view-dashboard');
+  if (cont.dataset.clics) return;
+  cont.dataset.clics = '1';
+  var accion = function (e) {
+    var quitar = e.target.closest('[data-sel-quitar]');
+    var el = e.target.closest('[data-sel]');
+    var fil = e.target.closest('[data-filtro]');
+    if (quitar) { DASH.filtros.sel = null; }
+    else if (el) { DASH.filtros.sel = DASH.filtros.sel === el.dataset.sel ? null : el.dataset.sel; }
+    else if (fil) {
+      var campo = fil.getAttribute('data-filtro'), valor = fil.getAttribute('data-valor');
+      DASH.filtros[campo] = DASH.filtros[campo] === valor ? '' : valor;
+      document.getElementById('dash-f-' + campo).value = DASH.filtros[campo];
+    } else return;
+    DASH.tabla.limite = 30;
+    renderDashboard_();
+    sincronizarScrollTabla_();
+  };
+  cont.addEventListener('click', accion);
+  cont.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { if (e.target.closest('[data-sel]')) { e.preventDefault(); accion(e); } } });
+}
 
 function activarTooltips_() {
   var tip = document.getElementById('dash-tooltip');
