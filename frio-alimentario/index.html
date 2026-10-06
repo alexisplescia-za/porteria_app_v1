@@ -46,6 +46,9 @@
         <div style="text-align:right;margin:-6px 0 10px;">
           <a href="#" id="link-cambiar-cuenta" style="font-size:12px;color:var(--text-2);">Cambiar cuenta</a>
         </div>
+        <div id="home-acciones-maestro" style="display:none;margin-bottom:14px;">
+          <button class="btn-secondary" id="btn-ir-params">&#9881; Par&aacute;metros de kg por equipo</button>
+        </div>
         <div id="home-buscador" class="card" style="display:none;margin-bottom:14px;">
           <input id="home-buscar-input" class="input-search" placeholder="Busc&aacute; por tienda, local o jefe&hellip;" style="border:none;padding:0;">
         </div>
@@ -170,6 +173,11 @@
           <a href="#" id="link-editar-bt" style="font-size:12.5px;font-weight:700;font-family:var(--font-display);">Editar</a>
         </div>
         <div class="card" id="revision-bt"></div>
+
+        <div style="display:none;">
+          <div class="section-title" style="margin:18px 0 10px;">Capacidad instalada estimada</div>
+          <div class="card" id="revision-kg"></div>
+        </div>
       </div>
       <div class="footer-bar">
         <button class="btn-primary" id="btn-enviar">Confirmar y enviar</button>
@@ -215,6 +223,29 @@
           <input id="buscar-jefe" class="input-search" placeholder="Busc&aacute; tu nombre&hellip;">
         </div>
         <div id="empty-resultados" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </div>
+
+    <!-- ============ Par&aacute;metros de kg (cuentas maestras) ============ -->
+    <div id="view-params" class="view">
+      <div class="header">
+        <div class="header-row">
+          <button class="icon-btn" id="btn-volver-params">&lsaquo;</button>
+          <div>
+            <div class="eyebrow">Capacidad instalada</div>
+            <h1 style="color:#fff;font-size:18px;margin-top:3px;">Par&aacute;metros de kg por equipo</h1>
+          </div>
+        </div>
+      </div>
+      <div class="content">
+        <p style="font-size:13px;color:var(--text-2);line-height:1.5;margin-bottom:14px;">
+          Kg de refrigerante por equipo. Si un equipo tiene tramos, se usa el primero donde los m&sup2; de sal&oacute;n de la tienda sean menores o iguales al tope. El tramo con el tope vac&iacute;o vale para el resto.
+        </p>
+        <div class="segmented" id="params-tabs" style="margin-bottom:14px;"></div>
+        <div id="params-lista" style="display:flex;flex-direction:column;gap:12px;"></div>
+      </div>
+      <div class="footer-bar">
+        <button class="btn-primary" id="btn-guardar-params">Guardar cambios</button>
       </div>
     </div>
 

@@ -4,20 +4,26 @@
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 var STEPPERS_MT = [
-  { key: 'centralesMT', label: 'Centrales MT' },
-  { key: 'camarasAutocontMT', label: 'Cámaras autocontenidas MT' },
-  { key: 'gondolasAutocontMT', label: 'Góndolas autocontenidas MT' },
-  { key: 'pozosMT', label: 'Pozos MT' },
-  { key: 'centralesDual', label: 'Centrales Dual (MT+BT)' }
+  { key: 'centralesMT', col: 'centrales_mt', label: 'Centrales MT' },
+  { key: 'camarasAutocontMT', col: 'camaras_autocont_mt', label: 'Cámaras autocontenidas MT' },
+  { key: 'gondolasAutocontMT', col: 'gondolas_autocont_mt', label: 'Góndolas autocontenidas MT' },
+  { key: 'pozosMT', col: 'pozos_mt', label: 'Pozos MT' },
+  { key: 'centralesDual', col: 'centrales_dual', label: 'Centrales Dual (MT+BT)' }
 ];
 var STEPPERS_BT = [
-  { key: 'centralesBT', label: 'Centrales BT' },
-  { key: 'camarasAutocontBT', label: 'Cámaras autocontenidas BT' },
-  { key: 'gondolasAutocontBT', label: 'Góndolas autocontenidas BT' },
-  { key: 'pozosBT', label: 'Pozos BT' },
-  { key: 'camarasMTBTDual', label: 'Cámaras MT+BT (Dual)' },
-  { key: 'autocontReemplazoBT', label: 'Autocont. que reemplazaron central BT' }
+  { key: 'centralesBT', col: 'centrales_bt', label: 'Centrales BT' },
+  { key: 'camarasAutocontBT', col: 'camaras_autocont_bt', label: 'Cámaras autocontenidas BT' },
+  { key: 'gondolasAutocontBT', col: 'gondolas_autocont_bt', label: 'Góndolas autocontenidas BT' },
+  { key: 'pozosBT', col: 'pozos_bt', label: 'Pozos BT' },
+  { key: 'camarasMTBTDual', col: 'camaras_mtbt_dual', label: 'Cámaras MT+BT (Dual)' },
+  { key: 'autocontReemplazoBT', col: 'autocont_reemplazo_bt', label: 'Autocont. que reemplazaron central BT' }
 ];
+var EQUIPOS = STEPPERS_MT.concat(STEPPERS_BT);
+var GRUPOS = [
+  { key: 'HMM', label: 'Hiper / Market / Maxi' },
+  { key: 'EXPRESS', label: 'Express' }
+];
+var REFRIGERANTES = ['R22', 'R404', 'R290', 'R448A', 'R449A', 'R507', 'R134a', 'CO2'];
 
 function formVacio() {
   return {
@@ -27,7 +33,7 @@ function formVacio() {
   };
 }
 
-var STATE = { email: '', jefe: '', esMaestro: false, tiendas: [], tienda: null, form: formVacio() };
+var STATE = { email: '', jefe: '', esMaestro: false, tiendas: [], tienda: null, form: formVacio(), params: [] };
 
 document.addEventListener('DOMContentLoaded', function () {
   wireUpEvents_();
@@ -54,6 +60,9 @@ function wireUpEvents_() {
   document.getElementById('btn-volver-mis-tiendas').onclick = cargarInicio;
   document.getElementById('btn-cargar-otra').onclick = function () { irA('home'); };
   document.getElementById('buscar-jefe').oninput = function () { buscarJefeInput(this.value); };
+  document.getElementById('btn-ir-params').onclick = abrirParametros;
+  document.getElementById('btn-volver-params').onclick = function () { irA('home'); };
+  document.getElementById('btn-guardar-params').onclick = guardarParametros;
 }
 
 // ---------------------------------------------------------------
@@ -69,8 +78,9 @@ async function entrar(email) {
   document.getElementById('login-error').style.display = 'none';
   irA('loading');
   try {
-    var res = await entrarConEmail(email);
-    onEntrar_(res);
+    var r = await Promise.all([entrarConEmail(email), cargarParametros_()]);
+    STATE.params = r[1];
+    onEntrar_(r[0]);
   } catch (err) {
     irA('login');
     onError(err);
@@ -109,6 +119,7 @@ function mostrarError_(mensaje) {
     document.body.appendChild(el);
   }
   el.textContent = mensaje;
+  el.classList.remove('ok');
   el.classList.add('show');
   clearTimeout(mostrarError_._t);
   mostrarError_._t = setTimeout(function () { el.classList.remove('show'); }, 4500);
@@ -256,6 +267,61 @@ async function getTiendasDeMail(mail) {
   return tiendasPorMail_(mail);
 }
 
+async function cargarParametros_() {
+  var r = await supabase.from('parametros_kg').select('*');
+  // Si la tabla todavía no existe, la carga sigue funcionando sin cálculo de kg.
+  if (r.error) { console.warn('parametros_kg:', r.error.message); return []; }
+  return r.data || [];
+}
+
+// ---------------------------------------------------------------
+// Capacidad instalada (kg de refrigerante)
+// ---------------------------------------------------------------
+
+function grupoDeFormato_(formato) {
+  return String(formato || '').trim().toUpperCase() === 'EXPRESS' ? 'EXPRESS' : 'HMM';
+}
+
+// Devuelve el tramo que aplica: el primero (ordenado por m2_hasta) donde m2 <= m2_hasta.
+// Un tramo sin tope (m2_hasta null) va último.
+function buscarParametro_(params, grupo, col, m2) {
+  var tramos = params
+    .filter(function (p) { return p.grupo === grupo && p.equipo === col; })
+    .sort(function (a, b) {
+      if (a.m2_hasta == null) return 1;
+      if (b.m2_hasta == null) return -1;
+      return a.m2_hasta - b.m2_hasta;
+    });
+  if (!tramos.length) return null;
+  if (tramos.length === 1) return tramos[0];
+  if (m2 == null || m2 === '') return null;
+  for (var i = 0; i < tramos.length; i++) {
+    if (tramos[i].m2_hasta == null || Number(m2) <= Number(tramos[i].m2_hasta)) return tramos[i];
+  }
+  return null;
+}
+
+function calcularCapacidad_(tienda, form, params) {
+  var grupo = grupoDeFormato_(tienda.formato);
+  var porRef = {};
+  var total = 0;
+  var faltantes = [];
+  EQUIPOS.forEach(function (eq) {
+    var cant = Number(form[eq.key]) || 0;
+    if (!cant) return;
+    var p = buscarParametro_(params, grupo, eq.col, tienda.m2);
+    if (!p) { faltantes.push(eq.label); return; }
+    var kg = cant * Number(p.kg);
+    porRef[p.refrigerante] = (porRef[p.refrigerante] || 0) + kg;
+    total += kg;
+  });
+  return { grupo: grupo, porRef: porRef, total: total, faltantes: faltantes };
+}
+
+function fmtKg_(n) {
+  return (Math.round(n * 100) / 100).toLocaleString('es-AR') + ' kg';
+}
+
 // ---------------------------------------------------------------
 // Navegación
 // ---------------------------------------------------------------
@@ -288,6 +354,7 @@ function renderHome() {
     document.getElementById('home-saludo').textContent = 'Vista maestra';
     document.getElementById('home-titulo-lista').textContent = 'Todas las tiendas (' + STATE.tiendas.length + ')';
     document.getElementById('home-buscador').style.display = 'block';
+    document.getElementById('home-acciones-maestro').style.display = 'block';
   } else {
     var partes = (STATE.jefe || '').trim().split(' ');
     var iniciales = ((partes[0] || '')[0] || '') + ((partes[1] || '')[0] || '');
@@ -295,6 +362,7 @@ function renderHome() {
     document.getElementById('home-saludo').textContent = 'Hola, ' + (partes[0] || STATE.jefe);
     document.getElementById('home-titulo-lista').textContent = 'Tus tiendas a cargo';
     document.getElementById('home-buscador').style.display = 'none';
+    document.getElementById('home-acciones-maestro').style.display = 'none';
   }
   pintarListaHome_(STATE.tiendas);
 }
@@ -464,7 +532,25 @@ function avanzarARevision() {
     btCont.innerHTML += '<div class="resumen-fila"><span>' + it.label + '</span><span>' + STATE.form[it.key] + '</span></div>';
   });
 
+  renderCapacidadRevision_();
   irA('revision');
+}
+
+function renderCapacidadRevision_() {
+  var cont = document.getElementById('revision-kg');
+  if (!STATE.params.length) { cont.parentNode.style.display = 'none'; return; }
+  cont.parentNode.style.display = 'block';
+  var cap = calcularCapacidad_(STATE.tienda, STATE.form, STATE.params);
+  var html = '';
+  Object.keys(cap.porRef).sort().forEach(function (ref) {
+    html += '<div class="resumen-fila"><span>' + esc_(ref) + '</span><span>' + fmtKg_(cap.porRef[ref]) + '</span></div>';
+  });
+  html += '<div class="resumen-fila resumen-total"><span>Total</span><span>' + fmtKg_(cap.total) + '</span></div>';
+  if (cap.faltantes.length) {
+    html += '<p class="nota-aviso">Sin parámetro para: ' + esc_(cap.faltantes.join(', ')) +
+      (STATE.tienda.m2 ? '' : ' (la tienda no tiene m² cargados)') + '.</p>';
+  }
+  cont.innerHTML = html;
 }
 
 async function enviarRelevamiento() {
@@ -497,6 +583,225 @@ function onEnviado_(res) {
   document.getElementById('confirm-badge').className = 'badge ' + info.cls;
   document.getElementById('confirm-badge').textContent = info.label + ' · hoy';
   irA('confirm');
+}
+
+// ---------------------------------------------------------------
+// Parámetros de kg (sólo cuentas maestras)
+// ---------------------------------------------------------------
+
+var PARAMS_EDIT = { grupo: 'HMM', filas: [], borrados: [] };
+var _tmpId = 0;
+
+async function abrirParametros() {
+  irA('loading');
+  try {
+    STATE.params = await cargarParametros_();
+  } catch (err) {
+    onError(err);
+  }
+  PARAMS_EDIT.filas = STATE.params.map(function (p) { return Object.assign({}, p); });
+  PARAMS_EDIT.borrados = [];
+  renderParametros_();
+  irA('params');
+}
+
+function ordenarTramos_(a, b) {
+  if (a.m2_hasta == null) return 1;
+  if (b.m2_hasta == null) return -1;
+  return a.m2_hasta - b.m2_hasta;
+}
+
+function renderParametros_() {
+  var tabs = document.getElementById('params-tabs');
+  tabs.innerHTML = '';
+  GRUPOS.forEach(function (g) {
+    var opt = document.createElement('div');
+    opt.className = 'segmented-opt' + (PARAMS_EDIT.grupo === g.key ? ' active' : '');
+    opt.textContent = g.label;
+    opt.onclick = function () { leerInputsParams_(); PARAMS_EDIT.grupo = g.key; renderParametros_(); };
+    tabs.appendChild(opt);
+  });
+
+  var cont = document.getElementById('params-lista');
+  cont.innerHTML = '';
+  if (!PARAMS_EDIT.filas.length) {
+    cont.innerHTML = '<div class="card"><p class="nota-aviso" style="margin:0;">Todavía no existe la tabla <strong>parametros_kg</strong> en Supabase. ' +
+      'Hay que correr el script <code>frio-alimentario/sql/002_parametros_kg.sql</code> en el SQL Editor.</p></div>';
+    return;
+  }
+
+  EQUIPOS.forEach(function (eq) {
+    var filas = PARAMS_EDIT.filas
+      .filter(function (f) { return f.grupo === PARAMS_EDIT.grupo && f.equipo === eq.col; })
+      .sort(ordenarTramos_);
+    var conTramos = filas.length > 1;
+    var card = document.createElement('div');
+    card.className = 'card param-card';
+    var html = '<div class="param-titulo">' + esc_(eq.label) + '</div>';
+    if (conTramos) {
+      html += '<div class="param-row param-head"><span>Hasta m²</span><span>Refrig.</span><span>Kg por equipo</span><span></span></div>';
+    }
+    filas.forEach(function (f) {
+      var fid = f.id != null ? f.id : f._tmp;
+      html += '<div class="param-row" data-fid="' + fid + '">' +
+        (conTramos
+          ? '<input class="param-input" data-campo="m2_hasta" type="number" min="0" step="1" placeholder="sin tope" value="' + (f.m2_hasta == null ? '' : f.m2_hasta) + '">'
+          : '<span class="param-sin-tramo">Todos los m²</span>') +
+        '<select class="param-input" data-campo="refrigerante">' + opcionesRefrigerante_(f.refrigerante) + '</select>' +
+        '<input class="param-input" data-campo="kg" type="number" min="0" step="0.01" value="' + f.kg + '">' +
+        (conTramos ? '<button class="param-borrar" title="Borrar tramo">×</button>' : '<span></span>') +
+      '</div>';
+    });
+    html += '<a href="#" class="param-agregar">+ Agregar tramo por m²</a>';
+    card.innerHTML = html;
+
+    card.querySelectorAll('.param-borrar').forEach(function (btn) {
+      btn.onclick = function () {
+        leerInputsParams_();
+        borrarFilaParam_(btn.parentNode.dataset.fid);
+        renderParametros_();
+      };
+    });
+    card.querySelector('.param-agregar').onclick = function (e) {
+      e.preventDefault();
+      leerInputsParams_();
+      agregarTramo_(eq.col, filas);
+      renderParametros_();
+    };
+    cont.appendChild(card);
+  });
+}
+
+function opcionesRefrigerante_(actual) {
+  var lista = REFRIGERANTES.slice();
+  if (actual && lista.indexOf(actual) === -1) lista.push(actual);
+  return lista.map(function (r) {
+    return '<option' + (r === actual ? ' selected' : '') + '>' + esc_(r) + '</option>';
+  }).join('');
+}
+
+function buscarFilaParam_(fid) {
+  return PARAMS_EDIT.filas.find(function (f) { return String(f.id != null ? f.id : f._tmp) === String(fid); });
+}
+
+// Vuelca lo escrito en pantalla al estado antes de re-renderizar o guardar.
+function leerInputsParams_() {
+  document.querySelectorAll('#params-lista .param-row[data-fid]').forEach(function (row) {
+    var f = buscarFilaParam_(row.dataset.fid);
+    if (!f) return;
+    row.querySelectorAll('.param-input').forEach(function (inp) {
+      var campo = inp.dataset.campo;
+      if (campo === 'refrigerante') f.refrigerante = inp.value;
+      else if (campo === 'kg') f.kg = inp.value === '' ? 0 : Number(inp.value);
+      else if (campo === 'm2_hasta') f.m2_hasta = inp.value === '' ? null : Number(inp.value);
+    });
+  });
+}
+
+function borrarFilaParam_(fid) {
+  var f = buscarFilaParam_(fid);
+  if (!f) return;
+  if (f.id != null) PARAMS_EDIT.borrados.push(f.id);
+  PARAMS_EDIT.filas.splice(PARAMS_EDIT.filas.indexOf(f), 1);
+  // Si queda un solo tramo, pasa a valer para todos los m².
+  var resto = PARAMS_EDIT.filas.filter(function (x) { return x.grupo === f.grupo && x.equipo === f.equipo; });
+  if (resto.length === 1) resto[0].m2_hasta = null;
+}
+
+// El tramo sin tope sigue siendo el último; el nuevo se agrega con un tope a completar.
+function agregarTramo_(col, filas) {
+  var base = filas[filas.length - 1] || { refrigerante: 'R22', kg: 0 };
+  var topes = filas.map(function (f) { return f.m2_hasta; }).filter(function (v) { return v != null; });
+  var nuevoTope = topes.length ? Math.max.apply(null, topes) + 1000 : 1000;
+  if (!filas.length) {
+    PARAMS_EDIT.filas.push({ _tmp: 'n' + (++_tmpId), grupo: PARAMS_EDIT.grupo, equipo: col, m2_hasta: null, refrigerante: 'R22', kg: 0 });
+  }
+  PARAMS_EDIT.filas.push({
+    _tmp: 'n' + (++_tmpId), grupo: PARAMS_EDIT.grupo, equipo: col,
+    m2_hasta: nuevoTope, refrigerante: base.refrigerante, kg: base.kg
+  });
+}
+
+function validarParams_() {
+  var errores = [];
+  GRUPOS.forEach(function (g) {
+    EQUIPOS.forEach(function (eq) {
+      var filas = PARAMS_EDIT.filas.filter(function (f) { return f.grupo === g.key && f.equipo === eq.col; });
+      if (filas.length < 2) return;
+      var sinTope = filas.filter(function (f) { return f.m2_hasta == null; }).length;
+      var topes = filas.map(function (f) { return f.m2_hasta; }).filter(function (v) { return v != null; });
+      var repetidos = topes.some(function (v, i) { return topes.indexOf(v) !== i; });
+      if (sinTope !== 1) errores.push(g.label + ' · ' + eq.label + ': tiene que haber un solo tramo "sin tope" (m² vacío).');
+      if (repetidos) errores.push(g.label + ' · ' + eq.label + ': hay dos tramos con el mismo tope de m².');
+    });
+  });
+  return errores;
+}
+
+async function guardarParametros() {
+  leerInputsParams_();
+  var errores = validarParams_();
+  if (errores.length) { mostrarError_(errores[0]); return; }
+
+  var originales = {};
+  STATE.params.forEach(function (p) { originales[p.id] = p; });
+  var ahora = new Date().toISOString();
+  var cambiados = [];
+  var nuevos = [];
+  PARAMS_EDIT.filas.forEach(function (f) {
+    var row = {
+      grupo: f.grupo, equipo: f.equipo, m2_hasta: f.m2_hasta,
+      refrigerante: f.refrigerante, kg: Number(f.kg) || 0,
+      actualizado_por: STATE.email, actualizado_at: ahora
+    };
+    if (f.id == null) { nuevos.push(row); return; }
+    var o = originales[f.id];
+    var m2Orig = o.m2_hasta == null ? null : Number(o.m2_hasta);
+    if (m2Orig === f.m2_hasta && o.refrigerante === f.refrigerante && Number(o.kg) === Number(f.kg)) return;
+    row.id = f.id;
+    cambiados.push(row);
+  });
+
+  if (!cambiados.length && !nuevos.length && !PARAMS_EDIT.borrados.length) {
+    mostrarError_('No hay cambios para guardar.');
+    return;
+  }
+
+  var btn = document.getElementById('btn-guardar-params');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    // Orden: borrar, actualizar y recién después insertar, para no chocar con la
+    // restricción de tramo único (grupo, equipo, m2_hasta).
+    if (PARAMS_EDIT.borrados.length) {
+      var d = await supabase.from('parametros_kg').delete().in('id', PARAMS_EDIT.borrados);
+      if (d.error) throw d.error;
+    }
+    for (var i = 0; i < cambiados.length; i++) {
+      var u = await supabase.from('parametros_kg').update(cambiados[i]).eq('id', cambiados[i].id);
+      if (u.error) throw u.error;
+    }
+    if (nuevos.length) {
+      var ins = await supabase.from('parametros_kg').insert(nuevos);
+      if (ins.error) throw ins.error;
+    }
+    mostrarOk_('Parámetros guardados');
+  } catch (err) {
+    onError(err);
+  } finally {
+    // Se recarga siempre, para que la pantalla refleje lo que quedó en la base.
+    STATE.params = await cargarParametros_();
+    PARAMS_EDIT.filas = STATE.params.map(function (p) { return Object.assign({}, p); });
+    PARAMS_EDIT.borrados = [];
+    renderParametros_();
+    btn.disabled = false;
+    btn.textContent = 'Guardar cambios';
+  }
+}
+
+function mostrarOk_(mensaje) {
+  mostrarError_(mensaje);
+  document.getElementById('toast-error').classList.add('ok');
 }
 
 // ---------------------------------------------------------------
