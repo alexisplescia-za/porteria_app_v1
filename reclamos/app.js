@@ -311,6 +311,10 @@ async function renderDetalle() {
       return '<button data-estado="' + esc(e) + '" class="' + (e === r.estado ? 'on' : '') + '"' + (g ? '' : ' disabled') + '>' + esc(e) + '</button>';
     }).join('') + '</div>' +
     (g ? '<div class="seccion">Editar</div><div class="editar">' +
+      '<div class="two"><select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
+      '<input id="d-tienda" list="lista-tiendas" placeholder="Tienda (número o nombre)" value="' + esc(t ? t.local : '') + '"></div>' +
+      '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
+      '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
       '<div class="two"><select id="d-tipo">' + opciones(S.opciones.tipo, r.tipo, '— Tipo —') + '</select>' +
       '<select id="d-motivo">' + opciones(S.opciones.motivo, r.motivo, '— Motivo —') + '</select></div>' +
       '<div class="two"><select id="d-via">' + opciones(S.opciones.via, r.canal, '— Vía —') + '</select>' +
@@ -318,19 +322,34 @@ async function renderDetalle() {
       '<div class="two"><input id="d-solic" placeholder="Quién reclamó" value="' + esc(r.solicitante || '') + '">' +
       '<input id="d-comp" type="date" value="' + esc(r.fecha_compromiso || '') + '" title="Fecha comprometida por el proveedor"></div>' +
       '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
-      '<div style="display:flex;justify-content:flex-end"><button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
+      '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
+      '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
     '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
   Andes.mejorar(cont);
 
   try {
     var ev = await cargarEventos(r.id);
     if (S.sel !== r.id) return;
+    // Sólo se puede anular la última derivación y el último cambio de estado vigentes.
+    var ultimo = {};
+    ev.forEach(function (e) { if (!e.anulado && (e.tipo === 'estado' || e.tipo === 'derivacion')) ultimo[e.tipo] = e.id; });
     $('d-historial').innerHTML = ev.slice().reverse().map(function (e) {
       var txt = e.tipo === 'estado' ? esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
         : e.tipo === 'derivacion' ? 'Derivado: ' + esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
         : e.tipo === 'alta' ? '<b>Reclamo creado</b> · Nuevo' : '';
-      if (e.comentario && e.tipo !== 'alta') txt += (txt ? '<br>' : '') + (e.tipo === 'reiteracion' ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario));
-      return '<li class="' + (e.tipo === 'comentario' || e.tipo === 'edicion' ? 'c' : '') + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span><br>' + txt + '</li>';
+      if (e.comentario && e.tipo !== 'alta') {
+        txt += (txt ? '<br>' : '') + '<span class="ev-coment">' + (e.tipo === 'reiteracion' || e.tipo === 'anulacion' ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario)) + '</span>';
+      }
+      if (e.editado_at) txt += ' <span class="ev-marca" title="Original: ' + esc(e.comentario_original || '') + '">(editado)</span>';
+      var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
+      var editable = !e.anulado && ['alta', 'edicion', 'anulacion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
+      var acciones = (editable ? '<button class="ev-btn" data-ev-editar="' + e.id + '">Editar</button>' : '') +
+        (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '');
+      var pie = e.anulado ? '<div class="ev-anulado">Anulado por ' + esc(e.anulado_por || '') + ' · ' + fmtDH(e.anulado_at) + '</div>' : '';
+      var cls = (e.tipo === 'comentario' || e.tipo === 'edicion' || e.tipo === 'anulacion' ? 'c' : '') + (e.anulado ? ' anulado' : '');
+      return '<li class="' + cls + '" data-ev="' + e.id + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span>' +
+        (acciones ? '<span class="ev-acciones">' + acciones + '</span>' : '') +
+        '<div class="ev-cuerpo">' + txt + '</div>' + pie + '<div class="ev-form"></div></li>';
     }).join('') || '<li class="c">Sin movimientos.</li>';
   } catch (e) {
     $('d-historial').innerHTML = '<li class="c">No se pudo cargar el historial: ' + esc(mensajeError(e)) + '</li>';
@@ -379,10 +398,37 @@ function derivar(area) {
 }
 
 function guardarEdicion() {
+  var tiendaNum = tiendaDeTexto($('d-tienda').value);
+  if (!tiendaNum) { toast('Elegí la tienda de la lista (número o nombre).', true); return; }
+  if (!$('d-desc').value.trim()) { toast('La descripción no puede quedar vacía.', true); return; }
   return accion('editar_reclamo', {
     p_solicitante: $('d-solic').value, p_compromiso: $('d-comp').value || null, p_prioridad: $('d-pri').value,
-    p_referencia: $('d-ref').value, p_tipo: $('d-tipo').value, p_motivo: $('d-motivo').value, p_via: $('d-via').value
+    p_referencia: $('d-ref').value, p_tipo: $('d-tipo').value, p_motivo: $('d-motivo').value, p_via: $('d-via').value,
+    p_proveedor: $('d-prov').value, p_tienda: tiendaNum, p_categoria: $('d-cat').value, p_descripcion: $('d-desc').value
   }, 'Cambios guardados', 'No se pudo guardar');
+}
+
+// Formulario chico dentro del movimiento del historial (editar comentario o confirmar anulación).
+function abrirFormEvento(id, modo) {
+  document.querySelectorAll('#d-historial .ev-form').forEach(function (f) { f.innerHTML = ''; });
+  var li = document.querySelector('#d-historial li[data-ev="' + id + '"]');
+  if (!li) return;
+  var ev = (S.eventos[S.sel] || []).find(function (e) { return String(e.id) === String(id); });
+  var form = li.querySelector('.ev-form');
+  form.innerHTML = modo === 'editar'
+    ? '<textarea rows="2" class="ev-texto">' + esc(ev && ev.comentario || '') + '</textarea>' +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico" data-ev-guardar="' + id + '">Guardar</button></div>'
+    : '<input class="ev-texto" placeholder="Motivo de la anulación (opcional)">' +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-confirmar="' + id + '">Confirmar anulación</button></div>';
+  form.querySelector('.ev-texto').focus();
+}
+
+async function accionEvento(fn, args, ok, textoError) {
+  try {
+    await ejecutar(fn, Object.assign({ p_usuario: S.usuario.email }, args), ok);
+    await recargarReclamo(S.sel);
+    render();
+  } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
 }
 
 function tiendaDeTexto(txt) {
@@ -474,6 +520,18 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.id === 'd-btn-reiterar') return reiterar();
     if (b.id === 'd-btn-coment') return comentar();
     if (b.id === 'd-btn-guardar') return guardarEdicion();
+    if (b.id === 'd-btn-cancelar') { renderDetalle(); toast('Cambios descartados'); return; }
+    if (b.dataset.evEditar) return abrirFormEvento(b.dataset.evEditar, 'editar');
+    if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');
+    if (b.hasAttribute('data-ev-cerrar')) { b.closest('.ev-form').innerHTML = ''; return; }
+    if (b.dataset.evGuardar) {
+      return accionEvento('editar_comentario_evento', { p_evento_id: Number(b.dataset.evGuardar), p_texto: b.closest('.ev-form').querySelector('.ev-texto').value },
+        'Comentario corregido', 'No se pudo corregir');
+    }
+    if (b.dataset.evConfirmar) {
+      return accionEvento('anular_evento', { p_evento_id: Number(b.dataset.evConfirmar), p_motivo: b.closest('.ev-form').querySelector('.ev-texto').value },
+        'Movimiento anulado', 'No se pudo anular');
+    }
   });
   $('btn-nuevo').onclick = function () {
     $('n-error').hidden = true;
