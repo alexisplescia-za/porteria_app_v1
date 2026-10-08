@@ -36,9 +36,15 @@
   <section id="v-consola" hidden>
     <div class="kpis" id="kpis"></div>
     <div class="prov" id="prov"></div>
+    <details class="seguimiento" id="seguimiento-wrap" open>
+      <summary>Seguimiento por proveedor</summary>
+      <div id="seguimiento"></div>
+    </details>
     <div class="toolbar">
       <input id="q" class="grow" placeholder="Buscar por ID, tienda, descripción o referencia" aria-label="Buscar">
       <select id="f-prov" aria-label="Proveedor"><option value="">Todos los proveedores</option></select>
+      <select id="f-tipo" aria-label="Tipo"><option value="">Todos los tipos</option></select>
+      <select id="f-motivo" aria-label="Motivo"><option value="">Todos los motivos</option></select>
       <select id="f-region" aria-label="Región"><option value="">Todas las regiones</option></select>
       <select id="f-estado" aria-label="Estado">
         <option value="abiertos">Abiertos</option>
@@ -69,6 +75,10 @@
     <div class="sheet-head"><h3>Nuevo reclamo</h3><span class="idprev">El ID se genera al guardar</span></div>
     <div class="two">
       <label>Proveedor<select id="n-prov" required></select></label>
+      <label>Tipo<select id="n-tipo" required></select></label>
+    </div>
+    <div class="two">
+      <label>Motivo del ticket<select id="n-motivo" required></select></label>
       <label>Prioridad<select id="n-pri"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label>
     </div>
     <label>Tienda
@@ -78,11 +88,11 @@
     <label>Categoría<select id="n-cat" required></select></label>
     <label>Descripción<textarea id="n-desc" rows="3" required placeholder="Qué pasa, desde cuándo y qué se le pidió al proveedor"></textarea></label>
     <div class="two">
+      <label>Vía del reclamo/solicitud<select id="n-via" required></select></label>
       <label>Fecha que comprometió el proveedor<input type="date" id="n-comp"></label>
-      <label>Canal<select id="n-canal"><option>Mail</option><option>Teléfono</option><option>Portal del proveedor</option><option>Reunión</option><option>Otro</option></select></label>
     </div>
     <div class="two">
-      <label>Responsable del seguimiento<input id="n-resp" placeholder="Por defecto, vos"></label>
+      <label>Persona que realizó el reclamo/solicitud<input id="n-solic" required placeholder="Nombre y apellido"></label>
       <label>Referencia<input id="n-ref" placeholder="OT SAP, Mantech o asunto del mail"></label>
     </div>
     <p class="error" id="n-error" hidden></p>

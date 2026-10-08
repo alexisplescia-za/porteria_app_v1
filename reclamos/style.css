@@ -108,3 +108,18 @@ tr.row{cursor:pointer} tr.row:hover td,tr.sel td{background:var(--surface-2)}
 .toast.mal{background:var(--bad);color:#fff}
 .firma{text-align:center;font-size:12px;color:var(--muted);padding:24px 0 0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* seguimiento por proveedor */
+.seguimiento{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:16px}
+.seguimiento summary{cursor:pointer;font-weight:700;font-size:14px}
+.seg-tablas{display:grid;gap:14px;margin-top:10px}
+.seg-tabla{overflow-x:auto}
+.seg-tabla table{min-width:760px}
+.seg-tabla th,.seg-tabla td{padding:7px 10px;font-size:12.5px}
+.seg-tabla td.n{text-align:right;font-variant-numeric:tabular-nums}
+.seg-tabla tr.total td{font-weight:700;background:var(--surface-2)}
+.seg-sub{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);font-weight:600;margin:4px 0}
+.mini{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--surface-2);color:var(--muted);margin-right:4px}
+.contador{font-weight:700;font-variant-numeric:tabular-nums}
+.acciones-seg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.acciones-seg .lbl{font-size:12px;color:var(--muted)}
