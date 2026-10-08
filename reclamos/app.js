@@ -9,6 +9,7 @@ var ESTADOS = ['Nuevo', 'Enviado al proveedor', 'Respuesta proveedor', 'En resol
 var COLOR_FORMATO = { HIPERMERCADO: 'var(--hiper)', MAXI: 'var(--maxi)', MARKET: 'var(--market)', EXPRESS: 'var(--express)' };
 var TRAMOS = [['0-7 días', 'var(--line)'], ['8-15 días', 'var(--warn)'], ['16-30 días', 'var(--orange)'], ['+30 días', 'var(--bad)']];
 var DIA = 864e5;
+var CLASE_PRIORIDAD = { Alta: 'a3', Media: 'a1', Baja: 'a0' };
 
 var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null };
 
@@ -231,9 +232,10 @@ function render() {
       '<td class="id">' + esc(r.id) + '</td>' +
       '<td><b>' + esc(r.proveedor) + '</b><br><span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span></td>' +
       '<td>' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
+      '<td><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
       '<td class="st">' + esc(r.estado) + (vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
       '<td><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
-  }).join('') : '<tr><td colspan="5" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
   renderDetalle();
 }
 
@@ -281,7 +283,7 @@ async function renderDetalle() {
       '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
       '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
       '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>' +
-      '<dt>Prioridad</dt><dd>' + esc(r.prioridad) + '</dd>' +
+      '<dt>Prioridad</dt><dd><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span></dd>' +
       '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
       '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
       '<dt>Alta</dt><dd>' + fmtD(r.fecha_alta) + ' · ' + dias(r) + ' días' + (r.estado === 'Cerrado' ? ' (cerrado ' + fmtD(r.fecha_cierre) + ')' : '') + '</dd>' +
