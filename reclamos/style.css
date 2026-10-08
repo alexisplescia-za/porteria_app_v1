@@ -240,3 +240,18 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .ev-form .acciones{justify-content:flex-end}
 .editar .acciones{display:flex;gap:8px;justify-content:flex-end}
 .editar textarea{min-height:56px}
+
+/* barra de la lista: cantidad, filtros activos y orden */
+.lista-barra{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin:0 0 10px}
+.lista-info{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.lista-info b{color:var(--ink,inherit)}
+.filtro-chip{font:inherit;font-size:12px;border:1px solid var(--blue);color:var(--blue);background:transparent;border-radius:999px;padding:2px 10px;cursor:pointer}
+.filtro-chip:hover{background:var(--surface-2)}
+.link-btn{font:inherit;font-size:12px;border:0;background:none;color:var(--blue);text-decoration:underline;cursor:pointer;padding:2px 4px}
+.lista-orden{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);white-space:nowrap}
+.lista-orden .andes-select,.lista-orden select{min-width:230px}
+/* navegación del detalle */
+.det-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px;padding:0 0 10px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+.det-nav span{flex:1;text-align:center;min-width:90px}
+.ev-btn:disabled{opacity:.4;cursor:default}
+@media (max-width:700px){.lista-orden{width:100%}.lista-orden .andes-select,.lista-orden select{flex:1;min-width:0}}

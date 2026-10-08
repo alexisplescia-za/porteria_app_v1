@@ -132,6 +132,7 @@ async function cargarTodo() {
   S.reclamos = r[4];
   S.eventos = {};
   armarSelects();
+  if (!S.sel) abrirDesdeUrl();
   render();
 }
 
@@ -188,13 +189,73 @@ function filtrados() {
     if (fe === 'vencidos' && !vencido(r)) return false;
     if (fe === 'mas30' && (r.estado === 'Cerrado' || dias(r) <= 30)) return false;
     if (fe === 'Cerrado' && r.estado !== 'Cerrado') return false;
+    if (fe === 'reiterados' && (r.estado === 'Cerrado' || !r.reiteraciones)) return false;
+    if (fe === 'devueltos' && !r.devoluciones) return false;
+    if (fe === 'fuera' && (r.estado === 'Cerrado' || (r.area_actual || 'PROVEEDOR') === 'PROVEEDOR')) return false;
     if (!q) return true;
     return [r.id, t && t.local, r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo]
       .join(' ').toLowerCase().indexOf(q) !== -1;
   }).sort(function (a, b) {
     if ((a.estado === 'Cerrado') !== (b.estado === 'Cerrado')) return a.estado === 'Cerrado' ? 1 : -1;
+    var orden = $('f-orden').value, d = 0;
+    if (orden === 'reclamados') d = vecesReclamado(b) - vecesReclamado(a);
+    else if (orden === 'prioridad') d = (PESO_PRIORIDAD[a.prioridad] || 9) - (PESO_PRIORIDAD[b.prioridad] || 9);
+    else if (orden === 'compromiso') d = (a.fecha_compromiso ? new Date(a.fecha_compromiso) : 8e15) - (b.fecha_compromiso ? new Date(b.fecha_compromiso) : 8e15);
+    else if (orden === 'recientes') d = new Date(b.fecha_alta) - new Date(a.fecha_alta);
+    if (d) return d;
     return a.estado === 'Cerrado' ? new Date(b.fecha_cierre) - new Date(a.fecha_cierre) : dias(b) - dias(a);
   });
+}
+
+var PESO_PRIORIDAD = { Alta: 1, Media: 2, Baja: 3 };
+var FILTROS_TEXTO = { '': 'Todos', vencidos: 'Sólo vencidos', mas30: 'Más de 30 días', reiterados: 'Reclamados más de una vez',
+  devueltos: 'Con devoluciones', fuera: 'En Compras / Mantenimiento', Cerrado: 'Cerrados' };
+
+// "Mostrando N de M" + chips con los filtros activos (cada uno se saca con ✕).
+function renderInfoLista(lista) {
+  var chips = [];
+  var q = $('q').value.trim();
+  if (q) chips.push(['q', '"' + q + '"']);
+  ['f-prov', 'f-tipo', 'f-motivo', 'f-region'].forEach(function (id) { if ($(id).value) chips.push([id, $(id).value]); });
+  if ($('f-estado').value !== 'abiertos') chips.push(['f-estado', FILTROS_TEXTO[$('f-estado').value] || $('f-estado').value]);
+  $('lista-info').innerHTML = '<b>' + lista.length + '</b> de ' + S.reclamos.length + ' reclamos' +
+    ($('f-estado').value === 'abiertos' ? ' · abiertos' : '') +
+    chips.map(function (c) { return '<button class="filtro-chip" data-quitar="' + c[0] + '">' + esc(c[1]) + ' ✕</button>'; }).join('') +
+    (chips.length ? '<button class="link-btn" data-quitar="todo">Limpiar filtros</button>' : '');
+}
+
+function quitarFiltro(id) {
+  var ids = id === 'todo' ? ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-estado'] : [id];
+  ids.forEach(function (i) { $(i).value = i === 'f-estado' ? 'abiertos' : ''; });
+  Andes.refrescar();
+  render();
+}
+
+// Elegir un reclamo: queda en la URL (#REC-...) para compartir el link.
+function seleccionar(id, desplazar) {
+  S.sel = id;
+  try { history.replaceState(null, '', id ? '#' + id : location.pathname); } catch (e) { }
+  render();
+  var tr = document.querySelector('#rows tr[data-id="' + id + '"]');
+  if (tr && desplazar !== false) tr.scrollIntoView({ block: 'nearest' });
+}
+
+function moverSeleccion(paso) {
+  var lista = S.lista || [];
+  if (!lista.length) return;
+  var i = lista.findIndex(function (r) { return r.id === S.sel; });
+  var j = i === -1 ? 0 : Math.min(Math.max(i + paso, 0), lista.length - 1);
+  if (j !== i) seleccionar(lista[j].id);
+}
+
+// Abre el reclamo del link (#REC-...). Si los filtros lo esconden, los afloja.
+function abrirDesdeUrl() {
+  var id = decodeURIComponent(location.hash.slice(1));
+  if (!id || !S.reclamos.some(function (r) { return r.id === id; })) return;
+  S.sel = id;
+  if (!filtrados().some(function (r) { return r.id === id; })) quitarFiltro('todo');
+  if (!filtrados().some(function (r) { return r.id === id; })) { $('f-estado').value = ''; Andes.refrescar(); }
+  render();
 }
 
 function render() {
@@ -207,8 +268,8 @@ function render() {
     '<div class="kpi clic" data-filtro="abiertos"><div class="l">Abiertos</div><div class="v">' + abiertos.length + '</div></div>' +
     '<div class="kpi bad clic" data-filtro="vencidos"><div class="l">Vencidos (pasó la fecha del proveedor)</div><div class="v">' + abiertos.filter(vencido).length + '</div></div>' +
     '<div class="kpi warn clic" data-filtro="mas30"><div class="l">Más de 30 días</div><div class="v">' + abiertos.filter(function (r) { return dias(r) > 30; }).length + '</div></div>' +
-    '<div class="kpi"><div class="l">Abiertos reclamados más de una vez</div><div class="v">' + reit + '</div></div>' +
-    '<div class="kpi"><div class="l">Devoluciones proveedor / compras / mant.</div><div class="v">' + devs + '</div></div>' +
+    '<div class="kpi clic" data-filtro="reiterados"><div class="l">Abiertos reclamados más de una vez</div><div class="v">' + reit + '</div></div>' +
+    '<div class="kpi clic" data-filtro="devueltos"><div class="l">Devoluciones proveedor / compras / mant.</div><div class="v">' + devs + '</div></div>' +
     '<div class="kpi"><div class="l">Promedio de resolución</div><div class="v">' + prom + ' <span style="font-size:14px;font-weight:500;color:var(--muted)">días</span></div></div>';
 
   $('prov').innerHTML = S.provs.map(function (p) {
@@ -224,6 +285,8 @@ function render() {
   renderSeguimiento();
 
   var lista = filtrados();
+  S.lista = lista;
+  renderInfoLista(lista);
   $('rows').innerHTML = lista.length ? lista.map(function (r) {
     var ag = aging(r), t = tienda(r);
     var colorF = t ? (COLOR_FORMATO[String(t.formato).toUpperCase()] || 'var(--muted)') : 'var(--muted)';
@@ -278,7 +341,14 @@ async function renderDetalle() {
   var r = S.reclamos.find(function (x) { return x.id === S.sel; });
   if (!r) { cont.innerHTML = '<p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p>'; return; }
   var t = tienda(r), g = esGestor(), abierto = r.estado !== 'Cerrado';
-  cont.innerHTML =
+  var lista = S.lista || [], pos = lista.findIndex(function (x) { return x.id === r.id; });
+  var nav = '<div class="det-nav">' +
+    '<button class="ev-btn" data-nav="-1"' + (pos <= 0 ? ' disabled' : '') + ' title="Anterior (flecha ↑)">‹ Anterior</button>' +
+    '<span>' + (pos === -1 ? 'No está en la lista filtrada' : (pos + 1) + ' de ' + lista.length) + '</span>' +
+    '<button class="ev-btn" data-nav="1"' + (pos === -1 || pos >= lista.length - 1 ? ' disabled' : '') + ' title="Siguiente (flecha ↓)">Siguiente ›</button>' +
+    '<button class="ev-btn" data-copiar-link title="Copiar el link directo a este reclamo">🔗 Copiar link</button>' +
+    '<button class="ev-btn" data-cerrar-det title="Cerrar el detalle">✕</button></div>';
+  cont.innerHTML = nav +
     '<span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
     '<p style="margin:0;color:var(--muted);font-size:13px">' + esc(r.descripcion) + '</p>' +
     '<dl class="kv">' +
@@ -497,6 +567,23 @@ document.addEventListener('DOMContentLoaded', function () {
   $('login-mail').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
   $('btn-salir').onclick = salir;
   ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
+  var ordenGuardado = leerLocal('reclamos_orden');
+  if (ordenGuardado) $('f-orden').value = ordenGuardado;
+  $('f-orden').addEventListener('input', function () { guardarLocal('reclamos_orden', $('f-orden').value); render(); });
+  $('lista-info').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-quitar]');
+    if (b) quitarFiltro(b.dataset.quitar);
+  });
+  // Flechas ↑/↓ recorren la lista (salvo que se esté escribiendo o haya un desplegable abierto).
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!S.usuario || !$('sheet').hidden || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, .andes-select, .andes-panel')) return;
+    if (document.querySelector('.andes-panel') && document.querySelector('.andes-panel').offsetParent) return;
+    e.preventDefault();
+    moverSeleccion(e.key === 'ArrowDown' ? 1 : -1);
+  });
+  window.addEventListener('hashchange', function () { if (S.usuario) abrirDesdeUrl(); });
   $('kpis').addEventListener('click', function (e) {
     var k = e.target.closest('[data-filtro]');
     if (k) { $('f-estado').value = k.dataset.filtro; render(); }
@@ -504,13 +591,12 @@ document.addEventListener('DOMContentLoaded', function () {
   $('rows').addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-id]');
     if (!tr) return;
-    S.sel = tr.dataset.id;
-    render();
+    seleccionar(tr.dataset.id, false);
     if (window.innerWidth <= 1100) $('detalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   $('rows').addEventListener('keydown', function (e) {
     var tr = e.target.closest('tr[data-id]');
-    if (tr && e.key === 'Enter') { S.sel = tr.dataset.id; render(); }
+    if (tr && e.key === 'Enter') seleccionar(tr.dataset.id, false);
   });
   $('detalle').addEventListener('click', function (e) {
     var b = e.target.closest('button');
@@ -520,6 +606,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.id === 'd-btn-reiterar') return reiterar();
     if (b.id === 'd-btn-coment') return comentar();
     if (b.id === 'd-btn-guardar') return guardarEdicion();
+    if (b.dataset.nav) return moverSeleccion(Number(b.dataset.nav));
+    if (b.hasAttribute('data-cerrar-det')) return seleccionar(null, false);
+    if (b.hasAttribute('data-copiar-link')) {
+      var link = location.origin + location.pathname + '#' + S.sel;
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+        .then(function () { toast('Link copiado: ' + S.sel); }, function () { prompt('Copiá este link:', link); });
+      return;
+    }
     if (b.id === 'd-btn-cancelar') { renderDetalle(); toast('Cambios descartados'); return; }
     if (b.dataset.evEditar) return abrirFormEvento(b.dataset.evEditar, 'editar');
     if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');

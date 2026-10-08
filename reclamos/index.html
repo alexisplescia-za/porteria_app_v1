@@ -51,10 +51,25 @@
         <option value="">Todos</option>
         <option value="vencidos">Sólo vencidos</option>
         <option value="mas30">Más de 30 días</option>
+        <option value="reiterados">Reclamados más de una vez</option>
+        <option value="devueltos">Con devoluciones</option>
+        <option value="fuera">En Compras / Mantenimiento</option>
         <option value="Cerrado">Cerrados</option>
       </select>
       <button class="btn ghost" id="btn-csv">Exportar CSV</button>
       <button class="btn" id="btn-nuevo">+ Nuevo reclamo</button>
+    </div>
+    <div class="lista-barra">
+      <div class="lista-info" id="lista-info"></div>
+      <label class="lista-orden">Ordenar por
+        <select id="f-orden" aria-label="Ordenar por">
+          <option value="antiguos">Más antiguos primero</option>
+          <option value="reclamados">Más veces reclamados</option>
+          <option value="prioridad">Prioridad</option>
+          <option value="compromiso">Fecha compromiso más próxima</option>
+          <option value="recientes">Más recientes primero</option>
+        </select>
+      </label>
     </div>
     <div class="console">
       <div class="tbl"><table>
