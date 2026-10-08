@@ -123,3 +123,104 @@ tr.row{cursor:pointer} tr.row:hover td,tr.sel td{background:var(--surface-2)}
 .contador{font-weight:700;font-variant-numeric:tabular-nums}
 .acciones-seg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
 .acciones-seg .lbl{font-size:12px;color:var(--muted)}
+
+/* ════════════════ Andes UI + layout ancho + responsive ════════════════ */
+:root{--blue:#3483FA;--blue-h:#2968C8;--foco:rgba(52,131,250,.28)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--blue:#4E9BFF;--blue-h:#7AB4FF;--foco:rgba(78,155,255,.35)}}
+
+/* Ancho: aprovecha monitores 1920 sin perder márgenes */
+.wrap{max-width:1680px;padding:24px 28px 48px}
+.console{grid-template-columns:minmax(0,1fr) clamp(400px,30vw,540px)}
+.panel{overflow-x:hidden}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.prov{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+
+/* Barra de filtros en una sola fila en pantallas grandes */
+.toolbar{display:grid;grid-template-columns:minmax(260px,2.2fr) repeat(5,minmax(140px,1fr)) auto auto;gap:10px}
+.toolbar .grow{min-width:0}
+@media (max-width:1400px){.toolbar{grid-template-columns:repeat(4,minmax(0,1fr))}.toolbar .grow{grid-column:1/-1}}
+
+/* Controles base estilo Andes */
+input,textarea,.sheet input{min-height:40px;border-radius:6px;padding:8px 12px;border:1px solid var(--line);transition:border-color .12s,box-shadow .12s}
+textarea{min-height:64px}
+input:hover,textarea:hover{border-color:var(--muted)}
+input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--foco)}
+.btn{border-radius:6px;min-height:40px;padding:8px 16px;transition:background .12s}
+.btn:hover:not(:disabled){background:var(--blue-h)}
+.btn.ghost:hover:not(:disabled){background:var(--surface-2)}
+.btn.chico{min-height:32px;padding:5px 12px}
+
+.andes-oculto{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;margin:0!important;padding:0!important;border:0!important}
+.andes-select{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;min-height:40px;padding:8px 12px;font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:6px;cursor:pointer;text-align:left;transition:border-color .12s,box-shadow .12s}
+.andes-select:hover{border-color:var(--muted)}
+.andes-select.abierto,.andes-select:focus-visible{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--foco)}
+.andes-select:disabled{opacity:.6;cursor:default}
+.andes-texto{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.andes-texto.placeholder{color:var(--muted)}
+.andes-chev{flex-shrink:0;opacity:.65;transition:transform .15s}
+.andes-select.abierto .andes-chev{transform:rotate(180deg)}
+.andes-cal{flex-shrink:0;opacity:.7}
+.andes-panel{position:fixed;z-index:1000;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.22);padding:6px}
+.andes-lista{max-height:320px;overflow-y:auto}
+.andes-op{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:6px;cursor:pointer;font-size:14px}
+.andes-op.activa{background:var(--surface-2)}
+.andes-op.elegida{color:var(--blue);font-weight:600}
+.andes-fecha{width:300px;padding:12px}
+.andes-cal-cab{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.andes-cal-cab b{text-transform:capitalize;font-size:14px}
+.andes-nav{width:32px;height:32px;border:0;border-radius:50%;background:none;color:var(--fg);font-size:20px;line-height:1;cursor:pointer}
+.andes-nav:hover{background:var(--surface-2)}
+.andes-grilla{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.andes-dsem{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;padding:4px 0}
+.andes-dia{aspect-ratio:1;border:0;border-radius:50%;background:none;color:var(--fg);font:inherit;font-size:13px;cursor:pointer}
+.andes-dia:hover{background:var(--surface-2)}
+.andes-dia.hoy{box-shadow:inset 0 0 0 1px var(--blue);color:var(--blue);font-weight:600}
+.andes-dia.elegida{background:var(--blue);color:#fff;font-weight:600}
+.andes-cal-pie{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.andes-link{border:0;background:none;color:var(--blue);font:inherit;font-weight:600;cursor:pointer;padding:4px 6px;border-radius:4px}
+.andes-link:hover{background:var(--surface-2)}
+
+/* Panel de detalle: los campos de edición no se desbordan */
+.editar .two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.editar input,.editar .andes-select{width:100%;min-width:0}
+.panel .kv{grid-template-columns:130px minmax(0,1fr)}
+.panel .kv dd{overflow-wrap:anywhere}
+
+/* Formulario de alta más ancho en escritorio */
+.sheet form{width:min(760px,100%)}
+
+/* Tablet: el detalle pasa debajo de la lista */
+@media (max-width:1100px){
+  .console{grid-template-columns:minmax(0,1fr)}
+  .panel{position:static;max-height:none}
+}
+
+/* Celular */
+@media (max-width:700px){
+  .wrap{padding:16px 12px 40px}
+  h1{font-size:22px}
+  header.top{align-items:flex-start}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .kpi{padding:10px 12px}
+  .kpi .v{font-size:22px}
+  .prov{grid-template-columns:minmax(0,1fr)}
+  .toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .toolbar .btn{width:100%}
+  .toolbar #btn-nuevo{grid-column:1/-1}
+  /* la tabla se vuelve una lista de tarjetas */
+  .tbl table{min-width:0}
+  .tbl thead{display:none}
+  .tbl tr.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .tbl tr.row td{border:0;padding:0}
+  .tbl td.c-id{grid-column:1}
+  .tbl td.c-pri{grid-column:2;grid-row:1;justify-self:end}
+  .tbl td.c-prov,.tbl td.c-prob{grid-column:1/-1}
+  .tbl td.c-est{grid-column:1}
+  .tbl td.c-ant{grid-column:2;text-align:right}
+  .desc{max-width:none}
+  /* el formulario ocupa toda la pantalla */
+  .sheet{padding:0;align-items:stretch}
+  .sheet form{width:100%;max-height:none;height:100%;border-radius:0}
+  .two{grid-template-columns:minmax(0,1fr)}
+  .panel .kv{grid-template-columns:110px minmax(0,1fr)}
+}

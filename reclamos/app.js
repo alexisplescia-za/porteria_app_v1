@@ -167,6 +167,8 @@ function armarSelects() {
   $('lista-tiendas').innerHTML = Object.keys(S.tiendas).map(function (n) {
     return '<option value="' + esc(S.tiendas[n].local || n) + '">';
   }).join('');
+  Andes.mejorar(document);
+  Andes.refrescar();
 }
 
 // ---------------------------------------------------------------
@@ -229,13 +231,14 @@ function render() {
     var cont = (r.reiteraciones ? '<span class="desc">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
       (r.devoluciones ? '<span class="desc">' + r.devoluciones + ' devoluciones · en ' + esc(r.area_actual) + '</span>' : '');
     return '<tr class="row ' + (S.sel === r.id ? 'sel' : '') + '" data-id="' + esc(r.id) + '" tabindex="0">' +
-      '<td class="id">' + esc(r.id) + '</td>' +
-      '<td><b>' + esc(r.proveedor) + '</b><br><span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span></td>' +
-      '<td>' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
-      '<td><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
-      '<td class="st">' + esc(r.estado) + (vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
-      '<td><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
+      '<td class="id c-id">' + esc(r.id) + '</td>' +
+      '<td class="c-prov"><b>' + esc(r.proveedor) + '</b><br><span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span></td>' +
+      '<td class="c-prob">' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
+      '<td class="c-pri"><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
+      '<td class="st c-est">' + esc(r.estado) + (vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
+      '<td class="c-ant"><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
   }).join('') : '<tr><td colspan="6" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  Andes.refrescar();
   renderDetalle();
 }
 
@@ -317,6 +320,7 @@ async function renderDetalle() {
       '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
       '<div style="display:flex;justify-content:flex-end"><button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
     '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
+  Andes.mejorar(cont);
 
   try {
     var ev = await cargarEventos(r.id);
@@ -453,7 +457,10 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   $('rows').addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-id]');
-    if (tr) { S.sel = tr.dataset.id; render(); }
+    if (!tr) return;
+    S.sel = tr.dataset.id;
+    render();
+    if (window.innerWidth <= 1100) $('detalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   $('rows').addEventListener('keydown', function (e) {
     var tr = e.target.closest('tr[data-id]');
@@ -471,10 +478,11 @@ document.addEventListener('DOMContentLoaded', function () {
   $('btn-nuevo').onclick = function () {
     $('n-error').hidden = true;
     if (!$('n-solic').value && S.usuario) $('n-solic').value = S.usuario.nombre || '';
+    Andes.refrescar();
     $('sheet').hidden = false;
     $('n-tienda').focus();
   };
-  $('btn-cancelar').onclick = function () { $('sheet').hidden = true; };
+  $('btn-cancelar').onclick = function () { Andes.cerrar(); $('sheet').hidden = true; };
   $('sheet').addEventListener('click', function (e) { if (e.target.id === 'sheet') $('sheet').hidden = true; });
   $('f-nuevo').addEventListener('submit', crear);
   $('btn-csv').onclick = exportarCSV;
@@ -483,6 +491,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!document.hidden && S.usuario) cargarTodo().catch(function () { });
   });
 
+  Andes.mejorar(document);
   var mail = leerLocal('reclamos_mail');
   if (mail) { $('login-mail').value = mail; entrar(); } else vista('login');
 });
