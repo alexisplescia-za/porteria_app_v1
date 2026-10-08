@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reclamos EE — Central Mantenimiento App</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23004E9E'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>R</text></svg>">
+<link rel="stylesheet" href="/reclamos/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <a href="/" class="volver">‹ Central Mantenimiento App</a>
+      <div class="eyebrow">Central de Mantenimiento País · Eficiencia Energética</div>
+      <h1>Reclamos a Proveedores</h1>
+    </div>
+    <div class="usuario" id="usuario" hidden>
+      <span id="usuario-nombre"></span>
+      <button class="btn ghost chico" id="btn-salir">Salir</button>
+    </div>
+  </header>
+
+  <!-- ============ Login ============ -->
+  <section id="v-login" class="login">
+    <div class="card login-card">
+      <h2>Ingresá con tu mail de Carrefour</h2>
+      <p class="muted">Sólo pueden entrar los usuarios habilitados para gestionar reclamos.</p>
+      <input id="login-mail" type="email" placeholder="tunombre@carrefour.com" autocomplete="email">
+      <p class="error" id="login-error" hidden></p>
+      <button class="btn" id="btn-entrar">Entrar</button>
+    </div>
+  </section>
+
+  <!-- ============ Consola ============ -->
+  <section id="v-consola" hidden>
+    <div class="kpis" id="kpis"></div>
+    <div class="prov" id="prov"></div>
+    <div class="toolbar">
+      <input id="q" class="grow" placeholder="Buscar por ID, tienda, descripción o referencia" aria-label="Buscar">
+      <select id="f-prov" aria-label="Proveedor"><option value="">Todos los proveedores</option></select>
+      <select id="f-region" aria-label="Región"><option value="">Todas las regiones</option></select>
+      <select id="f-estado" aria-label="Estado">
+        <option value="abiertos">Abiertos</option>
+        <option value="">Todos</option>
+        <option value="vencidos">Sólo vencidos</option>
+        <option value="mas30">Más de 30 días</option>
+        <option value="Cerrado">Cerrados</option>
+      </select>
+      <button class="btn ghost" id="btn-csv">Exportar CSV</button>
+      <button class="btn" id="btn-nuevo">+ Nuevo reclamo</button>
+    </div>
+    <div class="console">
+      <div class="tbl"><table>
+        <thead><tr><th>ID</th><th>Proveedor · Tienda</th><th>Problema</th><th>Estado</th><th>Antigüedad</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+      <aside class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></aside>
+    </div>
+    <footer class="firma">Desarrollado por Alexis Plescia</footer>
+  </section>
+
+  <section id="v-cargando" class="cargando" hidden>Cargando…</section>
+</div>
+
+<!-- ============ Nuevo reclamo ============ -->
+<div class="sheet" id="sheet" hidden>
+  <form id="f-nuevo" autocomplete="off">
+    <div class="sheet-head"><h3>Nuevo reclamo</h3><span class="idprev">El ID se genera al guardar</span></div>
+    <div class="two">
+      <label>Proveedor<select id="n-prov" required></select></label>
+      <label>Prioridad<select id="n-pri"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label>
+    </div>
+    <label>Tienda
+      <input id="n-tienda" list="lista-tiendas" required placeholder="Escribí número o nombre y elegí de la lista">
+      <datalist id="lista-tiendas"></datalist>
+    </label>
+    <label>Categoría<select id="n-cat" required></select></label>
+    <label>Descripción<textarea id="n-desc" rows="3" required placeholder="Qué pasa, desde cuándo y qué se le pidió al proveedor"></textarea></label>
+    <div class="two">
+      <label>Fecha que comprometió el proveedor<input type="date" id="n-comp"></label>
+      <label>Canal<select id="n-canal"><option>Mail</option><option>Teléfono</option><option>Portal del proveedor</option><option>Reunión</option><option>Otro</option></select></label>
+    </div>
+    <div class="two">
+      <label>Responsable del seguimiento<input id="n-resp" placeholder="Por defecto, vos"></label>
+      <label>Referencia<input id="n-ref" placeholder="OT SAP, Mantech o asunto del mail"></label>
+    </div>
+    <p class="error" id="n-error" hidden></p>
+    <div class="acciones">
+      <button type="button" class="btn ghost" id="btn-cancelar">Cancelar</button>
+      <button class="btn" type="submit" id="btn-guardar">Registrar reclamo</button>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/frio-alimentario/config.js"></script>
+<script src="/reclamos/app.js"></script>
+</body>
+</html>
