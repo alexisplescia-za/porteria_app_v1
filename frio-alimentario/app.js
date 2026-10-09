@@ -4,7 +4,7 @@
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 var STEPPERS_MT = [
-  { key: 'centralesMT', col: 'centrales_mt', label: 'Centrales MT' },
+  { key: 'centralesMT', col: 'centrales_mt', label: 'Centrales MT', compresores: 'compresoresMT', etiqueta: 'Central MT' },
   { key: 'camarasAutocontMT', col: 'camaras_autocont_mt', label: 'Cámaras autocontenidas MT' },
   { key: 'gondolasAutocontMT', col: 'gondolas_autocont_mt', label: 'Góndolas autocontenidas MT' },
   { key: 'pozosMT', col: 'pozos_mt', label: 'Pozos MT' },
@@ -13,7 +13,7 @@ var STEPPERS_MT = [
   { key: 'autocontMTR404', col: 'autocont_mt_r404', label: 'Autocontenidos MT con R404', soloExpress: true }
 ];
 var STEPPERS_BT = [
-  { key: 'centralesBT', col: 'centrales_bt', label: 'Centrales BT' },
+  { key: 'centralesBT', col: 'centrales_bt', label: 'Centrales BT', compresores: 'compresoresBT', etiqueta: 'Central BT' },
   { key: 'camarasAutocontBT', col: 'camaras_autocont_bt', label: 'Cámaras autocontenidas BT' },
   { key: 'gondolasAutocontBT', col: 'gondolas_autocont_bt', label: 'Góndolas autocontenidas BT' },
   { key: 'pozosBT', col: 'pozos_bt', label: 'Pozos BT' },
@@ -50,8 +50,16 @@ function formVacio() {
   return {
     cambioMT: 'No', centralesMT: 0, camarasAutocontMT: 0, gondolasAutocontMT: 0, pozosMT: 0, centralesDual: 0, autocontMTCarnes: 0, autocontMTR404: 0, autocontBTR404: 0,
     cambioBT: 'No', centralesBT: 0, camarasAutocontBT: 0, gondolasAutocontBT: 0, pozosBT: 0, camarasMTBTDual: 0, autocontReemplazoBT: 0,
+    compresoresMT: [], compresoresBT: [],
     observaciones: ''
   };
+}
+
+// Lista de compresores con un valor por central (completa con 0 o recorta según la cantidad).
+function compresoresAjustados_(lista, centrales) {
+  var out = (lista || []).slice(0, Math.max(0, centrales || 0)).map(function (n) { return Math.max(0, Number(n) || 0); });
+  while (out.length < (centrales || 0)) out.push(0);
+  return out;
 }
 
 var STATE = { email: '', jefe: '', esMaestro: false, tiendas: [], tienda: null, form: formVacio(), params: [] };
@@ -243,7 +251,9 @@ async function getDatosTienda(numero) {
     cambioBT: v.cambio_bt || 'No', centralesBT: v.centrales_bt || 0, camarasAutocontBT: v.camaras_autocont_bt || 0,
     gondolasAutocontBT: v.gondolas_autocont_bt || 0, pozosBT: v.pozos_bt || 0, camarasMTBTDual: v.camaras_mtbt_dual || 0, autocontMTCarnes: v.autocont_mt_carnes || 0,
     autocontMTR404: v.autocont_mt_r404 || 0, autocontBTR404: v.autocont_bt_r404 || 0,
-    autocontReemplazoBT: v.autocont_reemplazo_bt || 0, observaciones: v.observaciones || ''
+    autocontReemplazoBT: v.autocont_reemplazo_bt || 0, observaciones: v.observaciones || '',
+    compresoresMT: compresoresAjustados_(v.compresores_mt, v.centrales_mt || 0),
+    compresoresBT: compresoresAjustados_(v.compresores_bt, v.centrales_bt || 0)
   };
 }
 
@@ -265,6 +275,8 @@ async function guardarRelevamiento(payload) {
     pozos_bt: payload.pozosBT,
     camaras_mtbt_dual: payload.camarasMTBTDual,
     autocont_reemplazo_bt: payload.autocontReemplazoBT,
+    compresores_mt: compresoresAjustados_(payload.compresoresMT, payload.centralesMT),
+    compresores_bt: compresoresAjustados_(payload.compresoresBT, payload.centralesBT),
     observaciones: payload.observaciones,
     ultima_carga: new Date().toISOString(),
     cargado_por: payload.email || ''
@@ -595,6 +607,13 @@ function renderSteppers(contId, config) {
     btns[0].onclick = function () { cambiarStepper(it.key, -1); };
     btns[1].onclick = function () { cambiarStepper(it.key, 1); };
     cont.appendChild(row);
+    if (it.compresores) {
+      var sub = document.createElement('div');
+      sub.className = 'sub-compresores';
+      sub.id = 'comp-' + it.key;
+      cont.appendChild(sub);
+      renderCompresores_(it);
+    }
   });
 }
 
@@ -602,6 +621,40 @@ function cambiarStepper(key, delta) {
   var nuevo = Math.max(0, (STATE.form[key] || 0) + delta);
   STATE.form[key] = nuevo;
   document.getElementById('val-' + key).textContent = nuevo;
+  var it = EQUIPOS.find(function (e) { return e.key === key && e.compresores; });
+  if (it) renderCompresores_(it);
+}
+
+// Debajo de "Centrales MT/BT": un contador de compresores por cada central.
+function renderCompresores_(it) {
+  var cont = document.getElementById('comp-' + it.key);
+  if (!cont) return;
+  var lista = compresoresAjustados_(STATE.form[it.compresores], STATE.form[it.key]);
+  STATE.form[it.compresores] = lista;
+  cont.innerHTML = lista.length ? '<div class="sub-compresores-tit">Compresores por central</div>' + lista.map(function (n, i) {
+    return '<div class="stepper-row sub">' +
+      '<div class="stepper-label">' + it.etiqueta + ' ' + (i + 1) + '</div>' +
+      '<div class="stepper-control">' +
+        '<button class="stepper-btn" data-campo="' + it.compresores + '" data-i="' + i + '" data-dir="-1" aria-label="Menos compresores en ' + it.etiqueta + ' ' + (i + 1) + '">−</button>' +
+        '<div class="stepper-value">' + n + '</div>' +
+        '<button class="stepper-btn" data-campo="' + it.compresores + '" data-i="' + i + '" data-dir="1" aria-label="Más compresores en ' + it.etiqueta + ' ' + (i + 1) + '">+</button>' +
+      '</div></div>';
+  }).join('') : '';
+  cont.querySelectorAll('.stepper-btn').forEach(function (b) {
+    b.onclick = function () {
+      var arr = STATE.form[b.dataset.campo], i = Number(b.dataset.i);
+      arr[i] = Math.max(0, (arr[i] || 0) + Number(b.dataset.dir));
+      renderCompresores_(it);
+    };
+  });
+}
+
+// Fila de resumen: "4 · 3 (7 en total)" o aviso si falta alguna central.
+function resumenCompresores_(lista) {
+  if (!lista || !lista.length) return '';
+  var total = lista.reduce(function (a, n) { return a + n; }, 0);
+  var faltan = lista.filter(function (n) { return !n; }).length;
+  return lista.join(' · ') + ' (' + total + ' en total)' + (faltan ? ' · falta cargar ' + faltan : '');
 }
 
 function setToggle(contId, valor) {
@@ -636,12 +689,18 @@ function avanzarARevision() {
   mtCont.innerHTML = '';
   equiposDe_(STEPPERS_MT, grupoDeFormato_(STATE.tienda.formato)).forEach(function (it) {
     mtCont.innerHTML += '<div class="resumen-fila"><span>' + it.label + '</span><span>' + STATE.form[it.key] + '</span></div>';
+    if (it.compresores && STATE.form[it.key]) {
+      mtCont.innerHTML += '<div class="resumen-fila sub"><span>Compresores por central</span><span>' + resumenCompresores_(STATE.form[it.compresores]) + '</span></div>';
+    }
   });
 
   var btCont = document.getElementById('revision-bt');
   btCont.innerHTML = '';
   equiposDe_(STEPPERS_BT, grupoDeFormato_(STATE.tienda.formato)).forEach(function (it) {
     btCont.innerHTML += '<div class="resumen-fila"><span>' + it.label + '</span><span>' + STATE.form[it.key] + '</span></div>';
+    if (it.compresores && STATE.form[it.key]) {
+      btCont.innerHTML += '<div class="resumen-fila sub"><span>Compresores por central</span><span>' + resumenCompresores_(STATE.form[it.compresores]) + '</span></div>';
+    }
   });
 
   renderCapacidadRevision_();
