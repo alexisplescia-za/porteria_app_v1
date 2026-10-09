@@ -3,7 +3,7 @@
 -- Correr en: Supabase > SQL Editor > New query > Run.
 
 insert into cuentas_maestras (email) values
-  ('monica_belcraz@carrefour.com'),
+  ('monica_berclaz@carrefour.com'),
   ('gustavo_granero@carrefour.com'),
   ('lucas_concetti@carrefour.com')
 on conflict (email) do nothing;

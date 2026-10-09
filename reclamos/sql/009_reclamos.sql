@@ -178,7 +178,7 @@ insert into reclamos_usuarios (email, nombre, rol) values
   ('alexis_plescia@carrefour.com', 'Alexis Plescia', 'gestor'),
   ('gustavo_granero@carrefour.com', 'Gustavo Granero', 'gestor'),
   ('lucas_concetti@carrefour.com', 'Lucas Concetti', 'gestor'),
-  ('monica_belcraz@carrefour.com', 'Mónica Belcraz', 'gestor')
+  ('monica_berclaz@carrefour.com', 'Mónica Berclaz', 'gestor')
 on conflict (email) do nothing;
 
 insert into reclamos_proveedores (nombre, orden) values ('BMS', 1), ('PME', 2), ('Otro', 9)
