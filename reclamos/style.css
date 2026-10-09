@@ -255,3 +255,23 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .det-nav span{flex:1;text-align:center;min-width:90px}
 .ev-btn:disabled{opacity:.4;cursor:default}
 @media (max-width:700px){.lista-orden{width:100%}.lista-orden .andes-select,.lista-orden select{flex:1;min-width:0}}
+
+/* columna Sector */
+.sector{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:4px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink,inherit);white-space:nowrap}
+.grupo-t b{color:var(--ink,inherit);font-weight:600}
+.lista-t{margin:4px 0 0;padding-left:16px}
+.lista-t li{margin:1px 0}
+.desc-in{color:var(--muted);font-size:12px}
+/* selector una tienda / grupo de tiendas */
+.campo-tienda{display:grid;gap:6px}
+.campo-tit{font-size:13px;font-weight:500}
+.sel-t{display:grid;gap:8px}
+.sel-t-modo{display:inline-flex;justify-self:start;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.sel-t-modo button{font:inherit;font-size:12px;font-weight:600;border:0;background:var(--surface);color:var(--muted);padding:5px 12px;cursor:pointer}
+.sel-t-modo button+button{border-left:1px solid var(--line)}
+.sel-t-modo button.on{background:var(--blue);color:#fff}
+.sel-t-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-height:140px;overflow-y:auto}
+.chip-t{display:inline-flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--blue);color:var(--blue);border-radius:999px;padding:2px 4px 2px 10px}
+.chip-t button{font:inherit;font-size:11px;border:0;background:none;color:inherit;cursor:pointer;padding:0 4px;line-height:1}
+.sel-t-n{font-size:12px;color:var(--muted)}
+@media (max-width:700px){.tbl td.c-sec{grid-column:1/-1}}

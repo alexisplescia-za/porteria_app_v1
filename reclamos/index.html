@@ -73,7 +73,7 @@
     </div>
     <div class="console">
       <div class="tbl"><table>
-        <thead><tr><th>ID</th><th>Proveedor · Tienda</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Antigüedad</th></tr></thead>
+        <thead><tr><th>ID</th><th>Sistema · Tienda</th><th>Sector</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Antigüedad</th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
       <aside class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></aside>
@@ -96,10 +96,10 @@
       <label>Motivo del ticket<select id="n-motivo" required></select></label>
       <label>Prioridad<select id="n-pri"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label>
     </div>
-    <label>Tienda
-      <input id="n-tienda" list="lista-tiendas" required placeholder="Escribí número o nombre y elegí de la lista">
+    <div class="campo-tienda"><span class="campo-tit">Tienda</span>
+      <div id="n-tiendas-box"></div>
       <datalist id="lista-tiendas"></datalist>
-    </label>
+    </div>
     <label>Categoría<select id="n-cat" required></select></label>
     <label>Descripción<textarea id="n-desc" rows="3" required placeholder="Qué pasa, desde cuándo y qué se le pidió al proveedor"></textarea></label>
     <div class="two">

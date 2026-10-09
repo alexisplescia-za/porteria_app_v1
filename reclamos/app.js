@@ -43,6 +43,9 @@ function mensajeError(err) {
 }
 
 function tienda(r) { return S.tiendas[r.tienda_numero] || null; }
+// Tiendas del reclamo: el grupo si lo tiene, si no la tienda única.
+function tiendasDe(r) { return r.tiendas_grupo && r.tiendas_grupo.length > 1 ? r.tiendas_grupo : [r.tienda_numero]; }
+function nombreTienda(n) { return S.tiendas[n] ? S.tiendas[n].local : 'Tienda ' + n; }
 function regionDe(t) { return !t ? 'Sin tienda' : String(t.formato).toUpperCase() === 'EXPRESS' ? 'Express' : (t.region || 'Sin región'); }
 function dias(r) { return Math.round(((r.fecha_cierre ? soloFecha(r.fecha_cierre) : hoy()) - soloFecha(r.fecha_alta)) / DIA); }
 function aging(r) {
@@ -184,7 +187,7 @@ function filtrados() {
     if (fp && r.proveedor !== fp) return false;
     if (ft && r.tipo !== ft) return false;
     if (fm && r.motivo !== fm) return false;
-    if (fr && regionDe(t) !== fr) return false;
+    if (fr && !tiendasDe(r).some(function (n) { return regionDe(S.tiendas[n]) === fr; })) return false;
     if (fe === 'abiertos' && r.estado === 'Cerrado') return false;
     if (fe === 'vencidos' && !vencido(r)) return false;
     if (fe === 'mas30' && (r.estado === 'Cerrado' || dias(r) <= 30)) return false;
@@ -193,7 +196,7 @@ function filtrados() {
     if (fe === 'devueltos' && !r.devoluciones) return false;
     if (fe === 'fuera' && (r.estado === 'Cerrado' || (r.area_actual || 'PROVEEDOR') === 'PROVEEDOR')) return false;
     if (!q) return true;
-    return [r.id, t && t.local, r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo]
+    return [r.id, tiendasDe(r).map(nombreTienda).join(' '), r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo]
       .join(' ').toLowerCase().indexOf(q) !== -1;
   }).sort(function (a, b) {
     if ((a.estado === 'Cerrado') !== (b.estado === 'Cerrado')) return a.estado === 'Cerrado' ? 1 : -1;
@@ -290,17 +293,23 @@ function render() {
   $('rows').innerHTML = lista.length ? lista.map(function (r) {
     var ag = aging(r), t = tienda(r);
     var colorF = t ? (COLOR_FORMATO[String(t.formato).toUpperCase()] || 'var(--muted)') : 'var(--muted)';
-    var marcas = (r.motivo ? '<span class="mini">' + esc(r.motivo) + '</span>' : '') + (r.tipo ? '<span class="mini">' + esc(r.tipo) + '</span>' : '');
+    var marcas = r.motivo ? '<span class="mini">' + esc(r.motivo) + '</span>' : '';
+    var grupo = tiendasDe(r);
+    var celdaTienda = grupo.length > 1
+      ? '<span class="desc grupo-t" title="' + esc(grupo.map(nombreTienda).join('\n')) + '"><span class="fmt" style="background:var(--muted)"></span><b>Grupo de ' + grupo.length + ' tiendas</b> · ' +
+        esc(grupo.slice(0, 2).map(nombreTienda).join(', ')) + (grupo.length > 2 ? ' y ' + (grupo.length - 2) + ' más' : '') + '</span>'
+      : '<span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span>';
     var cont = (r.reiteraciones ? '<span class="desc">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
       (r.devoluciones ? '<span class="desc">' + r.devoluciones + ' devoluciones · en ' + esc(r.area_actual) + '</span>' : '');
     return '<tr class="row ' + (S.sel === r.id ? 'sel' : '') + '" data-id="' + esc(r.id) + '" tabindex="0">' +
       '<td class="id c-id">' + esc(r.id) + '</td>' +
-      '<td class="c-prov"><b>' + esc(r.proveedor) + '</b><br><span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span></td>' +
+      '<td class="c-prov"><b>' + esc(r.proveedor) + '</b><br>' + celdaTienda + '</td>' +
+      '<td class="c-sec">' + (r.tipo ? '<span class="sector">' + esc(r.tipo) + '</span>' : '<span class="desc">—</span>') + '</td>' +
       '<td class="c-prob">' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
       '<td class="c-pri"><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
       '<td class="st c-est">' + esc(r.estado) + (vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
       '<td class="c-ant"><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
-  }).join('') : '<tr><td colspan="6" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
   Andes.refrescar();
   renderDetalle();
 }
@@ -342,6 +351,7 @@ async function renderDetalle() {
   if (!r) { cont.innerHTML = '<p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p>'; return; }
   var t = tienda(r), g = esGestor(), abierto = r.estado !== 'Cerrado';
   var lista = S.lista || [], pos = lista.findIndex(function (x) { return x.id === r.id; });
+  var esGrupo = tiendasDe(r).length > 1;
   var nav = '<div class="det-nav">' +
     '<button class="ev-btn" data-nav="-1"' + (pos <= 0 ? ' disabled' : '') + ' title="Anterior (flecha ↑)">‹ Anterior</button>' +
     '<span>' + (pos === -1 ? 'No está en la lista filtrada' : (pos + 1) + ' de ' + lista.length) + '</span>' +
@@ -355,7 +365,10 @@ async function renderDetalle() {
       '<dt>Proveedor</dt><dd>' + esc(r.proveedor) + '</dd>' +
       '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
       '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
-      '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>' +
+      (tiendasDe(r).length > 1
+        ? '<dt>Tiendas</dt><dd><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
+          tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></dd>'
+        : '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>') +
       '<dt>Prioridad</dt><dd><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span></dd>' +
       '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
       '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
@@ -381,8 +394,8 @@ async function renderDetalle() {
       return '<button data-estado="' + esc(e) + '" class="' + (e === r.estado ? 'on' : '') + '"' + (g ? '' : ' disabled') + '>' + esc(e) + '</button>';
     }).join('') + '</div>' +
     (g ? '<div class="seccion">Editar</div><div class="editar">' +
-      '<div class="two"><select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
-      '<input id="d-tienda" list="lista-tiendas" placeholder="Tienda (número o nombre)" value="' + esc(t ? t.local : '') + '"></div>' +
+      '<select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
+      '<div id="d-tiendas-box"></div>' +
       '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
       '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
       '<div class="two"><select id="d-tipo">' + opciones(S.opciones.tipo, r.tipo, '— Tipo —') + '</select>' +
@@ -395,6 +408,7 @@ async function renderDetalle() {
       '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
       '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
     '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
+  if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
   Andes.mejorar(cont);
 
   try {
@@ -468,13 +482,14 @@ function derivar(area) {
 }
 
 function guardarEdicion() {
-  var tiendaNum = tiendaDeTexto($('d-tienda').value);
-  if (!tiendaNum) { toast('Elegí la tienda de la lista (número o nombre).', true); return; }
+  var sel = leerTiendas('d');
+  if (sel.error) { toast(sel.error, true); return; }
   if (!$('d-desc').value.trim()) { toast('La descripción no puede quedar vacía.', true); return; }
   return accion('editar_reclamo', {
     p_solicitante: $('d-solic').value, p_compromiso: $('d-comp').value || null, p_prioridad: $('d-pri').value,
     p_referencia: $('d-ref').value, p_tipo: $('d-tipo').value, p_motivo: $('d-motivo').value, p_via: $('d-via').value,
-    p_proveedor: $('d-prov').value, p_tienda: tiendaNum, p_categoria: $('d-cat').value, p_descripcion: $('d-desc').value
+    p_proveedor: $('d-prov').value, p_tienda: sel.lista[0], p_categoria: $('d-cat').value, p_descripcion: $('d-desc').value,
+    p_tiendas: sel.lista.length > 1 ? sel.lista : []
   }, 'Cambios guardados', 'No se pudo guardar');
 }
 
@@ -501,6 +516,84 @@ async function accionEvento(fn, args, ok, textoError) {
   } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
 }
 
+// ---------------------------------------------------------------
+// Selector "Una tienda / Grupo de tiendas" (alta = 'n', edición = 'd')
+// ---------------------------------------------------------------
+S.selT = {};
+
+function armarSelectorTiendas(p, numeros) {
+  var grupo = numeros.length > 1;
+  S.selT[p] = { grupo: grupo, lista: grupo ? numeros.slice() : [] };
+  $(p + '-tiendas-box').innerHTML =
+    '<div class="sel-t" data-p="' + p + '">' +
+      '<div class="sel-t-modo" role="group" aria-label="Cantidad de tiendas">' +
+        '<button type="button" data-modo-t="una" class="' + (grupo ? '' : 'on') + '">Una tienda</button>' +
+        '<button type="button" data-modo-t="grupo" class="' + (grupo ? 'on' : '') + '">Grupo de tiendas</button></div>' +
+      '<input id="' + p + '-tienda" class="in-tienda" list="lista-tiendas" autocomplete="off" value="' + esc(!grupo && numeros[0] ? nombreTienda(numeros[0]) : '') + '">' +
+      '<div class="sel-t-chips" id="' + p + '-chips"></div>' +
+    '</div>';
+  pintarSelectorTiendas(p);
+}
+
+function pintarSelectorTiendas(p) {
+  var st = S.selT[p], box = $(p + '-tiendas-box');
+  if (!st || !box) return;
+  box.querySelectorAll('[data-modo-t]').forEach(function (b) { b.classList.toggle('on', (b.dataset.modoT === 'grupo') === st.grupo); });
+  $(p + '-tienda').placeholder = st.grupo
+    ? 'Elegí tiendas de a una para sumarlas, o pegá varios números separados por coma'
+    : 'Escribí número o nombre y elegí de la lista';
+  var chips = $(p + '-chips');
+  chips.hidden = !st.grupo;
+  chips.innerHTML = st.lista.map(function (n) {
+    return '<span class="chip-t">' + esc(nombreTienda(n)) + '<button type="button" data-quitar-t="' + n + '" aria-label="Quitar ' + esc(nombreTienda(n)) + '">✕</button></span>';
+  }).join('') + (st.lista.length
+    ? '<span class="sel-t-n">' + st.lista.length + (st.lista.length === 1 ? ' tienda' : ' tiendas') + '</span><button type="button" class="link-btn" data-vaciar-t>Quitar todas</button>'
+    : '<span class="sel-t-n">Todavía no sumaste tiendas.</span>');
+}
+
+// Suma al grupo lo escrito en el campo. estricto = sólo nombres completos (elegidos de la lista).
+function sumarTiendasDelCampo(p, estricto) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  var piezas = inp.value.split(/[,;\n]+/), quedan = [];
+  piezas.forEach(function (txt) {
+    txt = txt.trim();
+    if (!txt) return;
+    var n = estricto ? tiendaPorNombre(txt) : tiendaDeTexto(txt);
+    if (n) { if (st.lista.indexOf(n) === -1) st.lista.push(n); } else quedan.push(txt);
+  });
+  inp.value = quedan.join(', ');
+  pintarSelectorTiendas(p);
+}
+
+function cambiarModoTiendas(p, grupo) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  if (st.grupo === grupo) return;
+  st.grupo = grupo;
+  if (grupo) sumarTiendasDelCampo(p, false);
+  else { inp.value = st.lista.length ? nombreTienda(st.lista[0]) : inp.value; }
+  pintarSelectorTiendas(p);
+  inp.focus();
+}
+
+// Devuelve { lista: [números] } o { error }.
+function leerTiendas(p) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  if (!st.grupo) {
+    var n = tiendaDeTexto(inp.value);
+    return n ? { lista: [n] } : { error: 'Elegí la tienda de la lista (podés escribir el número o el nombre).' };
+  }
+  sumarTiendasDelCampo(p, false);
+  if (inp.value.trim()) return { error: 'No encontré esta tienda: ' + inp.value.trim() + '. Elegila de la lista.' };
+  if (!st.lista.length) return { error: 'Sumá al menos una tienda al grupo.' };
+  return { lista: st.lista.slice() };
+}
+
+function tiendaPorNombre(txt) {
+  txt = (txt || '').trim().toLowerCase();
+  var n = Object.keys(S.tiendas).find(function (k) { return (S.tiendas[k].local || '').toLowerCase() === txt; });
+  return n ? Number(n) : null;
+}
+
 function tiendaDeTexto(txt) {
   txt = (txt || '').trim().toLowerCase();
   if (!txt) return null;
@@ -514,12 +607,13 @@ function tiendaDeTexto(txt) {
 async function crear(e) {
   e.preventDefault();
   var err = $('n-error'); err.hidden = true;
-  var tiendaNum = tiendaDeTexto($('n-tienda').value);
-  if (!tiendaNum) { err.textContent = 'Elegí la tienda de la lista (podés escribir el número o el nombre).'; err.hidden = false; return; }
+  var sel = leerTiendas('n');
+  if (sel.error) { err.textContent = sel.error; err.hidden = false; return; }
   var btn = $('btn-guardar'); btn.disabled = true; btn.textContent = 'Registrando…';
   try {
     var id = await ejecutar('crear_reclamo', {
-      p_usuario: S.usuario.email, p_proveedor: $('n-prov').value, p_tienda: tiendaNum, p_categoria: $('n-cat').value,
+      p_usuario: S.usuario.email, p_proveedor: $('n-prov').value, p_tienda: sel.lista[0], p_tiendas: sel.lista.length > 1 ? sel.lista : null,
+      p_categoria: $('n-cat').value,
       p_descripcion: $('n-desc').value, p_prioridad: $('n-pri').value, p_via: $('n-via').value,
       p_solicitante: $('n-solic').value, p_compromiso: $('n-comp').value || null, p_referencia: $('n-ref').value,
       p_tipo: $('n-tipo').value, p_motivo: $('n-motivo').value
@@ -527,6 +621,7 @@ async function crear(e) {
     await recargarReclamo(id);
     S.sel = id;
     $('f-nuevo').reset();
+    armarSelectorTiendas('n', []);
     $('sheet').hidden = true;
     $('f-estado').value = 'abiertos';
     render();
@@ -540,12 +635,12 @@ async function crear(e) {
 }
 
 function exportarCSV() {
-  var cols = ['ID', 'Fecha alta', 'Proveedor', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
+  var cols = ['ID', 'Fecha alta', 'Proveedor', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Tiendas del grupo', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
     'Estado', 'Días abiertos', 'Antigüedad', 'Vencido', 'Fecha compromiso', 'Fecha cierre', 'Quién reclamó', 'Referencia',
     'En manos de', 'Veces reclamado', 'Devoluciones', 'Reaperturas'];
   var filas = filtrados().map(function (r) {
     var t = tienda(r);
-    return [r.id, fmtD(r.fecha_alta), r.proveedor, r.tipo, r.motivo, t ? t.local : '', t ? t.formato : '', regionDe(t), r.categoria, r.descripcion,
+    return [r.id, fmtD(r.fecha_alta), r.proveedor, r.tipo, r.motivo, t ? t.local : '', t ? t.formato : '', regionDe(t), tiendasDe(r).length > 1 ? tiendasDe(r).map(nombreTienda).join(' | ') : '', r.categoria, r.descripcion,
       r.prioridad, r.canal, r.estado, dias(r), aging(r)[0], vencido(r) ? 'Sí' : 'No', r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : '',
       r.fecha_cierre ? fmtD(r.fecha_cierre) : '', r.solicitante, r.referencia, r.area_actual, vecesReclamado(r), r.devoluciones, r.reaperturas];
   });
@@ -584,6 +679,29 @@ document.addEventListener('DOMContentLoaded', function () {
     moverSeleccion(e.key === 'ArrowDown' ? 1 : -1);
   });
   window.addEventListener('hashchange', function () { if (S.usuario) abrirDesdeUrl(); });
+  document.addEventListener('click', function (e) {
+    var box = e.target.closest('.sel-t');
+    if (!box) return;
+    var p = box.dataset.p, b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.modoT) cambiarModoTiendas(p, b.dataset.modoT === 'grupo');
+    else if (b.dataset.quitarT) { S.selT[p].lista = S.selT[p].lista.filter(function (n) { return String(n) !== b.dataset.quitarT; }); pintarSelectorTiendas(p); }
+    else if (b.hasAttribute('data-vaciar-t')) { S.selT[p].lista = []; pintarSelectorTiendas(p); }
+  });
+  document.addEventListener('input', function (e) {
+    if (!e.target.classList.contains('in-tienda')) return;
+    var p = e.target.closest('.sel-t').dataset.p;
+    if (!S.selT[p].grupo) return;
+    // Al elegir de la lista llega el nombre completo; si pegan varios separados por coma, se suman todos.
+    sumarTiendasDelCampo(p, !/[,;\n]/.test(e.target.value));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.classList || !e.target.classList.contains('in-tienda')) return;
+    var p = e.target.closest('.sel-t').dataset.p;
+    if (!S.selT[p].grupo) return;
+    e.preventDefault();
+    sumarTiendasDelCampo(p, false);
+  });
   $('kpis').addEventListener('click', function (e) {
     var k = e.target.closest('[data-filtro]');
     if (k) { $('f-estado').value = k.dataset.filtro; render(); }
@@ -630,6 +748,7 @@ document.addEventListener('DOMContentLoaded', function () {
   $('btn-nuevo').onclick = function () {
     $('n-error').hidden = true;
     if (!$('n-solic').value && S.usuario) $('n-solic').value = S.usuario.nombre || '';
+    if (!S.selT.n) armarSelectorTiendas('n', []);
     Andes.refrescar();
     $('sheet').hidden = false;
     $('n-tienda').focus();
