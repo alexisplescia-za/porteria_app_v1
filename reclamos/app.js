@@ -43,6 +43,8 @@ function mensajeError(err) {
 }
 
 function tienda(r) { return S.tiendas[r.tienda_numero] || null; }
+// Reclamos que cuentan (los anulados no suman en KPIs, seguimiento ni totales).
+function vigentes_() { return S.reclamos.filter(function (r) { return !r.anulado; }); }
 // Tiendas del reclamo: el grupo si lo tiene, si no la tienda única.
 function tiendasDe(r) { return r.tiendas_grupo && r.tiendas_grupo.length > 1 ? r.tiendas_grupo : [r.tienda_numero]; }
 function nombreTienda(n) { return S.tiendas[n] ? S.tiendas[n].local : 'Tienda ' + n; }
@@ -184,6 +186,7 @@ function filtrados() {
     fr = $('f-region').value, fe = $('f-estado').value;
   return S.reclamos.filter(function (r) {
     var t = tienda(r);
+    if ((fe === 'anulados') !== !!r.anulado) return false;
     if (fp && r.proveedor !== fp) return false;
     if (ft && r.tipo !== ft) return false;
     if (fm && r.motivo !== fm) return false;
@@ -212,7 +215,7 @@ function filtrados() {
 
 var PESO_PRIORIDAD = { Alta: 1, Media: 2, Baja: 3 };
 var FILTROS_TEXTO = { '': 'Todos', vencidos: 'Sólo vencidos', mas30: 'Más de 30 días', reiterados: 'Reclamados más de una vez',
-  devueltos: 'Con devoluciones', fuera: 'En Compras / Mantenimiento', Cerrado: 'Cerrados' };
+  devueltos: 'Con devoluciones', fuera: 'En Compras / Mantenimiento', Cerrado: 'Cerrados', anulados: 'Anulados' };
 
 // "Mostrando N de M" + chips con los filtros activos (cada uno se saca con ✕).
 function renderInfoLista(lista) {
@@ -221,7 +224,7 @@ function renderInfoLista(lista) {
   if (q) chips.push(['q', '"' + q + '"']);
   ['f-prov', 'f-tipo', 'f-motivo', 'f-region'].forEach(function (id) { if ($(id).value) chips.push([id, $(id).value]); });
   if ($('f-estado').value !== 'abiertos') chips.push(['f-estado', FILTROS_TEXTO[$('f-estado').value] || $('f-estado').value]);
-  $('lista-info').innerHTML = '<b>' + lista.length + '</b> de ' + S.reclamos.length + ' reclamos' +
+  $('lista-info').innerHTML = '<b>' + lista.length + '</b> de ' + vigentes_().length + ' reclamos' +
     ($('f-estado').value === 'abiertos' ? ' · abiertos' : '') +
     chips.map(function (c) { return '<button class="filtro-chip" data-quitar="' + c[0] + '">' + esc(c[1]) + ' ✕</button>'; }).join('') +
     (chips.length ? '<button class="link-btn" data-quitar="todo">Limpiar filtros</button>' : '');
@@ -258,15 +261,16 @@ function abrirDesdeUrl() {
   S.sel = id;
   if (!filtrados().some(function (r) { return r.id === id; })) quitarFiltro('todo');
   if (!filtrados().some(function (r) { return r.id === id; })) { $('f-estado').value = ''; Andes.refrescar(); }
+  if (!filtrados().some(function (r) { return r.id === id; })) { $('f-estado').value = 'anulados'; Andes.refrescar(); }
   render();
 }
 
 function render() {
-  var abiertos = S.reclamos.filter(function (r) { return r.estado !== 'Cerrado'; });
-  var cerrados = S.reclamos.filter(function (r) { return r.estado === 'Cerrado'; });
+  var abiertos = vigentes_().filter(function (r) { return r.estado !== 'Cerrado'; });
+  var cerrados = vigentes_().filter(function (r) { return r.estado === 'Cerrado'; });
   var prom = cerrados.length ? (cerrados.reduce(function (a, r) { return a + dias(r); }, 0) / cerrados.length).toFixed(1).replace('.', ',') : '–';
   var reit = abiertos.filter(function (r) { return r.reiteraciones > 0; }).length;
-  var devs = S.reclamos.reduce(function (a, r) { return a + (r.devoluciones || 0); }, 0);
+  var devs = vigentes_().reduce(function (a, r) { return a + (r.devoluciones || 0); }, 0);
   $('kpis').innerHTML =
     '<div class="kpi clic" data-filtro="abiertos"><div class="l">Abiertos</div><div class="v">' + abiertos.length + '</div></div>' +
     '<div class="kpi bad clic" data-filtro="vencidos"><div class="l">Vencidos (pasó la fecha del proveedor)</div><div class="v">' + abiertos.filter(vencido).length + '</div></div>' +
@@ -307,9 +311,9 @@ function render() {
       '<td class="c-sec">' + (r.tipo ? '<span class="sector">' + esc(r.tipo) + '</span>' : '<span class="desc">—</span>') + '</td>' +
       '<td class="c-prob">' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
       '<td class="c-pri"><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
-      '<td class="st c-est">' + esc(r.estado) + (vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
+      '<td class="st c-est">' + esc(r.estado) + (r.anulado ? '<span class="venc">ANULADO</span>' : vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
       '<td class="c-ant"><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
-  }).join('') : '<tr><td colspan="7" class="empty">' + (S.reclamos.length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">' + (vigentes_().length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
   Andes.refrescar();
   renderDetalle();
 }
@@ -317,7 +321,8 @@ function render() {
 // Tabla de seguimiento: cantidad por proveedor, antigüedad, estado, veces reclamado y devoluciones.
 function renderSeguimiento() {
   var provs = S.provs.slice();
-  S.reclamos.forEach(function (r) { if (provs.indexOf(r.proveedor) === -1) provs.push(r.proveedor); });
+  var base = vigentes_();
+  base.forEach(function (r) { if (provs.indexOf(r.proveedor) === -1) provs.push(r.proveedor); });
   var fila = function (lista, nombre, total) {
     var ab = lista.filter(function (r) { return r.estado !== 'Cerrado'; });
     var ce = lista.filter(function (r) { return r.estado === 'Cerrado'; });
@@ -333,16 +338,35 @@ function renderSeguimiento() {
     ['Proveedor', 'Total', 'Abiertos', 'Cerrados', 'Vencidos'].concat(TRAMOS.map(function (t) { return t[0]; }))
       .concat(['Veces reclamado', 'Reclamados +1 vez', 'Devoluciones', 'Prom. días resolución'])
       .map(function (h, i) { return '<th' + (i ? ' style="text-align:right"' : '') + '>' + h + '</th>'; }).join('') +
-    '</tr></thead><tbody>' + provs.map(function (p) { return fila(S.reclamos.filter(function (r) { return r.proveedor === p; }), p); }).join('') +
-    fila(S.reclamos, 'TOTAL', true) + '</tbody></table></div>';
+    '</tr></thead><tbody>' + provs.map(function (p) { return fila(base.filter(function (r) { return r.proveedor === p; }), p); }).join('') +
+    fila(base, 'TOTAL', true) + '</tbody></table></div>';
   var t2 = '<div class="seg-sub">Estado por proveedor</div><div class="seg-tabla"><table><thead><tr><th>Proveedor</th>' +
     ESTADOS.map(function (e) { return '<th style="text-align:right">' + e + '</th>'; }).join('') + '</tr></thead><tbody>' +
     provs.map(function (p) {
       return '<tr><td>' + esc(p) + '</td>' + ESTADOS.map(function (e) {
-        return '<td class="n">' + S.reclamos.filter(function (r) { return r.proveedor === p && r.estado === e; }).length + '</td>';
+        return '<td class="n">' + base.filter(function (r) { return r.proveedor === p && r.estado === e; }).length + '</td>';
       }).join('') + '</tr>';
     }).join('') + '</tbody></table></div>';
   $('seguimiento').innerHTML = '<div class="seg-tablas">' + t1 + t2 + '</div>';
+}
+
+function htmlAnulado_(r, g) {
+  return '<div class="aviso-anulado"><b>Reclamo anulado</b>' +
+    '<span>Por ' + esc(r.anulado_por || '') + (r.anulado_at ? ' · ' + fmtDH(r.anulado_at) : '') + '</span>' +
+    (r.anulado_motivo ? '<span>Motivo: ' + esc(r.anulado_motivo) + '</span>' : '') +
+    '<span class="desc-in">No cuenta en la lista, los KPIs, el seguimiento ni el backup.</span>' +
+    (g ? '<div class="acciones"><button class="btn ghost chico" id="d-btn-restaurar">Restaurar reclamo</button></div>' : '') + '</div>';
+}
+
+function htmlAnularReclamo_() {
+  return '<div class="zona-anular">' +
+    '<button class="link-btn peligro" id="d-btn-anular-rec">Anular este reclamo…</button>' +
+    '<div id="d-anular-form" hidden>' +
+      '<p class="desc-in">El reclamo deja de contar en la lista, los KPIs, el seguimiento y el backup. No se borra: queda guardado y se puede restaurar.</p>' +
+      '<input id="d-anular-motivo" placeholder="Motivo (por ejemplo: carga de prueba, duplicado)">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-anular-cancelar">Cancelar</button>' +
+      '<button class="btn chico peligro" id="d-anular-ok">Confirmar anulación</button></div>' +
+    '</div></div>';
 }
 
 async function renderDetalle() {
@@ -380,6 +404,7 @@ async function renderDetalle() {
       '<dt>Devoluciones</dt><dd><span class="contador">' + (r.devoluciones || 0) + '</span></dd>' +
       (r.reaperturas ? '<dt>Reaperturas</dt><dd><span class="chip a2">' + r.reaperturas + '</span></dd>' : '') +
     '</dl>' +
+    (r.anulado ? htmlAnulado_(r, g) : (
     '<textarea id="d-coment" rows="2" placeholder="Comentario (se guarda con la acción que elijas abajo)"></textarea>' +
     '<div class="seccion">Seguimiento</div>' +
     '<div class="acciones-seg">' +
@@ -407,6 +432,7 @@ async function renderDetalle() {
       '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
       '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
       '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
+    (g ? htmlAnularReclamo_() : ''))) +
     '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
   if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
   Andes.mejorar(cont);
@@ -422,15 +448,15 @@ async function renderDetalle() {
         : e.tipo === 'derivacion' ? 'Derivado: ' + esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
         : e.tipo === 'alta' ? '<b>Reclamo creado</b> · Nuevo' : '';
       if (e.comentario && e.tipo !== 'alta') {
-        txt += (txt ? '<br>' : '') + '<span class="ev-coment">' + (e.tipo === 'reiteracion' || e.tipo === 'anulacion' ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario)) + '</span>';
+        txt += (txt ? '<br>' : '') + '<span class="ev-coment">' + (['reiteracion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1 ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario)) + '</span>';
       }
       if (e.editado_at) txt += ' <span class="ev-marca" title="Original: ' + esc(e.comentario_original || '') + '">(editado)</span>';
       var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
-      var editable = !e.anulado && ['alta', 'edicion', 'anulacion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
+      var editable = !e.anulado && ['alta', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
       var acciones = (editable ? '<button class="ev-btn" data-ev-editar="' + e.id + '">Editar</button>' : '') +
         (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '');
       var pie = e.anulado ? '<div class="ev-anulado">Anulado por ' + esc(e.anulado_por || '') + ' · ' + fmtDH(e.anulado_at) + '</div>' : '';
-      var cls = (e.tipo === 'comentario' || e.tipo === 'edicion' || e.tipo === 'anulacion' ? 'c' : '') + (e.anulado ? ' anulado' : '');
+      var cls = (['comentario', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1 ? 'c' : '') + (e.anulado ? ' anulado' : '');
       return '<li class="' + cls + '" data-ev="' + e.id + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span>' +
         (acciones ? '<span class="ev-acciones">' + acciones + '</span>' : '') +
         '<div class="ev-cuerpo">' + txt + '</div>' + pie + '<div class="ev-form"></div></li>';
@@ -732,6 +758,14 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(function () { toast('Link copiado: ' + S.sel); }, function () { prompt('Copiá este link:', link); });
       return;
     }
+    if (b.id === 'd-btn-anular-rec') { $('d-anular-form').hidden = false; b.hidden = true; $('d-anular-motivo').focus(); return; }
+    if (b.id === 'd-anular-cancelar') { $('d-anular-form').hidden = true; $('d-btn-anular-rec').hidden = false; return; }
+    if (b.id === 'd-anular-ok') {
+      var motivo = $('d-anular-motivo').value.trim();
+      if (!motivo) { toast('Escribí el motivo de la anulación.', true); $('d-anular-motivo').focus(); return; }
+      return accion('anular_reclamo', { p_motivo: motivo }, 'Reclamo ' + S.sel + ' anulado', 'No se pudo anular');
+    }
+    if (b.id === 'd-btn-restaurar') return accion('restaurar_reclamo', {}, 'Reclamo ' + S.sel + ' restaurado', 'No se pudo restaurar');
     if (b.id === 'd-btn-cancelar') { renderDetalle(); toast('Cambios descartados'); return; }
     if (b.dataset.evEditar) return abrirFormEvento(b.dataset.evEditar, 'editar');
     if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');
@@ -756,6 +790,10 @@ document.addEventListener('DOMContentLoaded', function () {
   $('btn-cancelar').onclick = function () { Andes.cerrar(); $('sheet').hidden = true; };
   $('sheet').addEventListener('click', function (e) { if (e.target.id === 'sheet') $('sheet').hidden = true; });
   $('f-nuevo').addEventListener('submit', crear);
+  // Enter en un campo no registra el reclamo: sólo el botón "Registrar reclamo".
+  $('f-nuevo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
+  });
   $('btn-csv').onclick = exportarCSV;
   // Al volver a la pestaña, se refrescan los datos (otro usuario pudo cambiar algo).
   document.addEventListener('visibilitychange', function () {

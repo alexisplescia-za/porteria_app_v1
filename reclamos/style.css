@@ -275,3 +275,13 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .chip-t button{font:inherit;font-size:11px;border:0;background:none;color:inherit;cursor:pointer;padding:0 4px;line-height:1}
 .sel-t-n{font-size:12px;color:var(--muted)}
 @media (max-width:700px){.tbl td.c-sec{grid-column:1/-1}}
+
+/* reclamo anulado */
+.aviso-anulado{display:grid;gap:4px;margin:12px 0;padding:12px 14px;border-radius:8px;background:var(--bad-bg);border-left:4px solid var(--bad);font-size:13px}
+.aviso-anulado b{color:var(--bad);font-size:14px}
+.aviso-anulado .acciones{display:flex;justify-content:flex-end;margin-top:6px}
+.zona-anular{margin-top:14px;padding-top:10px;border-top:1px dashed var(--line);display:grid;gap:8px}
+.zona-anular>.link-btn{justify-self:start}
+.link-btn.peligro{color:var(--bad)}
+#d-anular-form:not([hidden]){display:grid;gap:8px}
+#d-anular-form .acciones{display:flex;gap:8px;justify-content:flex-end}
