@@ -36,13 +36,13 @@
   <section id="v-consola" hidden>
     <div class="kpis" id="kpis"></div>
     <div class="prov" id="prov"></div>
-    <details class="seguimiento" id="seguimiento-wrap" open>
-      <summary>Seguimiento por proveedor</summary>
+    <details class="seguimiento" id="seguimiento-wrap">
+      <summary>Seguimiento por sistema</summary>
       <div id="seguimiento"></div>
     </details>
     <div class="toolbar">
       <input id="q" class="grow" placeholder="Buscar por ID, tienda, descripción o referencia" aria-label="Buscar">
-      <select id="f-prov" aria-label="Proveedor"><option value="">Todos los proveedores</option></select>
+      <select id="f-prov" aria-label="Sistema"><option value="">Todos los sistemas</option></select>
       <select id="f-tipo" aria-label="Tipo"><option value="">Todos los tipos</option></select>
       <select id="f-motivo" aria-label="Motivo"><option value="">Todos los motivos</option></select>
       <select id="f-region" aria-label="Región"><option value="">Todas las regiones</option></select>
@@ -90,7 +90,7 @@
   <form id="f-nuevo" autocomplete="off">
     <div class="sheet-head"><h3>Nuevo reclamo</h3><span class="idprev">El ID se genera al guardar</span></div>
     <div class="two">
-      <label>Proveedor<select id="n-prov" required></select></label>
+      <label>Sistema<select id="n-prov" required></select></label>
       <label>Tipo<select id="n-tipo" required></select></label>
     </div>
     <div class="two">

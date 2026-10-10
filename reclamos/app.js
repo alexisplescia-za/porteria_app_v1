@@ -26,6 +26,9 @@ function fmtD(x) { return x ? new Date(x).toLocaleDateString('es-AR', { day: '2-
 function fmtDH(x) { return new Date(x).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 function guardarLocal(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
 function leerLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+// Suma el valor actual a la lista si ya no está activo (para no perderlo al editar).
+function conActual_(lista, actual) { return actual && lista.indexOf(actual) === -1 ? lista.concat([actual]) : lista; }
+
 function opciones(lista, actual, vacia) {
   return (vacia ? '<option value="">' + vacia + '</option>' : '') + lista.map(function (v) {
     return '<option' + (v === actual ? ' selected' : '') + '>' + esc(v) + '</option>';
@@ -159,7 +162,7 @@ async function cargarEventos(id) {
 
 function armarSelects() {
   var conservar = function (id, html) { var el = $(id), v = el.value; el.innerHTML = html; el.value = v; };
-  conservar('f-prov', opciones(S.provs, null, 'Todos los proveedores'));
+  conservar('f-prov', opciones(S.provs, null, 'Todos los sistemas'));
   conservar('f-tipo', opciones(S.opciones.tipo, null, 'Todos los tipos'));
   conservar('f-motivo', opciones(S.opciones.motivo, null, 'Todos los motivos'));
   var regiones = {};
@@ -335,12 +338,12 @@ function renderSeguimiento() {
     return '<tr' + (total ? ' class="total"' : '') + '><td>' + esc(nombre) + '</td>' + celdas.map(function (c) { return '<td class="n">' + c + '</td>'; }).join('') + '</tr>';
   };
   var t1 = '<div class="seg-sub">Cantidad, antigüedad, veces reclamado y devoluciones</div><div class="seg-tabla"><table><thead><tr>' +
-    ['Proveedor', 'Total', 'Abiertos', 'Cerrados', 'Vencidos'].concat(TRAMOS.map(function (t) { return t[0]; }))
+    ['Sistema', 'Total', 'Abiertos', 'Cerrados', 'Vencidos'].concat(TRAMOS.map(function (t) { return t[0]; }))
       .concat(['Veces reclamado', 'Reclamados +1 vez', 'Devoluciones', 'Prom. días resolución'])
       .map(function (h, i) { return '<th' + (i ? ' style="text-align:right"' : '') + '>' + h + '</th>'; }).join('') +
     '</tr></thead><tbody>' + provs.map(function (p) { return fila(base.filter(function (r) { return r.proveedor === p; }), p); }).join('') +
     fila(base, 'TOTAL', true) + '</tbody></table></div>';
-  var t2 = '<div class="seg-sub">Estado por proveedor</div><div class="seg-tabla"><table><thead><tr><th>Proveedor</th>' +
+  var t2 = '<div class="seg-sub">Estado por sistema</div><div class="seg-tabla"><table><thead><tr><th>Sistema</th>' +
     ESTADOS.map(function (e) { return '<th style="text-align:right">' + e + '</th>'; }).join('') + '</tr></thead><tbody>' +
     provs.map(function (p) {
       return '<tr><td>' + esc(p) + '</td>' + ESTADOS.map(function (e) {
@@ -386,7 +389,7 @@ async function renderDetalle() {
     '<span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
     '<p style="margin:0;color:var(--muted);font-size:13px">' + esc(r.descripcion) + '</p>' +
     '<dl class="kv">' +
-      '<dt>Proveedor</dt><dd>' + esc(r.proveedor) + '</dd>' +
+      '<dt>Sistema</dt><dd>' + esc(r.proveedor) + '</dd>' +
       '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
       '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
       (tiendasDe(r).length > 1
@@ -423,9 +426,9 @@ async function renderDetalle() {
       '<div id="d-tiendas-box"></div>' +
       '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
       '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
-      '<div class="two"><select id="d-tipo">' + opciones(S.opciones.tipo, r.tipo, '— Tipo —') + '</select>' +
-      '<select id="d-motivo">' + opciones(S.opciones.motivo, r.motivo, '— Motivo —') + '</select></div>' +
-      '<div class="two"><select id="d-via">' + opciones(S.opciones.via, r.canal, '— Vía —') + '</select>' +
+      '<div class="two"><select id="d-tipo">' + opciones(conActual_(S.opciones.tipo, r.tipo), r.tipo, '— Tipo —') + '</select>' +
+      '<select id="d-motivo">' + opciones(conActual_(S.opciones.motivo, r.motivo), r.motivo, '— Motivo —') + '</select></div>' +
+      '<div class="two"><select id="d-via">' + opciones(conActual_(S.opciones.via, r.canal), r.canal, '— Vía —') + '</select>' +
       '<select id="d-pri">' + opciones(['Alta', 'Media', 'Baja'], r.prioridad) + '</select></div>' +
       '<div class="two"><input id="d-solic" placeholder="Quién reclamó" value="' + esc(r.solicitante || '') + '">' +
       '<input id="d-comp" type="date" value="' + esc(r.fecha_compromiso || '') + '" title="Fecha comprometida por el proveedor"></div>' +
@@ -661,7 +664,7 @@ async function crear(e) {
 }
 
 function exportarCSV() {
-  var cols = ['ID', 'Fecha alta', 'Proveedor', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Tiendas del grupo', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
+  var cols = ['ID', 'Fecha alta', 'Sistema', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Tiendas del grupo', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
     'Estado', 'Días abiertos', 'Antigüedad', 'Vencido', 'Fecha compromiso', 'Fecha cierre', 'Quién reclamó', 'Referencia',
     'En manos de', 'Veces reclamado', 'Devoluciones', 'Reaperturas'];
   var filas = filtrados().map(function (r) {
