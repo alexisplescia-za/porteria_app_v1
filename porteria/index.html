@@ -5,6 +5,32 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Portería — Central Mantenimiento App</title>
+<script>
+/* Sesión de Portería: el login devuelve un token firmado que se manda en cada pedido a la API.
+   Se guarda sólo en esta pestaña (sessionStorage): al cerrar el navegador hay que volver a ingresar. */
+(function(){
+  var CLAVE='porteria_token', orig=window.fetch.bind(window);
+  function leer(){try{return sessionStorage.getItem(CLAVE);}catch(e){return null;}}
+  function guardar(t){try{sessionStorage.setItem(CLAVE,t);}catch(e){}}
+  function borrar(){try{sessionStorage.removeItem(CLAVE);}catch(e){}}
+  window.porteriaSesion={leer:leer,borrar:borrar};
+  window.fetch=function(entrada,opciones){
+    var url=typeof entrada==='string'?entrada:(entrada&&entrada.url)||'';
+    if(url.indexOf('/api/')===-1) return orig(entrada,opciones);
+    opciones=Object.assign({},opciones);
+    var h=new Headers(opciones.headers||{}), t=leer();
+    if(t&&!h.has('Authorization')) h.set('Authorization','Bearer '+t);
+    opciones.headers=h;
+    return orig(entrada,opciones).then(function(res){
+      if(url.indexOf('/api/usuarios/login')!==-1){
+        return res.clone().json().then(function(d){ if(d&&d.ok&&d.token) guardar(d.token); return res; }).catch(function(){return res;});
+      }
+      if(res.status===401){ borrar(); window.dispatchEvent(new Event('porteria:sesion-vencida')); }
+      return res;
+    });
+  };
+})();
+</script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7.23.10/babel.min.js"></script>
@@ -176,10 +202,6 @@ const stSet=async(k,v)=>{try{await window.storage.set(k,JSON.stringify(v));}catc
 /* ═══════════════════════════════════════════════════════
    CONSTANTES
 ═══════════════════════════════════════════════════════ */
-const USERS=[
-  {id:"1",user:"admin",pass:"admin123",role:"admin",name:"Administrador"},
-  {id:"2",user:"porteria",pass:"porteria1",role:"porteria",name:"Portería"},
-];
 const DEF_CFG={
   proveedores:[...PROVEEDORES_FULL],
   oficinaTecnica:[
@@ -476,14 +498,10 @@ function LoginScreen({onLogin}){
       if(data.ok){
         onLogin({id:data.usuario.id,user:data.usuario.username,role:data.usuario.rol,name:data.usuario.username});
       } else {
-        // fallback a usuarios locales
-        const f=USERS.find(u=>u.user===usr&&u.pass===pw);
-        f?onLogin(f):setErr(data.error||"Usuario o contraseña incorrectos");
+        setErr(data.error||"Usuario o contraseña incorrectos");
       }
     } catch {
-      // sin conexión al backend — usar usuarios locales
-      const f=USERS.find(u=>u.user===usr&&u.pass===pw);
-      f?onLogin(f):setErr("Sin conexión al servidor. Verificá que el backend esté corriendo.");
+      setErr("Sin conexión al servidor. Revisá la conexión y probá de nuevo en unos segundos.");
     } finally {setLoading(false);}
   };
   return(
@@ -1987,6 +2005,8 @@ function App(){
       setLoading(false); // app ya usable
 
       // PASO 2: sincronizar con backend en segundo plano (sin timeout fijo — esperamos lo que sea)
+      // La API pide sesión: sin usuario logueado sólo se muestra la copia local.
+      if(!user) return;
       try{
         const [resReg,resCfg]=await Promise.all([
           fetch(BACKEND_URL+"/api/registros").then(r=>r.json()).catch(()=>({ok:false})),
@@ -2010,6 +2030,14 @@ function App(){
         console.warn("Sync backend (background) falló:",e.message);
       }
     })();
+  },[user]);
+
+  // Si la sesión vence (token de 12 h), se vuelve a la pantalla de ingreso. Los registros sin
+  // enviar quedan en la cola de pendientes y se mandan al volver a ingresar.
+  useEffect(()=>{
+    const f=()=>{setUser(null);setView("dashboard");};
+    window.addEventListener("porteria:sesion-vencida",f);
+    return ()=>window.removeEventListener("porteria:sesion-vencida",f);
   },[]);
 
   const showToast=(msg,type="success")=>{setToast({msg,type});setTimeout(()=>setToast(null),3500);};
@@ -2131,7 +2159,7 @@ function App(){
 
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
-      <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
+      <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{window.porteriaSesion&&window.porteriaSesion.borrar();setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
       {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
       <div className="main-wrap" style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>
