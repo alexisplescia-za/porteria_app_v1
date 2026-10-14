@@ -136,7 +136,7 @@ tr.row{cursor:pointer} tr.row:hover td,tr.sel td{background:var(--surface-2)}
 .prov{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
 
 /* Barra de filtros en una sola fila en pantallas grandes */
-.toolbar{display:grid;grid-template-columns:minmax(260px,2.2fr) repeat(5,minmax(140px,1fr)) auto auto;gap:10px}
+.toolbar{display:grid;grid-template-columns:minmax(240px,2fr) repeat(6,minmax(130px,1fr)) auto auto;gap:10px}
 .toolbar .grow{min-width:0}
 @media (max-width:1400px){.toolbar{grid-template-columns:repeat(4,minmax(0,1fr))}.toolbar .grow{grid-column:1/-1}}
 
@@ -285,3 +285,20 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .link-btn.peligro{color:var(--bad)}
 #d-anular-form:not([hidden]){display:grid;gap:8px}
 #d-anular-form .acciones{display:flex;gap:8px;justify-content:flex-end}
+
+/* a cargo, cargado por, respuestas, traspaso y finalizar */
+.c-id .cargo-por{white-space:normal;word-break:break-all;font-family:inherit;font-size:11px;max-width:160px}
+.a-cargo b{color:var(--ink,inherit);font-weight:600}
+.traspaso:not([hidden]){display:grid;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.traspaso .acciones,.finalizar .acciones{display:flex;gap:8px;justify-content:flex-end}
+.finalizar{display:grid;gap:8px;margin:12px 0 4px}
+.finalizar>#d-btn-finalizar{justify-self:start}
+#d-finalizar-form:not([hidden]){display:grid;gap:8px}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.ok:hover:not(:disabled){filter:brightness(1.1)}
+.seg-fecha{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin-top:6px;font-size:13px}
+.seg-fecha label{display:flex;align-items:center;gap:8px;font-weight:500}
+.seg-fecha .andes-select,.seg-fecha input{min-width:160px}
+.tl li.resp::before{border-color:var(--ok)}
+.ev-respuesta{color:var(--ok)}
+.ev-fecha-lbl{display:flex;align-items:center;gap:8px;font-size:12px}

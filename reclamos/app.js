@@ -46,6 +46,13 @@ function mensajeError(err) {
 }
 
 function tienda(r) { return S.tiendas[r.tienda_numero] || null; }
+// Nombre para mostrar de un usuario (mail → nombre cargado en reclamos_usuarios).
+function nombreUsuario(mail) {
+  if (!mail) return 'Sin asignar';
+  var u = (S.usuarios || []).find(function (x) { return x.email === mail; });
+  return u && u.nombre ? u.nombre : mail;
+}
+function ymdLocal(x) { var d = x ? new Date(x) : new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 // Reclamos que cuentan (los anulados no suman en KPIs, seguimiento ni totales).
 function vigentes_() { return S.reclamos.filter(function (r) { return !r.anulado; }); }
 // Tiendas del reclamo: el grupo si lo tiene, si no la tienda única.
@@ -128,7 +135,8 @@ async function cargarTodo() {
     supabase.from('reclamos_proveedores').select('*').eq('activo', true).order('orden'),
     supabase.from('reclamos_categorias').select('*').eq('activo', true).order('orden'),
     supabase.from('reclamos_opciones').select('*').eq('activo', true).order('orden'),
-    traerTodo('reclamos', '*', function (q) { return q.order('fecha_alta', { ascending: false }); })
+    traerTodo('reclamos', '*', function (q) { return q.order('fecha_alta', { ascending: false }); }),
+    supabase.from('reclamos_usuarios').select('email,nombre,rol').eq('activo', true).order('nombre')
   ]);
   [1, 2, 3].forEach(function (i) { if (r[i].error) throw r[i].error; });
   S.tiendas = {};
@@ -138,6 +146,7 @@ async function cargarTodo() {
   S.opciones = { tipo: [], motivo: [], via: [], area: [] };
   r[3].data.forEach(function (o) { if (S.opciones[o.lista]) S.opciones[o.lista].push(o.valor); });
   S.reclamos = r[4];
+  S.usuarios = (r[5] && r[5].data) || [];
   S.eventos = {};
   armarSelects();
   if (!S.sel) abrirDesdeUrl();
@@ -186,7 +195,7 @@ function armarSelects() {
 
 function filtrados() {
   var q = $('q').value.toLowerCase().trim(), fp = $('f-prov').value, ft = $('f-tipo').value, fm = $('f-motivo').value,
-    fr = $('f-region').value, fe = $('f-estado').value;
+    fr = $('f-region').value, fe = $('f-estado').value, ftd = $('f-tienda').value.toLowerCase().trim();
   return S.reclamos.filter(function (r) {
     var t = tienda(r);
     if ((fe === 'anulados') !== !!r.anulado) return false;
@@ -194,6 +203,9 @@ function filtrados() {
     if (ft && r.tipo !== ft) return false;
     if (fm && r.motivo !== fm) return false;
     if (fr && !tiendasDe(r).some(function (n) { return regionDe(S.tiendas[n]) === fr; })) return false;
+    if (ftd && !tiendasDe(r).some(function (n) {
+      return nombreTienda(n).toLowerCase().indexOf(ftd) !== -1 || String(n) === ftd.replace(/^0+/, '');
+    })) return false;
     if (fe === 'abiertos' && r.estado === 'Cerrado') return false;
     if (fe === 'vencidos' && !vencido(r)) return false;
     if (fe === 'mas30' && (r.estado === 'Cerrado' || dias(r) <= 30)) return false;
@@ -202,7 +214,8 @@ function filtrados() {
     if (fe === 'devueltos' && !r.devoluciones) return false;
     if (fe === 'fuera' && (r.estado === 'Cerrado' || (r.area_actual || 'PROVEEDOR') === 'PROVEEDOR')) return false;
     if (!q) return true;
-    return [r.id, tiendasDe(r).map(nombreTienda).join(' '), r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo]
+    return [r.id, tiendasDe(r).map(nombreTienda).join(' '), r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo,
+      r.creado_por, r.responsable, nombreUsuario(r.responsable)]
       .join(' ').toLowerCase().indexOf(q) !== -1;
   }).sort(function (a, b) {
     if ((a.estado === 'Cerrado') !== (b.estado === 'Cerrado')) return a.estado === 'Cerrado' ? 1 : -1;
@@ -225,7 +238,7 @@ function renderInfoLista(lista) {
   var chips = [];
   var q = $('q').value.trim();
   if (q) chips.push(['q', '"' + q + '"']);
-  ['f-prov', 'f-tipo', 'f-motivo', 'f-region'].forEach(function (id) { if ($(id).value) chips.push([id, $(id).value]); });
+  ['f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda'].forEach(function (id) { if ($(id).value) chips.push([id, $(id).value]); });
   if ($('f-estado').value !== 'abiertos') chips.push(['f-estado', FILTROS_TEXTO[$('f-estado').value] || $('f-estado').value]);
   $('lista-info').innerHTML = '<b>' + lista.length + '</b> de ' + vigentes_().length + ' reclamos' +
     ($('f-estado').value === 'abiertos' ? ' · abiertos' : '') +
@@ -234,7 +247,7 @@ function renderInfoLista(lista) {
 }
 
 function quitarFiltro(id) {
-  var ids = id === 'todo' ? ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-estado'] : [id];
+  var ids = id === 'todo' ? ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'] : [id];
   ids.forEach(function (i) { $(i).value = i === 'f-estado' ? 'abiertos' : ''; });
   Andes.refrescar();
   render();
@@ -306,10 +319,12 @@ function render() {
       ? '<span class="desc grupo-t" title="' + esc(grupo.map(nombreTienda).join('\n')) + '"><span class="fmt" style="background:var(--muted)"></span><b>Grupo de ' + grupo.length + ' tiendas</b> · ' +
         esc(grupo.slice(0, 2).map(nombreTienda).join(', ')) + (grupo.length > 2 ? ' y ' + (grupo.length - 2) + ' más' : '') + '</span>'
       : '<span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span>';
-    var cont = (r.reiteraciones ? '<span class="desc">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
+    var cont = '<span class="desc a-cargo">A cargo: <b>' + esc(nombreUsuario(r.responsable)) + '</b></span>' +
+      (r.reiteraciones ? '<span class="desc">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
+      (r.respuestas ? '<span class="desc">' + r.respuestas + (r.respuestas === 1 ? ' respuesta' : ' respuestas') + ' del proveedor</span>' : '') +
       (r.devoluciones ? '<span class="desc">' + r.devoluciones + ' devoluciones · en ' + esc(r.area_actual) + '</span>' : '');
     return '<tr class="row ' + (S.sel === r.id ? 'sel' : '') + '" data-id="' + esc(r.id) + '" tabindex="0">' +
-      '<td class="id c-id">' + esc(r.id) + '</td>' +
+      '<td class="id c-id">' + esc(r.id) + (r.creado_por ? '<span class="desc cargo-por" title="Cargado por">' + esc(r.creado_por) + '</span>' : '') + '</td>' +
       '<td class="c-prov"><b>' + esc(r.proveedor) + '</b><br>' + celdaTienda + '</td>' +
       '<td class="c-sec">' + (r.tipo ? '<span class="sector">' + esc(r.tipo) + '</span>' : '<span class="desc">—</span>') + '</td>' +
       '<td class="c-prob">' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
@@ -377,6 +392,7 @@ async function renderDetalle() {
   var r = S.reclamos.find(function (x) { return x.id === S.sel; });
   if (!r) { cont.innerHTML = '<p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p>'; return; }
   var t = tienda(r), g = esGestor(), abierto = r.estado !== 'Cerrado';
+  var puedeTraspasar = g || r.responsable === S.usuario.email;
   var lista = S.lista || [], pos = lista.findIndex(function (x) { return x.id === r.id; });
   var esGrupo = tiendasDe(r).length > 1;
   var nav = '<div class="det-nav">' +
@@ -399,19 +415,32 @@ async function renderDetalle() {
       '<dt>Prioridad</dt><dd><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span></dd>' +
       '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
       '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
+      '<dt>Cargado por</dt><dd>' + esc(r.creado_por || '—') + '</dd>' +
+      '<dt>A cargo de</dt><dd><b>' + esc(nombreUsuario(r.responsable)) + '</b>' +
+        (r.responsable && nombreUsuario(r.responsable) !== r.responsable ? ' <span class="desc-in">' + esc(r.responsable) + '</span>' : '') +
+        (!r.anulado && puedeTraspasar ? ' <button class="ev-btn" id="d-btn-traspasar">Traspasar</button>' : '') + '</dd>' +
       '<dt>Alta</dt><dd>' + fmtD(r.fecha_alta) + ' · ' + dias(r) + ' días' + (r.estado === 'Cerrado' ? ' (cerrado ' + fmtD(r.fecha_cierre) + ')' : '') + '</dd>' +
       '<dt>Compromiso</dt><dd>' + (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '') + '</dd>' +
       '<dt>Referencia</dt><dd>' + esc(r.referencia || '—') + '</dd>' +
       '<dt>En manos de</dt><dd><b>' + esc(r.area_actual || '—') + '</b></dd>' +
       '<dt>Veces reclamado</dt><dd><span class="contador">' + vecesReclamado(r) + '</span></dd>' +
+      '<dt>Respuestas del proveedor</dt><dd><span class="contador">' + (r.respuestas || 0) + '</span></dd>' +
       '<dt>Devoluciones</dt><dd><span class="contador">' + (r.devoluciones || 0) + '</span></dd>' +
       (r.reaperturas ? '<dt>Reaperturas</dt><dd><span class="chip a2">' + r.reaperturas + '</span></dd>' : '') +
     '</dl>' +
+    (!r.anulado && puedeTraspasar ? htmlTraspaso_(r) : '') +
     (r.anulado ? htmlAnulado_(r, g) : (
-    '<textarea id="d-coment" rows="2" placeholder="Comentario (se guarda con la acción que elijas abajo)"></textarea>' +
+    (g && abierto ? '<div class="finalizar"><button class="btn chico ok" id="d-btn-finalizar">✓ Finalizar caso</button>' +
+      '<div id="d-finalizar-form" hidden><input id="d-finalizar-texto" placeholder="¿Cómo se resolvió? (queda en el historial)">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-finalizar-cancelar">Cancelar</button>' +
+      '<button class="btn chico ok" id="d-finalizar-ok">Confirmar y cerrar</button></div></div></div>' : '') +
+    '<textarea id="d-coment" rows="2" placeholder="Comentario o respuesta del proveedor (se guarda con la acción que elijas abajo)"></textarea>' +
+    '<div class="seg-fecha"><label>Fecha <input id="d-fecha" type="date" value="' + ymdLocal() + '"></label>' +
+      '<span class="desc-in">Para "Reclamar de nuevo" y "Respuesta del proveedor". Cambiala si pasó otro día.</span></div>' +
     '<div class="seccion">Seguimiento</div>' +
     '<div class="acciones-seg">' +
       '<button class="btn chico" id="d-btn-reiterar"' + (abierto ? '' : ' disabled') + '>Reclamar de nuevo (+1)</button>' +
+      '<button class="btn ghost chico" id="d-btn-respuesta"' + (abierto ? '' : ' disabled') + '>Respuesta del proveedor</button>' +
       '<button class="btn ghost chico" id="d-btn-coment">Sólo comentar</button>' +
     '</div>' +
     '<div class="acciones-seg"><span class="lbl">Derivar a:</span>' + S.opciones.area.map(function (a) {
@@ -445,21 +474,24 @@ async function renderDetalle() {
     if (S.sel !== r.id) return;
     // Sólo se puede anular la última derivación y el último cambio de estado vigentes.
     var ultimo = {};
-    ev.forEach(function (e) { if (!e.anulado && (e.tipo === 'estado' || e.tipo === 'derivacion')) ultimo[e.tipo] = e.id; });
+    ev.forEach(function (e) { if (!e.anulado && (e.tipo === 'estado' || e.tipo === 'derivacion' || e.tipo === 'asignacion')) ultimo[e.tipo] = e.id; });
     $('d-historial').innerHTML = ev.slice().reverse().map(function (e) {
       var txt = e.tipo === 'estado' ? esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
         : e.tipo === 'derivacion' ? 'Derivado: ' + esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
+        : e.tipo === 'asignacion' ? 'Traspaso: ' + esc(nombreUsuario(e.estado_anterior === 'sin asignar' ? null : e.estado_anterior)) + ' → <b>' + esc(nombreUsuario(e.estado_nuevo)) + '</b>'
+        : e.tipo === 'respuesta' ? '<b class="ev-respuesta">Respuesta del proveedor</b>'
         : e.tipo === 'alta' ? '<b>Reclamo creado</b> · Nuevo' : '';
       if (e.comentario && e.tipo !== 'alta') {
         txt += (txt ? '<br>' : '') + '<span class="ev-coment">' + (['reiteracion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1 ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario)) + '</span>';
       }
-      if (e.editado_at) txt += ' <span class="ev-marca" title="Original: ' + esc(e.comentario_original || '') + '">(editado)</span>';
-      var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
+      if (e.editado_at && e.comentario_original) txt += ' <span class="ev-marca" title="Original: ' + esc(e.comentario_original) + '">(editado)</span>';
+      if (e.fecha_original) txt += ' <span class="ev-marca" title="Fecha original: ' + esc(fmtDH(e.fecha_original)) + '">(fecha corregida)</span>';
+      var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'respuesta' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
       var editable = !e.anulado && ['alta', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
       var acciones = (editable ? '<button class="ev-btn" data-ev-editar="' + e.id + '">Editar</button>' : '') +
         (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '');
       var pie = e.anulado ? '<div class="ev-anulado">Anulado por ' + esc(e.anulado_por || '') + ' · ' + fmtDH(e.anulado_at) + '</div>' : '';
-      var cls = (['comentario', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1 ? 'c' : '') + (e.anulado ? ' anulado' : '');
+      var cls = (['comentario', 'edicion', 'anulacion', 'restauracion', 'asignacion'].indexOf(e.tipo) !== -1 ? 'c' : '') + (e.tipo === 'respuesta' ? ' resp' : '') + (e.anulado ? ' anulado' : '');
       return '<li class="' + cls + '" data-ev="' + e.id + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span>' +
         (acciones ? '<span class="ev-acciones">' + acciones + '</span>' : '') +
         '<div class="ev-cuerpo">' + txt + '</div>' + pie + '<div class="ev-form"></div></li>';
@@ -502,8 +534,27 @@ function comentar() {
   return accion('comentar_reclamo', { p_comentario: txt }, 'Comentario agregado', 'No se pudo comentar');
 }
 
+function fechaActual() { var el = $('d-fecha'); return el && el.value ? el.value : null; }
+
 function reiterar() {
-  return accion('reiterar_reclamo', { p_comentario: comentarioActual() }, 'Reclamado de nuevo', 'No se pudo registrar');
+  return accion('reiterar_reclamo', { p_comentario: comentarioActual(), p_fecha: fechaActual() }, 'Reclamado de nuevo', 'No se pudo registrar');
+}
+
+function responder() {
+  var txt = comentarioActual().trim();
+  if (!txt) { toast('Escribí en el comentario qué respondió el proveedor.', true); $('d-coment').focus(); return; }
+  return accion('responder_reclamo', { p_texto: txt, p_fecha: fechaActual() }, 'Respuesta del proveedor registrada', 'No se pudo registrar');
+}
+
+function htmlTraspaso_(r) {
+  var otros = (S.usuarios || []).filter(function (u) { return u.email !== r.responsable; });
+  return '<div id="d-traspaso" class="traspaso" hidden><b>Traspasar el ticket a</b>' +
+    '<select id="d-traspaso-a">' + otros.map(function (u) {
+      return '<option value="' + esc(u.email) + '">' + esc(u.nombre || u.email) + (u.nombre ? ' · ' + esc(u.email) : '') + '</option>';
+    }).join('') + '</select>' +
+    '<input id="d-traspaso-com" placeholder="Motivo o indicaciones (opcional)">' +
+    '<div class="acciones"><button class="btn ghost chico" id="d-traspaso-cancelar">Cancelar</button>' +
+    '<button class="btn chico" id="d-traspaso-ok">Confirmar traspaso</button></div></div>';
 }
 
 function derivar(area) {
@@ -529,8 +580,10 @@ function abrirFormEvento(id, modo) {
   if (!li) return;
   var ev = (S.eventos[S.sel] || []).find(function (e) { return String(e.id) === String(id); });
   var form = li.querySelector('.ev-form');
+  var conFecha = ev && ['comentario', 'reiteracion', 'respuesta'].indexOf(ev.tipo) !== -1;
   form.innerHTML = modo === 'editar'
     ? '<textarea rows="2" class="ev-texto">' + esc(ev && ev.comentario || '') + '</textarea>' +
+      (conFecha ? '<label class="ev-fecha-lbl">Fecha <input type="date" class="ev-fecha" value="' + ymdLocal(ev.fecha) + '" data-orig="' + ymdLocal(ev.fecha) + '"></label>' : '') +
       '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico" data-ev-guardar="' + id + '">Guardar</button></div>'
     : '<input class="ev-texto" placeholder="Motivo de la anulación (opcional)">' +
       '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-confirmar="' + id + '">Confirmar anulación</button></div>';
@@ -666,12 +719,13 @@ async function crear(e) {
 function exportarCSV() {
   var cols = ['ID', 'Fecha alta', 'Sistema', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Tiendas del grupo', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
     'Estado', 'Días abiertos', 'Antigüedad', 'Vencido', 'Fecha compromiso', 'Fecha cierre', 'Quién reclamó', 'Referencia',
-    'En manos de', 'Veces reclamado', 'Devoluciones', 'Reaperturas'];
+    'En manos de', 'Veces reclamado', 'Devoluciones', 'Reaperturas', 'Respuestas del proveedor', 'Cargado por', 'A cargo de'];
   var filas = filtrados().map(function (r) {
     var t = tienda(r);
     return [r.id, fmtD(r.fecha_alta), r.proveedor, r.tipo, r.motivo, t ? t.local : '', t ? t.formato : '', regionDe(t), tiendasDe(r).length > 1 ? tiendasDe(r).map(nombreTienda).join(' | ') : '', r.categoria, r.descripcion,
       r.prioridad, r.canal, r.estado, dias(r), aging(r)[0], vencido(r) ? 'Sí' : 'No', r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : '',
-      r.fecha_cierre ? fmtD(r.fecha_cierre) : '', r.solicitante, r.referencia, r.area_actual, vecesReclamado(r), r.devoluciones, r.reaperturas];
+      r.fecha_cierre ? fmtD(r.fecha_cierre) : '', r.solicitante, r.referencia, r.area_actual, vecesReclamado(r), r.devoluciones, r.reaperturas,
+      r.respuestas || 0, r.creado_por || '', r.responsable || ''];
   });
   var csv = [cols].concat(filas).map(function (f) {
     return f.map(function (v) { v = v == null ? '' : String(v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';');
@@ -690,7 +744,7 @@ document.addEventListener('DOMContentLoaded', function () {
   $('btn-entrar').onclick = entrar;
   $('login-mail').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
   $('btn-salir').onclick = salir;
-  ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
+  ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
   var ordenGuardado = leerLocal('reclamos_orden');
   if (ordenGuardado) $('f-orden').value = ordenGuardado;
   $('f-orden').addEventListener('input', function () { guardarLocal('reclamos_orden', $('f-orden').value); render(); });
@@ -751,6 +805,21 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.dataset.estado) return cambiarEstado(b.dataset.estado);
     if (b.dataset.area) return derivar(b.dataset.area);
     if (b.id === 'd-btn-reiterar') return reiterar();
+    if (b.id === 'd-btn-respuesta') return responder();
+    if (b.id === 'd-btn-traspasar') { $('d-traspaso').hidden = false; return; }
+    if (b.id === 'd-traspaso-cancelar') { $('d-traspaso').hidden = true; return; }
+    if (b.id === 'd-traspaso-ok') {
+      var dest = $('d-traspaso-a').value;
+      if (!dest) { toast('No hay otro usuario habilitado para traspasar.', true); return; }
+      return accion('asignar_reclamo', { p_responsable: dest, p_comentario: $('d-traspaso-com').value }, 'Ticket traspasado a ' + nombreUsuario(dest), 'No se pudo traspasar');
+    }
+    if (b.id === 'd-btn-finalizar') { $('d-finalizar-form').hidden = false; b.hidden = true; $('d-finalizar-texto').focus(); return; }
+    if (b.id === 'd-finalizar-cancelar') { $('d-finalizar-form').hidden = true; $('d-btn-finalizar').hidden = false; return; }
+    if (b.id === 'd-finalizar-ok') {
+      var res = $('d-finalizar-texto').value.trim();
+      if (!res) { toast('Escribí cómo se resolvió el caso.', true); $('d-finalizar-texto').focus(); return; }
+      return accion('cambiar_estado_reclamo', { p_estado: 'Cerrado', p_comentario: 'Caso finalizado · ' + res }, 'Caso finalizado', 'No se pudo finalizar');
+    }
     if (b.id === 'd-btn-coment') return comentar();
     if (b.id === 'd-btn-guardar') return guardarEdicion();
     if (b.dataset.nav) return moverSeleccion(Number(b.dataset.nav));
@@ -774,8 +843,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');
     if (b.hasAttribute('data-ev-cerrar')) { b.closest('.ev-form').innerHTML = ''; return; }
     if (b.dataset.evGuardar) {
-      return accionEvento('editar_comentario_evento', { p_evento_id: Number(b.dataset.evGuardar), p_texto: b.closest('.ev-form').querySelector('.ev-texto').value },
-        'Comentario corregido', 'No se pudo corregir');
+      var fEv = b.closest('.ev-form'), inF = fEv.querySelector('.ev-fecha');
+      return accionEvento('editar_evento', {
+        p_evento_id: Number(b.dataset.evGuardar), p_texto: fEv.querySelector('.ev-texto').value,
+        p_fecha: inF && inF.value && inF.value !== inF.dataset.orig ? inF.value : null
+      }, 'Movimiento corregido', 'No se pudo corregir');
     }
     if (b.dataset.evConfirmar) {
       return accionEvento('anular_evento', { p_evento_id: Number(b.dataset.evConfirmar), p_motivo: b.closest('.ev-form').querySelector('.ev-texto').value },
