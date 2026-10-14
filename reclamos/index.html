@@ -34,6 +34,12 @@
 
   <!-- ============ Consola ============ -->
   <section id="v-consola" hidden>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas">
+      <button role="tab" data-tab="tickets" class="on" aria-selected="true">Tickets</button>
+      <button role="tab" data-tab="dashboard" aria-selected="false">Dashboard</button>
+      <button role="tab" data-tab="dev" id="tab-dev" aria-selected="false" hidden>Desarrollo</button>
+    </nav>
+    <div id="t-tickets">
     <div class="kpis" id="kpis"></div>
     <div class="prov" id="prov"></div>
     <details class="seguimiento" id="seguimiento-wrap">
@@ -80,6 +86,9 @@
       </table></div>
       <aside class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></aside>
     </div>
+    </div>
+    <div id="t-dashboard" hidden></div>
+    <div id="t-dev" hidden></div>
     <footer class="firma">Desarrollado por Alexis Plescia</footer>
   </section>
 
@@ -125,5 +134,6 @@
 <script src="/frio-alimentario/config.js"></script>
 <script src="/reclamos/controles.js"></script>
 <script src="/reclamos/app.js"></script>
+<script src="/reclamos/panel.js"></script>
 </body>
 </html>

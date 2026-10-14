@@ -151,6 +151,7 @@ async function cargarTodo() {
   armarSelects();
   if (!S.sel) abrirDesdeUrl();
   render();
+  if (window.cambiarTab) cambiarTab(TAB);
 }
 
 async function recargarReclamo(id) {
@@ -334,6 +335,7 @@ function render() {
   }).join('') : '<tr><td colspan="7" class="empty">' + (vigentes_().length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
   Andes.refrescar();
   renderDetalle();
+  if (window.renderPanel) renderPanel();
 }
 
 // Tabla de seguimiento: cantidad por proveedor, antigüedad, estado, veces reclamado y devoluciones.
