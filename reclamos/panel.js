@@ -73,10 +73,17 @@ function enPeriodo(r, meses) {
   return v >= a.y * 12 + a.m && v <= z.y * 12 + z.m;
 }
 
+// Orden fijo en el dashboard: el que pasó la validación de colores (vecinos distinguibles con daltonismo).
+var ORDEN_SISTEMA = ['BMS', 'PME', 'CONSUMO', 'PREDIAL', 'MULTA'];
+function rangoSistema(nombre) {
+  var k = String(nombre || '').toUpperCase();
+  for (var i = 0; i < ORDEN_SISTEMA.length; i++) if (k.indexOf(ORDEN_SISTEMA[i]) === 0) return i;
+  return 99;
+}
 function sistemasDe(lista) {
   var out = S.provs.slice();
   lista.forEach(function (r) { if (out.indexOf(r.proveedor) === -1) out.push(r.proveedor); });
-  return out;
+  return out.sort(function (a, b) { return rangoSistema(a) - rangoSistema(b); });
 }
 
 function renderDashboard() {
