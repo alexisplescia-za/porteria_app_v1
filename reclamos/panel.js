@@ -5,8 +5,8 @@
 // Colores por sistema (validados para daltonismo en claro y oscuro)
 // ---------------------------------------------------------------
 var COLOR_SISTEMA = {
-  light: { BMS: '#1E9E5E', PME: '#7C5CE0', CONSUMO: '#D93A3F', PREDIAL: '#2F7FD8', OTRO: '#B87D00' },
-  dark:  { BMS: '#33AD6E', PME: '#9278F2', CONSUMO: '#EE5A60', PREDIAL: '#4A92EE', OTRO: '#BB831F' }
+  light: { BMS: '#1E9E5E', PME: '#7C5CE0', CONSUMO: '#D93A3F', PREDIAL: '#2F7FD8', MULTA: '#C2409A', OTRO: '#B87D00' },
+  dark:  { BMS: '#33AD6E', PME: '#9278F2', CONSUMO: '#EE5A60', PREDIAL: '#4A92EE', MULTA: '#D957AC', OTRO: '#BB831F' }
 };
 function colorSistema(nombre) {
   var p = COLOR_SISTEMA[window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'];
@@ -15,6 +15,7 @@ function colorSistema(nombre) {
   if (k.indexOf('PME') === 0) return p.PME;
   if (k.indexOf('CONSUMO') === 0) return p.CONSUMO;
   if (k.indexOf('PREDIAL') === 0) return p.PREDIAL;
+  if (k.indexOf('MULTA') === 0) return p.MULTA;
   return p.OTRO;
 }
 
