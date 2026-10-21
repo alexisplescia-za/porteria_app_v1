@@ -31,11 +31,18 @@
   <!-- ============ Login ============ -->
   <section id="v-login" class="login">
     <div class="card login-card">
-      <h2>Ingresá con tu mail de Carrefour</h2>
-      <p class="muted">Sólo pueden entrar los usuarios habilitados para gestionar reclamos.</p>
-      <input id="login-mail" type="email" placeholder="tunombre@carrefour.com" autocomplete="email">
-      <p class="error" id="login-error" hidden></p>
-      <button class="btn" id="btn-entrar">Entrar</button>
+      <form id="f-login">
+        <h2 id="login-titulo">Ingresá con tu mail de Carrefour</h2>
+        <p class="muted" id="login-sub">Sólo pueden entrar los usuarios habilitados para gestionar reclamos.</p>
+        <input id="login-mail" type="email" placeholder="tunombre@carrefour.com" autocomplete="email" required>
+        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" hidden>
+        <input id="login-password-nueva" type="password" placeholder="Elegí una contraseña" autocomplete="new-password" hidden>
+        <input id="login-password-confirmar" type="password" placeholder="Repetí la contraseña" autocomplete="new-password" hidden>
+        <p class="desc-in" id="login-ayuda" hidden>Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+        <p class="error" id="login-error" hidden></p>
+        <button type="button" class="link-btn" id="btn-login-volver" hidden>‹ Usar otro mail</button>
+        <button class="btn" type="submit" id="btn-entrar">Continuar</button>
+      </form>
     </div>
   </section>
 

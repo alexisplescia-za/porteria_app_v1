@@ -41,9 +41,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 /* login */
 .login{display:flex;justify-content:center;padding-top:40px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
-.login-card{width:min(420px,100%);display:grid;gap:12px}
+.login-card{width:min(420px,100%)}
+.login-card #f-login{display:grid;gap:12px}
 .login-card h2{margin:0;font-size:18px}
 .login-card p{margin:0}
+.login-card .link-btn{justify-self:start;padding:0}
 .cargando{text-align:center;color:var(--muted);padding:60px 0;font-weight:600}
 
 /* KPIs */

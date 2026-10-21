@@ -11,7 +11,7 @@ var TRAMOS = [['0-7 días', 'var(--line)'], ['8-15 días', 'var(--warn)'], ['16-
 var DIA = 864e5;
 var CLASE_PRIORIDAD = { Alta: 'a3', Media: 'a1', Baja: 'a0' };
 
-var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel' };
+var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel', loginPaso: 'mail' };
 
 // ---------------------------------------------------------------
 // Utilidades
@@ -103,38 +103,125 @@ async function traerTodo(tabla, columnas, filtro) {
 // Login
 // ---------------------------------------------------------------
 
-async function entrar() {
-  var mail = $('login-mail').value.trim().toLowerCase();
+// El login tiene 3 pasos: 'mail' (sólo el mail) → según si ya eligió contraseña,
+// 'nueva' (primer ingreso: la elige) o 'password' (ingresos siguientes: la escribe).
+var PASSWORD_OK_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/;
+
+function resetLogin_() {
+  S.loginPaso = 'mail';
+  $('login-titulo').textContent = 'Ingresá con tu mail de Carrefour';
+  $('login-sub').textContent = 'Sólo pueden entrar los usuarios habilitados para gestionar reclamos.';
+  $('login-sub').hidden = false;
+  $('login-mail').disabled = false;
+  $('login-password').hidden = true; $('login-password').value = '';
+  $('login-password-nueva').hidden = true; $('login-password-nueva').value = '';
+  $('login-password-confirmar').hidden = true; $('login-password-confirmar').value = '';
+  $('login-ayuda').hidden = true;
+  $('btn-login-volver').hidden = true;
+  $('btn-entrar').textContent = 'Continuar';
+  $('login-error').hidden = true;
+}
+
+async function completarLogin_(datos) {
+  S.usuario = { email: datos.email, nombre: datos.nombre, rol: datos.rol };
+  guardarLocal('reclamos_mail', datos.email);
+  if (datos.sesion) guardarLocal('reclamos_sesion', datos.sesion);
+  $('usuario-nombre').textContent = (datos.nombre || datos.email) + (datos.rol === 'gestor' ? ' · gestor' : ' · carga');
+  $('usuario').hidden = false;
+  await cargarTodo();
+  vista('consola');
+}
+
+async function entrar(e) {
+  if (e) e.preventDefault();
   var err = $('login-error');
   err.hidden = true;
-  if (!/^[^\s@]+@carrefour\.com$/.test(mail)) { err.textContent = 'Usá tu mail @carrefour.com.'; err.hidden = false; return; }
-  vista('cargando');
-  try {
-    var r = await supabase.from('reclamos_usuarios').select('email,nombre,rol').eq('email', mail).eq('activo', true).maybeSingle();
-    if (r.error) throw r.error;
-    if (!r.data) {
+  var mail = $('login-mail').value.trim().toLowerCase();
+
+  if (S.loginPaso === 'mail') {
+    if (!/^[^\s@]+@carrefour\.com$/.test(mail)) { err.textContent = 'Usá tu mail @carrefour.com.'; err.hidden = false; return; }
+    vista('cargando');
+    try {
+      var est = await ejecutar('reclamos_estado_login', { p_email: mail });
       vista('login');
-      err.textContent = 'Tu mail no está habilitado para Reclamos. Pedile acceso a un gestor del equipo de Eficiencia Energética.';
+      if (!est.existe) {
+        err.textContent = 'Tu mail no está habilitado para Reclamos. Pedile acceso a un gestor del equipo de Eficiencia Energética.';
+        err.hidden = false;
+        return;
+      }
+      $('login-mail').disabled = true;
+      $('btn-login-volver').hidden = false;
+      if (est.primer_ingreso) {
+        S.loginPaso = 'nueva';
+        $('login-titulo').textContent = 'Es tu primer ingreso, elegí una contraseña';
+        $('login-sub').hidden = true;
+        $('login-password-nueva').hidden = false;
+        $('login-password-confirmar').hidden = false;
+        $('login-ayuda').hidden = false;
+        $('btn-entrar').textContent = 'Elegir contraseña';
+        $('login-password-nueva').focus();
+      } else {
+        S.loginPaso = 'password';
+        $('login-titulo').textContent = 'Ingresá tu contraseña';
+        $('login-sub').hidden = true;
+        $('login-password').hidden = false;
+        $('btn-entrar').textContent = 'Entrar';
+        $('login-password').focus();
+      }
+    } catch (e2) {
+      vista('login');
+      err.textContent = 'No se pudo verificar el mail: ' + mensajeError(e2);
+      err.hidden = false;
+    }
+    return;
+  }
+
+  if (S.loginPaso === 'nueva') {
+    var p1 = $('login-password-nueva').value, p2 = $('login-password-confirmar').value;
+    if (!PASSWORD_OK_RE.test(p1)) {
+      err.textContent = 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
       err.hidden = false;
       return;
     }
-    S.usuario = r.data;
-    guardarLocal('reclamos_mail', mail);
-    $('usuario-nombre').textContent = (r.data.nombre || mail) + (r.data.rol === 'gestor' ? ' · gestor' : ' · carga');
-    $('usuario').hidden = false;
-    await cargarTodo();
-    vista('consola');
-  } catch (e) {
-    vista('login');
-    err.textContent = 'No se pudo entrar: ' + mensajeError(e);
-    err.hidden = false;
+    if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; err.hidden = false; return; }
+    vista('cargando');
+    try {
+      var datos = await ejecutar('reclamos_crear_password', { p_email: mail, p_password: p1 });
+      await completarLogin_(datos);
+    } catch (e3) {
+      vista('login');
+      err.textContent = 'No se pudo guardar la contraseña: ' + mensajeError(e3);
+      err.hidden = false;
+    }
+    return;
+  }
+
+  if (S.loginPaso === 'password') {
+    var p = $('login-password').value;
+    if (!p) { err.textContent = 'Escribí tu contraseña.'; err.hidden = false; return; }
+    vista('cargando');
+    try {
+      var datos2 = await ejecutar('reclamos_verificar_login', { p_email: mail, p_password: p });
+      await completarLogin_(datos2);
+    } catch (e4) {
+      vista('login');
+      err.textContent = mensajeError(e4);
+      err.hidden = false;
+      $('login-password').value = '';
+      $('login-password').focus();
+    }
+    return;
   }
 }
 
 function salir() {
+  var token = leerLocal('reclamos_sesion');
+  guardarLocal('reclamos_sesion', '');
+  if (token) supabase.rpc('reclamos_cerrar_sesion', { p_token: token }).catch(function () { });
   S.usuario = null; S.sel = null;
   guardarLocal('reclamos_mail', '');
   $('usuario').hidden = true;
+  resetLogin_();
   vista('login');
 }
 
@@ -804,8 +891,8 @@ function exportarCSV() {
 // ---------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', function () {
-  $('btn-entrar').onclick = entrar;
-  $('login-mail').addEventListener('keydown', function (e) { if (e.key === 'Enter') entrar(); });
+  $('f-login').addEventListener('submit', entrar);
+  $('btn-login-volver').onclick = function () { resetLogin_(); $('login-mail').focus(); };
   $('btn-salir').onclick = salir;
   ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
   var ordenGuardado = leerLocal('reclamos_orden');
@@ -957,5 +1044,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
   Andes.mejorar(document);
   var mail = leerLocal('reclamos_mail');
-  if (mail) { $('login-mail').value = mail; entrar(); } else vista('login');
+  if (mail) $('login-mail').value = mail;
+  var token = leerLocal('reclamos_sesion');
+  if (token) {
+    vista('cargando');
+    supabase.rpc('reclamos_verificar_sesion', { p_token: token }).then(function (r) {
+      if (r.error || !r.data || !r.data.ok) { guardarLocal('reclamos_sesion', ''); vista('login'); return; }
+      completarLogin_(r.data);
+    }).catch(function () { guardarLocal('reclamos_sesion', ''); vista('login'); });
+  } else {
+    vista('login');
+  }
 });
