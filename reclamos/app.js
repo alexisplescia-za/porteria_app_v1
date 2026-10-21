@@ -749,8 +749,13 @@ async function renderHistorial_(r, g) {
       if (e.fecha_original) txt += ' <span class="ev-marca" title="Fecha original: ' + esc(fmtDH(e.fecha_original)) + '">(fecha corregida)</span>';
       var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'respuesta' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
       var editable = !e.anulado && ['alta', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
+      // Eliminar de verdad (no se puede deshacer): si ya estaba anulado no hay más riesgo
+      // (sus efectos ya se revirtieron al anularlo); si está activo, las mismas reglas que anular.
+      var eliminable = g && e.tipo !== 'alta' && (e.anulado || anulable ||
+        ['edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1);
       var acciones = (editable ? '<button class="ev-btn" data-ev-editar="' + e.id + '">Editar</button>' : '') +
-        (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '');
+        (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '') +
+        (eliminable ? '<button class="ev-btn peligro" data-ev-eliminar="' + e.id + '">Eliminar</button>' : '');
       var pie = e.anulado ? '<div class="ev-anulado">Anulado por ' + esc(e.anulado_por || '') + ' · ' + fmtDH(e.anulado_at) + '</div>' : '';
       var cls = (['comentario', 'edicion', 'anulacion', 'restauracion', 'asignacion'].indexOf(e.tipo) !== -1 ? 'c' : '') + (e.tipo === 'respuesta' ? ' resp' : '') + (e.anulado ? ' anulado' : '');
       return '<li class="' + cls + '" data-ev="' + e.id + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span>' +
@@ -789,9 +794,18 @@ function cambiarEstado(estado) {
   return accion('cambiar_estado_reclamo', { p_estado: estado, p_comentario: comentarioActual() }, 'Estado: ' + estado, 'No se pudo cambiar el estado');
 }
 
+// Además del toast (puede pasar inadvertido), marca el campo en rojo hasta que se
+// corrija — así no queda sólo el aviso pasajero como única pista de qué pasó.
+function marcarError_(el, msg) {
+  toast(msg, true);
+  el.classList.add('campo-error');
+  el.focus();
+  el.addEventListener('input', function limpiar() { el.classList.remove('campo-error'); }, { once: true });
+}
+
 function comentar() {
   var txt = comentarioActual().trim();
-  if (!txt) { toast('Escribí el comentario primero.', true); return; }
+  if (!txt) { marcarError_($('d-coment'), 'Escribí el comentario primero.'); return; }
   return accion('comentar_reclamo', { p_comentario: txt }, 'Comentario agregado', 'No se pudo comentar');
 }
 
@@ -803,7 +817,7 @@ function reiterar() {
 
 function responder() {
   var txt = comentarioActual().trim();
-  if (!txt) { toast('Escribí en el comentario qué respondió el proveedor.', true); $('d-coment').focus(); return; }
+  if (!txt) { marcarError_($('d-coment'), 'Escribí en el comentario qué respondió el proveedor.'); return; }
   return accion('responder_reclamo', { p_texto: txt, p_fecha: fechaActual() }, 'Respuesta del proveedor registrada', 'No se pudo registrar');
 }
 
@@ -846,6 +860,10 @@ function abrirFormEvento(id, modo) {
     ? '<textarea rows="2" class="ev-texto">' + esc(ev && ev.comentario || '') + '</textarea>' +
       (conFecha ? '<label class="ev-fecha-lbl">Fecha <input type="date" class="ev-fecha" value="' + ymdLocal(ev.fecha) + '" data-orig="' + ymdLocal(ev.fecha) + '"></label>' : '') +
       '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico" data-ev-guardar="' + id + '">Guardar</button></div>'
+    : modo === 'eliminar'
+    ? '<p class="desc-in">Esto borra el movimiento para siempre, no se puede deshacer ni restaurar.</p>' +
+      '<input class="ev-texto" placeholder="Motivo de la eliminación (obligatorio)">' +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-eliminar-ok="' + id + '">Eliminar para siempre</button></div>'
     : '<input class="ev-texto" placeholder="Motivo de la anulación (opcional)">' +
       '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-confirmar="' + id + '">Confirmar anulación</button></div>';
   form.querySelector('.ev-texto').focus();
@@ -1105,6 +1123,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.id === 'd-btn-cancelar') { renderDetalle(); toast('Cambios descartados'); return; }
     if (b.dataset.evEditar) return abrirFormEvento(b.dataset.evEditar, 'editar');
     if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');
+    if (b.dataset.evEliminar) return abrirFormEvento(b.dataset.evEliminar, 'eliminar');
     if (b.hasAttribute('data-ev-cerrar')) { b.closest('.ev-form').innerHTML = ''; return; }
     if (b.dataset.evGuardar) {
       var fEv = b.closest('.ev-form'), inF = fEv.querySelector('.ev-fecha');
@@ -1116,6 +1135,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (b.dataset.evConfirmar) {
       return accionEvento('anular_evento', { p_evento_id: Number(b.dataset.evConfirmar), p_motivo: b.closest('.ev-form').querySelector('.ev-texto').value },
         'Movimiento anulado', 'No se pudo anular');
+    }
+    if (b.dataset.evEliminarOk) {
+      var motivoEl = b.closest('.ev-form').querySelector('.ev-texto');
+      if (!motivoEl.value.trim()) { marcarError_(motivoEl, 'Escribí el motivo de la eliminación.'); return; }
+      return accionEvento('eliminar_evento', { p_evento_id: Number(b.dataset.evEliminarOk), p_motivo: motivoEl.value },
+        'Movimiento eliminado', 'No se pudo eliminar');
     }
   });
   $('btn-nuevo').onclick = function () {

@@ -166,6 +166,10 @@ input,textarea,.sheet input{min-height:40px;border-radius:6px;padding:8px 12px;b
 textarea{min-height:64px}
 input:hover,textarea:hover{border-color:var(--muted)}
 input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--foco)}
+/* Falta un campo obligatorio (ej. "Respuesta del proveedor" sin texto, o el motivo
+   de una eliminación): mismo patrón que el foco normal, en rojo, para que no quede
+   sólo el toast como aviso. */
+.campo-error,.campo-error:focus{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
 .btn{border-radius:6px;min-height:40px;padding:8px 16px;transition:background .12s}
 .btn:hover:not(:disabled){background:var(--blue-h)}
 .btn.ghost:hover:not(:disabled){background:var(--surface-2)}
