@@ -330,6 +330,10 @@ function colocarDetalle() {
 }
 
 function render() {
+  // En acordeón, #detalle puede estar colgando dentro de #rows (dentro de la fila
+  // desplegada). Se saca de ahí ANTES de reconstruir las filas con innerHTML, si no,
+  // ese innerHTML lo destruye (queda huérfano) y colocarDetalle() falla al reubicarlo.
+  $('detalle-holder').appendChild($('detalle'));
   var abiertos = vigentes_().filter(function (r) { return r.estado !== 'Cerrado'; });
   var cerrados = vigentes_().filter(function (r) { return r.estado === 'Cerrado'; });
   var prom = cerrados.length ? (cerrados.reduce(function (a, r) { return a + dias(r); }, 0) / cerrados.length).toFixed(1).replace('.', ',') : '–';
@@ -934,11 +938,13 @@ document.addEventListener('DOMContentLoaded', function () {
   // Marca el detalle como "con cambios sin guardar" apenas se toca un campo.
   $('detalle').addEventListener('input', function () { S.sucio = S.sel; });
   // Al volver a la pestaña, se refrescan los datos (otro usuario pudo cambiar algo),
-  // sin pisar formularios a medio cargar.
+  // sin pisar formularios a medio cargar ni mover el scroll (si no, el acordeón que
+  // estabas mirando queda fuera de vista y parece que se cerró).
   document.addEventListener('visibilitychange', function () {
     if (document.hidden || !S.usuario || S.refrescando) return;
     S.refrescando = true;
-    cargarTodo().catch(function () { }).then(function () { S.refrescando = false; });
+    var y = window.scrollY;
+    cargarTodo().catch(function () { }).then(function () { S.refrescando = false; window.scrollTo(0, y); });
   });
 
   $('btn-tema').onclick = function () { aplicarTema(temaEfectivo() === 'dark' ? 'light' : 'dark'); };
