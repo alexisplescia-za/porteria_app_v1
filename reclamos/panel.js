@@ -243,6 +243,8 @@ async function cargarTareas() {
 
 async function renderTareas() {
   var cont = $('t-dev');
+  // El refresco al volver a la pestaña no pisa una tarea a medio cargar.
+  if (S.refrescando && $('dev-form') && !$('dev-form').hidden) return;
   if (S.tareas === null) {
     cont.innerHTML = '<p class="empty">Cargando tareas…</p>';
     try { await cargarTareas(); } catch (e) {

@@ -171,18 +171,23 @@ async function cargarEventos(id) {
 }
 
 function armarSelects() {
-  var conservar = function (id, html) { var el = $(id), v = el.value; el.innerHTML = html; el.value = v; };
+  // Rearma las opciones sin perder lo elegido (al volver a la pestaña se recargan los datos).
+  var conservar = function (id, html) {
+    var el = $(id), v = el.value;
+    el.innerHTML = html;
+    if (v && [].some.call(el.options, function (o) { return o.value === v; })) el.value = v;
+  };
   conservar('f-prov', opciones(S.provs, null, 'Todos los sistemas'));
   conservar('f-tipo', opciones(S.opciones.tipo, null, 'Todos los tipos'));
   conservar('f-motivo', opciones(S.opciones.motivo, null, 'Todos los motivos'));
   var regiones = {};
   Object.keys(S.tiendas).forEach(function (n) { regiones[regionDe(S.tiendas[n])] = true; });
   conservar('f-region', opciones(Object.keys(regiones).sort(), null, 'Todas las regiones'));
-  $('n-prov').innerHTML = opciones(S.provs);
-  $('n-tipo').innerHTML = opciones(S.opciones.tipo);
-  $('n-motivo').innerHTML = opciones(S.opciones.motivo);
-  $('n-via').innerHTML = opciones(S.opciones.via);
-  $('n-cat').innerHTML = opciones(S.cats);
+  conservar('n-prov', opciones(S.provs));
+  conservar('n-tipo', opciones(S.opciones.tipo));
+  conservar('n-motivo', opciones(S.opciones.motivo));
+  conservar('n-via', opciones(S.opciones.via));
+  conservar('n-cat', opciones(S.cats));
   $('lista-tiendas').innerHTML = Object.keys(S.tiendas).map(function (n) {
     return '<option value="' + esc(S.tiendas[n].local || n) + '">';
   }).join('');
@@ -389,8 +394,17 @@ function htmlAnularReclamo_() {
     '</div></div>';
 }
 
+// ¿El usuario está cargando algo en el detalle (escribió, cambió un campo o abrió un formulario)?
+function detalleEnEdicion_() {
+  return S.sucio === S.sel || !!$('detalle').querySelector(
+    '#d-traspaso:not([hidden]), #d-finalizar-form:not([hidden]), #d-anular-form:not([hidden]), .ev-form:not(:empty)');
+}
+
 async function renderDetalle() {
   var cont = $('detalle');
+  // El refresco al volver a la pestaña no pisa lo que se está cargando.
+  if (S.refrescando && detalleEnEdicion_()) return;
+  S.sucio = null;
   var r = S.reclamos.find(function (x) { return x.id === S.sel; });
   if (!r) { cont.innerHTML = '<p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p>'; return; }
   var t = tienda(r), g = esGestor(), abierto = r.estado !== 'Cerrado';
@@ -872,9 +886,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
   });
   $('btn-csv').onclick = exportarCSV;
-  // Al volver a la pestaña, se refrescan los datos (otro usuario pudo cambiar algo).
+  // Marca el detalle como "con cambios sin guardar" apenas se toca un campo.
+  $('detalle').addEventListener('input', function () { S.sucio = S.sel; });
+  // Al volver a la pestaña, se refrescan los datos (otro usuario pudo cambiar algo),
+  // sin pisar formularios a medio cargar.
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && S.usuario) cargarTodo().catch(function () { });
+    if (document.hidden || !S.usuario || S.refrescando) return;
+    S.refrescando = true;
+    cargarTodo().catch(function () { }).then(function () { S.refrescando = false; });
   });
 
   Andes.mejorar(document);
