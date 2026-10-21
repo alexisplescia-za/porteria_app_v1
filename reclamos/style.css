@@ -10,9 +10,15 @@
   --r:12px; color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0A1424; --surface:#111E33; --surface-2:#172843; --line:#24385A; --fg:#E6EEF8; --muted:#93A5BF;
-  --navy:#5AA2FF; --blue:#3D9BFF; --teal:#6FAAB5;
-  --ok:#4CC98C; --ok-bg:#123527; --warn:#F2B44C; --warn-bg:#3A2B0E; --orange:#FF9A5C; --orange-bg:#3D2212; --bad:#FF6B70; --bad-bg:#3E1518; color-scheme:dark}}
+  --bg:#191918; --surface:#222120; --surface-2:#2B2A28; --line:#3A3836; --fg:#ECE9E4; --muted:#9C978F;
+  --navy:#7FACFF; --blue:#4F9CFF; --teal:#7CA8A0;
+  --ok:#4CC98C; --ok-bg:#16291E; --warn:#F2B44C; --warn-bg:#332710; --orange:#FF9A5C; --orange-bg:#331F12; --bad:#FF6B70; --bad-bg:#331619; color-scheme:dark}}
+/* Tema elegido a mano con el botón (gana siempre, sin importar el tema del sistema). */
+:root[data-theme="dark"]{
+  --bg:#191918; --surface:#222120; --surface-2:#2B2A28; --line:#3A3836; --fg:#ECE9E4; --muted:#9C978F;
+  --navy:#7FACFF; --blue:#4F9CFF; --teal:#7CA8A0;
+  --ok:#4CC98C; --ok-bg:#16291E; --warn:#F2B44C; --warn-bg:#332710; --orange:#FF9A5C; --orange-bg:#331F12; --bad:#FF6B70; --bad-bg:#331619; color-scheme:dark
+}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-size:14px;line-height:1.5}
 [hidden]{display:none!important}
@@ -20,9 +26,14 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-ui);font-
 header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:16px}
 .volver{font-size:12px;color:var(--muted);text-decoration:none;display:inline-block;margin-bottom:6px}
 .volver:hover{color:var(--blue)}
-.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);font-weight:600}
+.eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);font-weight:600}
 h1{font-size:26px;margin:2px 0 0;letter-spacing:-.01em}
+.top-der{display:flex;align-items:center;gap:14px}
 .usuario{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+/* Botón de tema: un único círculo que siempre toma el color opuesto al fondo (blanco sobre fondo oscuro, negro sobre fondo claro). Al tocarlo cambia el tema y el círculo se invierte. */
+.theme-toggle{width:36px;height:36px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--fg);padding:0;cursor:pointer;transition:background-color .25s ease,transform .15s ease}
+.theme-toggle:hover{transform:scale(1.07)}
+.theme-toggle:active{transform:scale(.92)}
 .muted{color:var(--muted)}
 .error{color:var(--bad);font-size:13px;margin:0}
 button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
@@ -76,7 +87,14 @@ tr.row{cursor:pointer} tr.row:hover td,tr.sel td{background:var(--surface-2)}
 .empty{color:var(--muted);font-size:13px}
 
 /* detalle */
+.panel-slot{min-width:0}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+/* Vista acordeón: la lista ocupa todo el ancho; el detalle (el mismo #detalle de siempre,
+   la vista sólo lo reubica) se despliega como una fila debajo de la tienda clickeada. */
+.console.acordeon{grid-template-columns:minmax(0,1fr)}
+.fila-detalle td{padding:0 16px 16px}
+.fila-detalle .panel{position:static;max-height:none;overflow:visible;border:0;border-top:1px solid var(--line);background:transparent;border-radius:0;padding:14px 0 4px;animation:despliegue .15s ease}
+@keyframes despliegue{from{opacity:0}to{opacity:1}}
 .panel h3{margin:4px 0 2px;font-size:16px}
 .kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:13px;margin:12px 0}
 .kv dt{color:var(--muted)} .kv dd{margin:0}
@@ -127,6 +145,7 @@ tr.row{cursor:pointer} tr.row:hover td,tr.sel td{background:var(--surface-2)}
 /* ════════════════ Andes UI + layout ancho + responsive ════════════════ */
 :root{--blue:#3483FA;--blue-h:#2968C8;--foco:rgba(52,131,250,.28)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--blue:#4E9BFF;--blue-h:#7AB4FF;--foco:rgba(78,155,255,.35)}}
+:root[data-theme="dark"]{--blue:#4E9BFF;--blue-h:#7AB4FF;--foco:rgba(78,155,255,.35)}
 
 /* Ancho: aprovecha monitores 1920 sin perder márgenes */
 .wrap{max-width:1680px;padding:24px 28px 48px}
@@ -186,6 +205,13 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .panel .kv{grid-template-columns:130px minmax(0,1fr)}
 .panel .kv dd{overflow-wrap:anywhere}
 
+/* Acordeón: la fila desplegada tiene todo el ancho de la lista, así que los
+   campos del detalle se acomodan en dos columnas en vez de uno abajo del otro,
+   y el contenido se centra para no estirar botones y textos de punta a punta. */
+.fila-detalle .panel{max-width:1040px;margin:0 auto}
+.fila-detalle .kv{grid-template-columns:130px minmax(0,1fr) 130px minmax(0,1fr);column-gap:20px}
+@media (max-width:860px){.fila-detalle .kv{grid-template-columns:130px minmax(0,1fr)}}
+
 /* Formulario de alta más ancho en escritorio */
 .sheet form{width:min(760px,100%)}
 
@@ -241,9 +267,14 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 .editar .acciones{display:flex;gap:8px;justify-content:flex-end}
 .editar textarea{min-height:56px}
 
-/* barra de la lista: cantidad, filtros activos y orden */
+/* barra de la lista: cantidad, filtros activos, vista y orden */
 .lista-barra{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin:0 0 10px}
+.lista-barra-der{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
 .lista-info{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.vista-modo{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:none}
+.vista-modo button{font:inherit;font-size:12px;font-weight:600;border:0;background:var(--surface);color:var(--muted);padding:6px 12px;cursor:pointer}
+.vista-modo button+button{border-left:1px solid var(--line)}
+.vista-modo button.on{background:var(--blue);color:#fff}
 .lista-info b{color:var(--ink,inherit)}
 .filtro-chip{font:inherit;font-size:12px;border:1px solid var(--blue);color:var(--blue);background:transparent;border-radius:999px;padding:2px 10px;cursor:pointer}
 .filtro-chip:hover{background:var(--surface-2)}

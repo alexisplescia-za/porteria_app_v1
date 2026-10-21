@@ -11,7 +11,7 @@ var TRAMOS = [['0-7 días', 'var(--line)'], ['8-15 días', 'var(--warn)'], ['16-
 var DIA = 864e5;
 var CLASE_PRIORIDAD = { Alta: 'a3', Media: 'a1', Baja: 'a0' };
 
-var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null };
+var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel' };
 
 // ---------------------------------------------------------------
 // Utilidades
@@ -26,6 +26,19 @@ function fmtD(x) { return x ? new Date(x).toLocaleDateString('es-AR', { day: '2-
 function fmtDH(x) { return new Date(x).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
 function guardarLocal(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
 function leerLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+// Tema claro/oscuro: si el usuario no eligió uno a mano, sigue al del sistema.
+function temaEfectivo() {
+  var t = document.documentElement.getAttribute('data-theme');
+  if (t === 'light' || t === 'dark') return t;
+  return (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function aplicarTema(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  guardarLocal('reclamos_tema', t);
+  $('btn-tema').setAttribute('aria-label', t === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+  if (typeof renderPanel === 'function') renderPanel();
+}
 // Suma el valor actual a la lista si ya no está activo (para no perderlo al editar).
 function conActual_(lista, actual) { return actual && lista.indexOf(actual) === -1 ? lista.concat([actual]) : lista; }
 
@@ -287,6 +300,35 @@ function abrirDesdeUrl() {
   render();
 }
 
+// Vista "panel lateral" (de siempre) o "acordeón" (lista a todo el ancho,
+// el detalle se despliega debajo de la fila elegida). El usuario la elige con
+// el botón de la barra de la lista; queda guardada para la próxima visita.
+function aplicarVista(v) {
+  S.vista = v;
+  guardarLocal('reclamos_vista', v);
+  document.querySelectorAll('.vista-modo button').forEach(function (b) { b.classList.toggle('on', b.dataset.vista === v); });
+  $('console').classList.toggle('acordeon', v === 'acordeon');
+  render();
+}
+
+// Ubica el #detalle (siempre es el mismo elemento, con sus datos y sus eventos
+// ya enganchados) donde corresponda según la vista: al costado, o como fila
+// desplegada debajo del reclamo elegido. Si no hay nada elegido en modo
+// acordeón, se guarda aparte, oculto, sin perderlo.
+function colocarDetalle() {
+  var det = $('detalle');
+  if (S.vista !== 'acordeon') { $('panel-slot').appendChild(det); return; }
+  var tr = S.sel && document.querySelector('#rows tr[data-id="' + CSS.escape(S.sel) + '"]');
+  if (!tr) { $('detalle-holder').appendChild(det); return; }
+  var fila = document.createElement('tr');
+  fila.className = 'fila-detalle';
+  var td = document.createElement('td');
+  td.colSpan = 7;
+  td.appendChild(det);
+  fila.appendChild(td);
+  tr.after(fila);
+}
+
 function render() {
   var abiertos = vigentes_().filter(function (r) { return r.estado !== 'Cerrado'; });
   var cerrados = vigentes_().filter(function (r) { return r.estado === 'Cerrado'; });
@@ -338,6 +380,7 @@ function render() {
       '<td class="st c-est">' + esc(r.estado) + (r.anulado ? '<span class="venc">ANULADO</span>' : vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
       '<td class="c-ant"><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
   }).join('') : '<tr><td colspan="7" class="empty">' + (vigentes_().length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  colocarDetalle();
   Andes.refrescar();
   renderDetalle();
   if (window.renderPanel) renderPanel();
@@ -808,8 +851,10 @@ document.addEventListener('DOMContentLoaded', function () {
   $('rows').addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-id]');
     if (!tr) return;
+    // En acordeón, tocar la fila ya abierta la cierra (si no, cada fila abre su propio detalle debajo).
+    if (S.vista === 'acordeon' && S.sel === tr.dataset.id) return seleccionar(null, false);
     seleccionar(tr.dataset.id, false);
-    if (window.innerWidth <= 1100) $('detalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (S.vista === 'panel' && window.innerWidth <= 1100) $('detalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   $('rows').addEventListener('keydown', function (e) {
     var tr = e.target.closest('tr[data-id]');
@@ -895,6 +940,14 @@ document.addEventListener('DOMContentLoaded', function () {
     S.refrescando = true;
     cargarTodo().catch(function () { }).then(function () { S.refrescando = false; });
   });
+
+  $('btn-tema').onclick = function () { aplicarTema(temaEfectivo() === 'dark' ? 'light' : 'dark'); };
+  $('btn-tema').setAttribute('aria-label', temaEfectivo() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+
+  document.querySelectorAll('.vista-modo button').forEach(function (b) {
+    b.onclick = function () { aplicarVista(b.dataset.vista); };
+  });
+  aplicarVista(leerLocal('reclamos_vista') === 'acordeon' ? 'acordeon' : 'panel');
 
   Andes.mejorar(document);
   var mail = leerLocal('reclamos_mail');

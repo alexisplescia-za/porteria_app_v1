@@ -9,7 +9,7 @@ var COLOR_SISTEMA = {
   dark:  { BMS: '#33AD6E', PME: '#9278F2', CONSUMO: '#EE5A60', PREDIAL: '#4A92EE', MULTA: '#D957AC', OTRO: '#BB831F' }
 };
 function colorSistema(nombre) {
-  var p = COLOR_SISTEMA[window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'];
+  var p = COLOR_SISTEMA[temaEfectivo()];
   var k = String(nombre || '').toUpperCase();
   if (k.indexOf('BMS') === 0) return p.BMS;
   if (k.indexOf('PME') === 0) return p.PME;

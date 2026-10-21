@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Reclamos EE — Central Mantenimiento App</title>
+<script>(function () { try {
+  var t = localStorage.getItem('reclamos_tema');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) { } })();</script>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23004E9E'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>R</text></svg>">
 <link rel="stylesheet" href="/reclamos/style.css">
 </head>
@@ -15,9 +19,12 @@
       <div class="eyebrow">Central de Mantenimiento País · Eficiencia Energética</div>
       <h1>Reclamos a Proveedores</h1>
     </div>
-    <div class="usuario" id="usuario" hidden>
-      <span id="usuario-nombre"></span>
-      <button class="btn ghost chico" id="btn-salir">Salir</button>
+    <div class="top-der">
+      <div class="usuario" id="usuario" hidden>
+        <span id="usuario-nombre"></span>
+        <button class="btn ghost chico" id="btn-salir">Salir</button>
+      </div>
+      <button type="button" id="btn-tema" class="theme-toggle" title="Cambiar tema"></button>
     </div>
   </header>
 
@@ -69,22 +76,30 @@
     </div>
     <div class="lista-barra">
       <div class="lista-info" id="lista-info"></div>
-      <label class="lista-orden">Ordenar por
-        <select id="f-orden" aria-label="Ordenar por">
-          <option value="antiguos">Más antiguos primero</option>
-          <option value="reclamados">Más veces reclamados</option>
-          <option value="prioridad">Prioridad</option>
-          <option value="compromiso">Fecha compromiso más próxima</option>
-          <option value="recientes">Más recientes primero</option>
-        </select>
-      </label>
+      <div class="lista-barra-der">
+        <div class="vista-modo" role="group" aria-label="Vista de la lista">
+          <button type="button" data-vista="panel" class="on" title="El detalle se ve al costado">Panel lateral</button>
+          <button type="button" data-vista="acordeon" title="El detalle se despliega debajo de cada fila">Acordeón</button>
+        </div>
+        <label class="lista-orden">Ordenar por
+          <select id="f-orden" aria-label="Ordenar por">
+            <option value="antiguos">Más antiguos primero</option>
+            <option value="reclamados">Más veces reclamados</option>
+            <option value="prioridad">Prioridad</option>
+            <option value="compromiso">Fecha compromiso más próxima</option>
+            <option value="recientes">Más recientes primero</option>
+          </select>
+        </label>
+      </div>
     </div>
-    <div class="console">
+    <div class="console" id="console">
       <div class="tbl"><table>
         <thead><tr><th>ID</th><th>Sistema · Tienda</th><th>Sector</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Antigüedad</th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
-      <aside class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></aside>
+      <aside class="panel-slot" id="panel-slot">
+        <div class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></div>
+      </aside>
     </div>
     </div>
     <div id="t-dashboard" hidden></div>
@@ -94,6 +109,7 @@
 
   <section id="v-cargando" class="cargando" hidden>Cargando…</section>
 </div>
+<div id="detalle-holder" hidden></div>
 
 <!-- ============ Nuevo reclamo ============ -->
 <div class="sheet" id="sheet" hidden>
