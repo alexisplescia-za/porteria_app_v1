@@ -10,6 +10,11 @@ var COLOR_FORMATO = { HIPERMERCADO: 'var(--hiper)', MAXI: 'var(--maxi)', MARKET:
 var TRAMOS = [['0-7 días', 'var(--line)'], ['8-15 días', 'var(--warn)'], ['16-30 días', 'var(--orange)'], ['+30 días', 'var(--bad)']];
 var DIA = 864e5;
 var CLASE_PRIORIDAD = { Alta: 'a3', Media: 'a1', Baja: 'a0' };
+var AREA_ESTILO = {
+  PROVEEDOR: 'background:var(--surface-2);color:var(--muted)',
+  COMPRAS: 'background:var(--warn-bg);color:var(--warn)',
+  MANTENIMIENTO: 'background:var(--ok-bg);color:var(--ok)'
+};
 
 var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel', loginPaso: 'mail' };
 
@@ -440,7 +445,7 @@ function render() {
       var n = ab.filter(function (r) { return aging(r)[0] === tr[0]; }).length;
       return n ? '<span style="width:' + (n / tot * 100) + '%;background:' + tr[1] + '" title="' + tr[0] + ': ' + n + '"></span>' : '';
     }).join('');
-    return '<div class="pcard"><h4><span>' + esc(p) + '</span><span style="color:var(--muted);font-weight:500">' + ab.length + ' abiertos · ' + ab.filter(vencido).length + ' vencidos</span></h4><div class="bar">' + seg + '</div></div>';
+    return '<div class="pcard clic" data-prov="' + esc(p) + '"><h4><span>' + esc(p) + '</span><span style="color:var(--muted);font-weight:500">' + ab.length + ' abiertos · ' + ab.filter(vencido).length + ' vencidos</span></h4><div class="bar">' + seg + '</div></div>';
   }).join('') + '<div class="pcard"><h4><span>Antigüedad de abiertos</span></h4><div class="legend">' +
     TRAMOS.map(function (tr) { return '<span><i style="background:' + tr[1] + '"></i>' + tr[0] + '</span>'; }).join('') + '</div></div>';
 
@@ -552,25 +557,36 @@ function htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar) {
         (r.anulado ? '<span class="badge badge-anulado">Anulado</span>' : vencido(r) ? '<span class="badge badge-vencido">Vencido</span>' : '') +
       '</div></div>';
 
-  var datosLectura = '<dl class="kv" id="d-datos-lectura">' +
-      '<dt>Sistema</dt><dd>' + esc(r.proveedor) + '</dd>' +
-      '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
-      '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
-      (tiendasDe(r).length > 1
-        ? '<dt>Tiendas</dt><dd><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
-          tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></dd>'
-        : '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>') +
-      '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
-      '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
-      '<dt>Cargado por</dt><dd>' + esc(r.creado_por || '—') + '</dd>' +
-      '<dt>Compromiso</dt><dd>' + (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '') + '</dd>' +
-      '<dt>Referencia</dt><dd>' + esc(r.referencia || '—') + '</dd>' +
-      '<dt>En manos de</dt><dd><b>' + esc(r.area_actual || '—') + '</b></dd>' +
-      '<dt>Veces reclamado</dt><dd><span class="contador">' + vecesReclamado(r) + '</span></dd>' +
-      '<dt>Respuestas del proveedor</dt><dd><span class="contador">' + (r.respuestas || 0) + '</span></dd>' +
-      '<dt>Devoluciones</dt><dd><span class="contador">' + (r.devoluciones || 0) + '</span></dd>' +
-      (r.reaperturas ? '<dt>Reaperturas</dt><dd><span class="chip a2">' + r.reaperturas + '</span></dd>' : '') +
+  var tiendaHtml = tiendasDe(r).length > 1
+    ? '<div class="det-datos-tienda"><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
+      tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></div>'
+    : '<div class="det-datos-tienda"><b>' + esc(t ? t.local : 'Sin tienda') + '</b>' + (t ? '<span>' + esc(t.formato) + ' · ' + esc(regionDe(t)) + '</span>' : '') + '</div>';
+
+  // Labels a su ancho real (no columnas fijas): un valor corto ("MAIL", "—") no reserva
+  // el mismo espacio que uno largo. Los valores largos se truncan con elipsis + title.
+  var campo_ = function (label, valor, titulo) {
+    return '<dt>' + label + '</dt><dd' + (titulo ? ' title="' + esc(titulo) + '"' : '') + '>' + valor + '</dd>';
+  };
+  var datosGrilla = '<dl class="kv-datos">' +
+      campo_('Sistema', esc(r.proveedor)) +
+      campo_('Vía', esc(r.canal || '—')) +
+      campo_('Tipo', esc(r.tipo || '—')) +
+      campo_('Motivo', esc(r.motivo || '—')) +
+      campo_('Quién reclamó', esc(r.solicitante || '—')) +
+      campo_('Cargado por', esc(r.creado_por || '—'), r.creado_por) +
+      campo_('Referencia', esc(r.referencia || '—'), r.referencia) +
+      campo_('Compromiso', (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '')) +
     '</dl>';
+
+  var datosMetricas = '<div class="kv-metricas">' +
+      '<div class="stat"><span class="badge" style="' + (AREA_ESTILO[r.area_actual] || AREA_ESTILO.PROVEEDOR) + '">' + esc(r.area_actual || '—') + '</span><span class="stat-label">En manos de</span></div>' +
+      '<div class="stat"><b>' + vecesReclamado(r) + '</b><span class="stat-label">Veces reclamado</span></div>' +
+      '<div class="stat"><b>' + (r.respuestas || 0) + '</b><span class="stat-label">Respuestas proveedor</span></div>' +
+      '<div class="stat"><b>' + (r.devoluciones || 0) + '</b><span class="stat-label">Devoluciones</span></div>' +
+    '</div>' +
+    (r.reaperturas ? '<p class="desc-in" style="margin-top:8px">Reaperturas: <span class="chip a2">' + r.reaperturas + '</span></p>' : '');
+
+  var datosLectura = '<div id="d-datos-lectura">' + tiendaHtml + datosGrilla + datosMetricas + '</div>';
 
   var datosForm = g ? '<div class="editar" id="d-datos-form" hidden>' +
       '<select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
@@ -1067,6 +1083,10 @@ document.addEventListener('DOMContentLoaded', function () {
   $('kpis').addEventListener('click', function (e) {
     var k = e.target.closest('[data-filtro]');
     if (k) { $('f-estado').value = k.dataset.filtro; render(); }
+  });
+  $('prov').addEventListener('click', function (e) {
+    var k = e.target.closest('[data-prov]');
+    if (k) { $('f-prov').value = k.dataset.prov; Andes.refrescar(); render(); }
   });
   $('rows').addEventListener('click', function (e) {
     var tr = e.target.closest('tr[data-id]');
