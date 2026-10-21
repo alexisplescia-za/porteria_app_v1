@@ -215,6 +215,40 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 @media (max-width:1300px){.fila-detalle .kv{grid-template-columns:repeat(2,130px minmax(0,1fr))}}
 @media (max-width:860px){.fila-detalle .kv{grid-template-columns:130px minmax(0,1fr)}}
 
+/* Acordeón: layout propio del detalle (franja de datos arriba, dos columnas
+   abajo). Estas clases sólo las genera renderDetalle() en vista acordeón —
+   en el panel lateral no se usan, así que no hace falta acotarlas con
+   .fila-detalle; el panel lateral queda intacto. */
+.det-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:12px 20px;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.det-header-main{min-width:0;display:grid;gap:4px}
+.det-header-main h3{margin:0;font-size:18px}
+.det-problema{margin:0;color:var(--muted);font-size:13px;max-width:60ch}
+.det-badges{display:flex;flex-wrap:wrap;align-items:center;gap:8px;max-width:420px}
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--surface-2);color:var(--fg);white-space:nowrap}
+.badge-anulado{background:var(--bad-bg);color:var(--bad)}
+.badge-vencido{background:var(--bad-bg);color:var(--bad)}
+.badge-reclamado{background:var(--warn-bg);color:var(--warn)}
+
+.det-body{display:grid;grid-template-columns:1fr;gap:16px}
+@media (min-width:1024px){
+  .det-body{grid-template-columns:1.6fr 1fr;align-items:start}
+  .det-col-der{position:sticky;top:12px}
+}
+.det-col-izq,.det-col-der{display:grid;gap:16px;min-width:0}
+.det-card{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.det-card>.kv{margin-top:8px}
+.det-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px}
+.det-card .seccion{margin-top:0}
+.det-card+.det-card{margin-top:0}
+.det-datos .editar{margin-top:10px}
+
+.segmentado{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:8px}
+.segmentado button{flex:1;min-width:110px;font:inherit;font-size:13px;font-weight:600;border:0;border-right:1px solid var(--line);background:var(--surface);color:var(--fg);padding:9px 12px;cursor:pointer}
+.segmentado button:last-child{border-right:0}
+.segmentado button:hover:not(:disabled){background:var(--surface-2)}
+.segmentado button.on{background:var(--blue);color:#fff}
+.segmentado button:disabled{opacity:.45;cursor:not-allowed}
+
 /* Formulario de alta más ancho en escritorio */
 .sheet form{width:min(760px,100%)}
 

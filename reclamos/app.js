@@ -531,7 +531,108 @@ function htmlAnularReclamo_() {
 // ¿El usuario está cargando algo en el detalle (escribió, cambió un campo o abrió un formulario)?
 function detalleEnEdicion_() {
   return S.sucio === S.sel || !!$('detalle').querySelector(
-    '#d-traspaso:not([hidden]), #d-finalizar-form:not([hidden]), #d-anular-form:not([hidden]), .ev-form:not(:empty)');
+    '#d-traspaso:not([hidden]), #d-finalizar-form:not([hidden]), #d-anular-form:not([hidden]), #d-datos-form:not([hidden]), .ev-form:not(:empty)');
+}
+
+// Vista acordeón: layout propio (franja de datos arriba, 2 columnas abajo). Reutiliza
+// las mismas funciones helper y los mismos ids que la vista panel, sólo cambia el orden
+// y la agrupación visual — el panel lateral sigue generándose como siempre, sin tocar.
+function htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar) {
+  var header = '<div class="det-header">' +
+      '<div class="det-header-main"><span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
+      '<p class="det-problema">' + esc(r.descripcion) + '</p></div>' +
+      '<div class="det-badges">' +
+        '<span class="badge">' + esc(r.estado) + '</span>' +
+        '<span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span>' +
+        (r.canal ? '<span class="badge">' + esc(r.canal) + '</span>' : '') +
+        '<span class="badge">Alta: ' + fmtD(r.fecha_alta) + ' · ' + dias(r) + ' días</span>' +
+        '<span class="badge">A cargo: <b>' + esc(nombreUsuario(r.responsable)) + '</b></span>' +
+        (!r.anulado && puedeTraspasar ? '<button class="ev-btn" id="d-btn-traspasar">Traspasar</button>' : '') +
+        (vecesReclamado(r) > 1 ? '<span class="badge badge-reclamado">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
+        (r.anulado ? '<span class="badge badge-anulado">Anulado</span>' : vencido(r) ? '<span class="badge badge-vencido">Vencido</span>' : '') +
+      '</div></div>';
+
+  var datosLectura = '<dl class="kv" id="d-datos-lectura">' +
+      '<dt>Sistema</dt><dd>' + esc(r.proveedor) + '</dd>' +
+      '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
+      '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
+      (tiendasDe(r).length > 1
+        ? '<dt>Tiendas</dt><dd><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
+          tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></dd>'
+        : '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>') +
+      '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
+      '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
+      '<dt>Cargado por</dt><dd>' + esc(r.creado_por || '—') + '</dd>' +
+      '<dt>Compromiso</dt><dd>' + (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '') + '</dd>' +
+      '<dt>Referencia</dt><dd>' + esc(r.referencia || '—') + '</dd>' +
+      '<dt>En manos de</dt><dd><b>' + esc(r.area_actual || '—') + '</b></dd>' +
+      '<dt>Veces reclamado</dt><dd><span class="contador">' + vecesReclamado(r) + '</span></dd>' +
+      '<dt>Respuestas del proveedor</dt><dd><span class="contador">' + (r.respuestas || 0) + '</span></dd>' +
+      '<dt>Devoluciones</dt><dd><span class="contador">' + (r.devoluciones || 0) + '</span></dd>' +
+      (r.reaperturas ? '<dt>Reaperturas</dt><dd><span class="chip a2">' + r.reaperturas + '</span></dd>' : '') +
+    '</dl>';
+
+  var datosForm = g ? '<div class="editar" id="d-datos-form" hidden>' +
+      '<select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
+      '<div id="d-tiendas-box"></div>' +
+      '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
+      '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
+      '<div class="two"><select id="d-tipo">' + opciones(conActual_(S.opciones.tipo, r.tipo), r.tipo, '— Tipo —') + '</select>' +
+      '<select id="d-motivo">' + opciones(conActual_(S.opciones.motivo, r.motivo), r.motivo, '— Motivo —') + '</select></div>' +
+      '<div class="two"><select id="d-via">' + opciones(conActual_(S.opciones.via, r.canal), r.canal, '— Vía —') + '</select>' +
+      '<select id="d-pri">' + opciones(['Alta', 'Media', 'Baja'], r.prioridad) + '</select></div>' +
+      '<div class="two"><input id="d-solic" placeholder="Quién reclamó" value="' + esc(r.solicitante || '') + '">' +
+      '<input id="d-comp" type="date" value="' + esc(r.fecha_compromiso || '') + '" title="Fecha comprometida por el proveedor"></div>' +
+      '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
+      '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '';
+
+  var datosCard = '<div class="det-card det-datos"><div class="det-card-head"><h4 class="seccion">Datos del caso</h4>' +
+    (g ? '<button class="ev-btn" id="d-btn-editar-datos">Editar</button>' : '') + '</div>' +
+    datosLectura + datosForm + '</div>';
+
+  var historialCard = '<div class="det-card det-historial"><h4 class="seccion">Historial</h4><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul></div>';
+
+  var colDer;
+  if (r.anulado) {
+    colDer = '<div class="det-card">' + htmlAnulado_(r, g) + '</div>';
+  } else {
+    var accionCard = '<div class="det-card det-accion"><h4 class="seccion">Registrar acción</h4>' +
+      '<textarea id="d-coment" rows="2" placeholder="Comentario o respuesta del proveedor (se guarda con la acción que elijas abajo)"></textarea>' +
+      '<div class="seg-fecha"><label>Fecha <input id="d-fecha" type="date" value="' + ymdLocal() + '"></label></div>' +
+      '<p class="desc-in">Para "Reclamar de nuevo" y "Respuesta del proveedor". Cambiala si pasó otro día.</p>' +
+      '<div class="acciones-seg">' +
+        '<button class="btn chico" id="d-btn-reiterar"' + (abierto ? '' : ' disabled') + '>Reclamar de nuevo (+1)</button>' +
+        '<button class="btn ghost chico" id="d-btn-respuesta"' + (abierto ? '' : ' disabled') + '>Respuesta del proveedor</button>' +
+        '<button class="btn ghost chico" id="d-btn-coment">Sólo comentar</button>' +
+      '</div></div>';
+
+    var derivarCard = '<div class="det-card det-derivar"><h4 class="seccion">Derivar a</h4>' +
+      '<div class="segmentado">' + S.opciones.area.map(function (a) {
+        var actual = a === r.area_actual, deshabilitado = !g || actual;
+        var motivo = !g ? 'Sólo un gestor puede derivar' : (actual ? 'Ya está en ' + a : '');
+        return '<button type="button" class="' + (actual ? 'on' : '') + '" data-area="' + esc(a) + '"' +
+          (deshabilitado ? ' disabled' : '') + (motivo ? ' title="' + esc(motivo) + '"' : '') + '>' + esc(a) + '</button>';
+      }).join('') + '</div></div>';
+
+    var estadoCard = '<div class="det-card det-estado"><h4 class="seccion">Estado' + (g ? '' : ' (sólo un gestor puede cambiarlo)') + '</h4>' +
+      '<div class="flow">' + ESTADOS.map(function (e) {
+        return '<button data-estado="' + esc(e) + '" class="' + (e === r.estado ? 'on' : '') + '"' + (g ? '' : ' disabled') + '>' + esc(e) + '</button>';
+      }).join('') + '</div>' +
+      (g && abierto ? '<div class="finalizar"><button class="btn chico ok" id="d-btn-finalizar">✓ Finalizar caso</button>' +
+        '<div id="d-finalizar-form" hidden><input id="d-finalizar-texto" placeholder="¿Cómo se resolvió? (queda en el historial)">' +
+        '<div class="acciones"><button class="btn ghost chico" id="d-finalizar-cancelar">Cancelar</button>' +
+        '<button class="btn chico ok" id="d-finalizar-ok">Confirmar y cerrar</button></div></div></div>' : '') +
+      (g ? htmlAnularReclamo_() : '') +
+      '</div>';
+
+    colDer = accionCard + derivarCard + estadoCard;
+  }
+
+  return header +
+    (!r.anulado && puedeTraspasar ? htmlTraspaso_(r) : '') +
+    '<div class="det-body"><div class="det-col-izq">' + datosCard + historialCard + '</div>' +
+    '<div class="det-col-der">' + colDer + '</div></div>';
 }
 
 async function renderDetalle() {
@@ -551,6 +652,12 @@ async function renderDetalle() {
     '<button class="ev-btn" data-nav="1"' + (pos === -1 || pos >= lista.length - 1 ? ' disabled' : '') + ' title="Siguiente (flecha ↓)">Siguiente ›</button>' +
     '<button class="ev-btn" data-copiar-link title="Copiar el link directo a este reclamo">🔗 Copiar link</button>' +
     '<button class="ev-btn" data-cerrar-det title="Cerrar el detalle">✕</button></div>';
+  if (S.vista === 'acordeon') {
+    cont.innerHTML = nav + htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar);
+    if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
+    Andes.mejorar(cont);
+    return renderHistorial_(r, g);
+  }
   cont.innerHTML = nav +
     '<span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
     '<p style="margin:0;color:var(--muted);font-size:13px">' + esc(r.descripcion) + '</p>' +
@@ -618,7 +725,11 @@ async function renderDetalle() {
     '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
   if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
   Andes.mejorar(cont);
+  return renderHistorial_(r, g);
+}
 
+// Compartido por las dos vistas: llena #d-historial (que ya está en el HTML recién armado).
+async function renderHistorial_(r, g) {
   try {
     var ev = await cargarEventos(r.id);
     if (S.sel !== r.id) return;
@@ -973,6 +1084,7 @@ document.addEventListener('DOMContentLoaded', function () {
       return accion('cambiar_estado_reclamo', { p_estado: 'Cerrado', p_comentario: 'Caso finalizado · ' + res }, 'Caso finalizado', 'No se pudo finalizar');
     }
     if (b.id === 'd-btn-coment') return comentar();
+    if (b.id === 'd-btn-editar-datos') { $('d-datos-lectura').hidden = true; $('d-datos-form').hidden = false; b.hidden = true; return; }
     if (b.id === 'd-btn-guardar') return guardarEdicion();
     if (b.dataset.nav) return moverSeleccion(Number(b.dataset.nav));
     if (b.hasAttribute('data-cerrar-det')) return seleccionar(null, false);
