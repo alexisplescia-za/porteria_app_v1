@@ -294,7 +294,7 @@ function tarjetaTarea_(t) {
 
 async function accionTarea(fn, args, ok) {
   try {
-    await ejecutar(fn, Object.assign({ p_usuario: S.usuario.email }, args), ok);
+    await ejecutar(fn, args, ok);
     await cargarTareas();
     renderTareas();
   } catch (e) { toast('No se pudo guardar: ' + mensajeError(e), true); }

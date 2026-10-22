@@ -35,13 +35,18 @@
         <h2 id="login-titulo">Ingresá con tu mail de Carrefour</h2>
         <p class="muted" id="login-sub">Sólo pueden entrar los usuarios habilitados para gestionar reclamos.</p>
         <input id="login-mail" type="email" placeholder="tunombre@carrefour.com" autocomplete="email" required>
-        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" hidden>
-        <input id="login-password-nueva" type="password" placeholder="Elegí una contraseña" autocomplete="new-password" hidden>
-        <input id="login-password-confirmar" type="password" placeholder="Repetí la contraseña" autocomplete="new-password" hidden>
-        <p class="desc-in" id="login-ayuda" hidden>Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required>
         <p class="error" id="login-error" hidden></p>
-        <button type="button" class="link-btn" id="btn-login-volver" hidden>‹ Usar otro mail</button>
-        <button class="btn" type="submit" id="btn-entrar">Continuar</button>
+        <button class="btn" type="submit" id="btn-entrar">Entrar</button>
+      </form>
+      <form id="f-set-password" hidden>
+        <h2>Elegí tu contraseña</h2>
+        <p class="muted">Es tu primer ingreso (o pediste restablecerla). Elegí una contraseña para tu cuenta.</p>
+        <input id="set-password-nueva" type="password" placeholder="Elegí una contraseña" autocomplete="new-password" required>
+        <input id="set-password-confirmar" type="password" placeholder="Repetí la contraseña" autocomplete="new-password" required>
+        <p class="desc-in">Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+        <p class="error" id="set-password-error" hidden></p>
+        <button class="btn" type="submit" id="btn-set-password">Guardar contraseña y entrar</button>
       </form>
     </div>
   </section>

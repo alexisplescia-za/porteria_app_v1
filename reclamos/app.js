@@ -2,7 +2,13 @@
 // Frontend conectado directo a Supabase (mismo proyecto que Frío Alimentario).
 // Las escrituras pasan por funciones de la base (crear_reclamo, cambiar_estado_reclamo, editar_reclamo,
 // comentar_reclamo, reiterar_reclamo, derivar_reclamo) que validan el usuario, generan el ID y dejan historial.
+// El usuario sale de la sesión de Supabase Auth (auth.email() del lado del servidor) — el cliente
+// no le manda el mail como parámetro, así no se puede actuar "como" otra persona.
 
+// Se guarda antes de que supabase-js procese y borre el hash (detectSessionInUrl, automático al
+// crear el cliente) — así sabemos si esta carga viene de un link de invitación o de recuperación
+// de contraseña, para mostrarle el formulario de "elegí tu contraseña" en vez del login normal.
+var _hashInicial = location.hash;
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 var ESTADOS = ['Nuevo', 'Enviado al proveedor', 'Respuesta proveedor', 'En resolución', 'Pendiente validación', 'Escalado', 'Reabierto', 'Cerrado'];
@@ -16,7 +22,7 @@ var AREA_ESTILO = {
   MANTENIMIENTO: 'background:var(--ok-bg);color:var(--ok)'
 };
 
-var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel', loginPaso: 'mail' };
+var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel' };
 
 // ---------------------------------------------------------------
 // Utilidades
@@ -105,130 +111,109 @@ async function traerTodo(tabla, columnas, filtro) {
 }
 
 // ---------------------------------------------------------------
-// Login
+// Login (Supabase Auth)
 // ---------------------------------------------------------------
 
-// El login tiene 3 pasos: 'mail' (sólo el mail) → según si ya eligió contraseña,
-// 'nueva' (primer ingreso: la elige) o 'password' (ingresos siguientes: la escribe).
 var PASSWORD_OK_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/;
 
-function resetLogin_() {
-  S.loginPaso = 'mail';
-  $('login-titulo').textContent = 'Ingresá con tu mail de Carrefour';
-  $('login-sub').textContent = 'Sólo pueden entrar los usuarios habilitados para gestionar reclamos.';
-  $('login-sub').hidden = false;
-  $('login-mail').disabled = false;
-  $('login-password').hidden = true; $('login-password').value = '';
-  $('login-password-nueva').hidden = true; $('login-password-nueva').value = '';
-  $('login-password-confirmar').hidden = true; $('login-password-confirmar').value = '';
-  $('login-ayuda').hidden = true;
-  $('btn-login-volver').hidden = true;
-  $('btn-entrar').textContent = 'Continuar';
-  $('login-error').hidden = true;
+// ¿Esta carga de página viene de un link de invitación o de recuperación de contraseña
+// que mandó Supabase? (admin invita desde el dashboard → el link trae esto en el hash).
+function esRecuperacion_() { return /type=invite|type=recovery/.test(_hashInicial); }
+
+function mostrarSetPassword_(mostrar) {
+  $('f-login').hidden = mostrar;
+  $('f-set-password').hidden = !mostrar;
+  if (mostrar) { $('set-password-error').hidden = true; $('set-password-nueva').focus(); }
 }
 
-async function completarLogin_(datos) {
-  S.usuario = { email: datos.email, nombre: datos.nombre, rol: datos.rol };
-  guardarLocal('reclamos_mail', datos.email);
-  if (datos.sesion) guardarLocal('reclamos_sesion', datos.sesion);
-  $('usuario-nombre').textContent = (datos.nombre || datos.email) + (datos.rol === 'gestor' ? ' · gestor' : ' · carga');
+// Trae nombre/rol/activo de reclamos_usuarios para la sesión ya autenticada en Supabase.
+// Si el mail no está habilitado (o se desactivó), cierra la sesión: no deja a medio loguear.
+async function sincronizarUsuario_(session) {
+  if (!session) {
+    S.usuario = null; S.sel = null;
+    $('usuario').hidden = true;
+    vista('login');
+    return;
+  }
+  var mail = session.user.email.toLowerCase();
+  if (S.usuario && S.usuario.email === mail) return; // ya sincronizado (ej. TOKEN_REFRESHED)
+  vista('cargando');
+  var r = await supabase.from('reclamos_usuarios').select('nombre,rol,activo').eq('email', mail).maybeSingle();
+  if (r.error || !r.data || !r.data.activo) {
+    await supabase.auth.signOut();
+    S.usuario = null;
+    vista('login');
+    $('login-error').textContent = 'Tu mail no está habilitado para Reclamos. Pedile acceso a un gestor del equipo de Eficiencia Energética.';
+    $('login-error').hidden = false;
+    return;
+  }
+  S.usuario = { email: mail, nombre: r.data.nombre, rol: r.data.rol };
+  $('usuario-nombre').textContent = (r.data.nombre || mail) + (r.data.rol === 'gestor' ? ' · gestor' : ' · carga');
   $('usuario').hidden = false;
   await cargarTodo();
   vista('consola');
 }
 
-async function entrar(e) {
+async function entrarConPassword(e) {
   if (e) e.preventDefault();
   var err = $('login-error');
   err.hidden = true;
   var mail = $('login-mail').value.trim().toLowerCase();
-
-  if (S.loginPaso === 'mail') {
-    if (!/^[^\s@]+@carrefour\.com$/.test(mail)) { err.textContent = 'Usá tu mail @carrefour.com.'; err.hidden = false; return; }
-    vista('cargando');
-    try {
-      var est = await ejecutar('reclamos_estado_login', { p_email: mail });
-      vista('login');
-      if (!est.existe) {
-        err.textContent = 'Tu mail no está habilitado para Reclamos. Pedile acceso a un gestor del equipo de Eficiencia Energética.';
-        err.hidden = false;
-        return;
-      }
-      $('login-mail').disabled = true;
-      $('btn-login-volver').hidden = false;
-      if (est.primer_ingreso) {
-        S.loginPaso = 'nueva';
-        $('login-titulo').textContent = 'Es tu primer ingreso, elegí una contraseña';
-        $('login-sub').hidden = true;
-        $('login-password-nueva').hidden = false;
-        $('login-password-confirmar').hidden = false;
-        $('login-ayuda').hidden = false;
-        $('btn-entrar').textContent = 'Elegir contraseña';
-        $('login-password-nueva').focus();
-      } else {
-        S.loginPaso = 'password';
-        $('login-titulo').textContent = 'Ingresá tu contraseña';
-        $('login-sub').hidden = true;
-        $('login-password').hidden = false;
-        $('btn-entrar').textContent = 'Entrar';
-        $('login-password').focus();
-      }
-    } catch (e2) {
-      vista('login');
-      err.textContent = 'No se pudo verificar el mail: ' + mensajeError(e2);
-      err.hidden = false;
-    }
+  var pass = $('login-password').value;
+  if (!/^[^\s@]+@carrefour\.com$/.test(mail)) { err.textContent = 'Usá tu mail @carrefour.com.'; err.hidden = false; return; }
+  if (!pass) { err.textContent = 'Escribí tu contraseña.'; err.hidden = false; return; }
+  vista('cargando');
+  var r = await supabase.auth.signInWithPassword({ email: mail, password: pass });
+  if (r.error) {
+    vista('login');
+    err.textContent = 'Mail o contraseña incorrectos.';
+    err.hidden = false;
     return;
   }
-
-  if (S.loginPaso === 'nueva') {
-    var p1 = $('login-password-nueva').value, p2 = $('login-password-confirmar').value;
-    if (!PASSWORD_OK_RE.test(p1)) {
-      err.textContent = 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
-      err.hidden = false;
-      return;
-    }
-    if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; err.hidden = false; return; }
-    vista('cargando');
-    try {
-      var datos = await ejecutar('reclamos_crear_password', { p_email: mail, p_password: p1 });
-      await completarLogin_(datos);
-    } catch (e3) {
-      vista('login');
-      err.textContent = 'No se pudo guardar la contraseña: ' + mensajeError(e3);
-      err.hidden = false;
-    }
-    return;
-  }
-
-  if (S.loginPaso === 'password') {
-    var p = $('login-password').value;
-    if (!p) { err.textContent = 'Escribí tu contraseña.'; err.hidden = false; return; }
-    vista('cargando');
-    try {
-      var datos2 = await ejecutar('reclamos_verificar_login', { p_email: mail, p_password: p });
-      await completarLogin_(datos2);
-    } catch (e4) {
-      vista('login');
-      err.textContent = mensajeError(e4);
-      err.hidden = false;
-      $('login-password').value = '';
-      $('login-password').focus();
-    }
-    return;
-  }
+  await sincronizarUsuario_(r.data.session);
 }
 
-function salir() {
-  var token = leerLocal('reclamos_sesion');
-  guardarLocal('reclamos_sesion', '');
-  if (token) supabase.rpc('reclamos_cerrar_sesion', { p_token: token }).catch(function () { });
-  S.usuario = null; S.sel = null;
-  guardarLocal('reclamos_mail', '');
-  $('usuario').hidden = true;
-  resetLogin_();
-  vista('login');
+async function guardarPasswordNueva_(e) {
+  if (e) e.preventDefault();
+  var err = $('set-password-error');
+  err.hidden = true;
+  var p1 = $('set-password-nueva').value, p2 = $('set-password-confirmar').value;
+  if (!PASSWORD_OK_RE.test(p1)) {
+    err.textContent = 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
+    err.hidden = false;
+    return;
+  }
+  if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; err.hidden = false; return; }
+  vista('cargando');
+  var r = await supabase.auth.updateUser({ password: p1 });
+  if (r.error) {
+    vista('login');
+    err.textContent = 'No se pudo guardar la contraseña: ' + mensajeError(r.error);
+    err.hidden = false;
+    return;
+  }
+  _passwordPendiente = false;
+  var s = await supabase.auth.getSession();
+  await sincronizarUsuario_(s.data.session);
 }
+
+function salir() { supabase.auth.signOut(); }
+
+// Se registra apenas existe el cliente (ver arriba de todo el archivo), no en DOMContentLoaded:
+// el link de invitación/recuperación se procesa solo al crear el cliente (detectSessionInUrl) y
+// dispara el evento enseguida — no hay que perderlo esperando a que cargue el resto del DOM.
+var _passwordPendiente = false;
+supabase.auth.onAuthStateChange(function (event, session) {
+  if (!_passwordPendiente && (event === 'PASSWORD_RECOVERY' || (session && esRecuperacion_() && !S.usuario))) {
+    _passwordPendiente = true;
+    mostrarSetPassword_(true);
+    vista('login');
+    return;
+  }
+  if (_passwordPendiente) return;
+  sincronizarUsuario_(session);
+});
+supabase.auth.getSession().then(function (r) { if (!_passwordPendiente) sincronizarUsuario_(r.data.session); });
 
 // ---------------------------------------------------------------
 // Datos
@@ -796,7 +781,7 @@ async function ejecutar(fn, args, ok) {
 
 async function accion(fn, args, ok, textoError) {
   try {
-    await ejecutar(fn, Object.assign({ p_usuario: S.usuario.email, p_id: S.sel }, args), ok);
+    await ejecutar(fn, Object.assign({ p_id: S.sel }, args), ok);
     await recargarReclamo(S.sel);
     render();
   } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
@@ -887,7 +872,7 @@ function abrirFormEvento(id, modo) {
 
 async function accionEvento(fn, args, ok, textoError) {
   try {
-    await ejecutar(fn, Object.assign({ p_usuario: S.usuario.email }, args), ok);
+    await ejecutar(fn, args, ok);
     await recargarReclamo(S.sel);
     render();
   } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
@@ -989,7 +974,7 @@ async function crear(e) {
   var btn = $('btn-guardar'); btn.disabled = true; btn.textContent = 'Registrando…';
   try {
     var id = await ejecutar('crear_reclamo', {
-      p_usuario: S.usuario.email, p_proveedor: $('n-prov').value, p_tienda: sel.lista[0], p_tiendas: sel.lista.length > 1 ? sel.lista : null,
+      p_proveedor: $('n-prov').value, p_tienda: sel.lista[0], p_tiendas: sel.lista.length > 1 ? sel.lista : null,
       p_categoria: $('n-cat').value,
       p_descripcion: $('n-desc').value, p_prioridad: $('n-pri').value, p_via: $('n-via').value,
       p_solicitante: $('n-solic').value, p_compromiso: $('n-comp').value || null, p_referencia: $('n-ref').value,
@@ -1036,8 +1021,8 @@ function exportarCSV() {
 // ---------------------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', function () {
-  $('f-login').addEventListener('submit', entrar);
-  $('btn-login-volver').onclick = function () { resetLogin_(); $('login-mail').focus(); };
+  $('f-login').addEventListener('submit', entrarConPassword);
+  $('f-set-password').addEventListener('submit', guardarPasswordNueva_);
   $('btn-salir').onclick = salir;
   ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
   var ordenGuardado = leerLocal('reclamos_orden');
@@ -1200,16 +1185,6 @@ document.addEventListener('DOMContentLoaded', function () {
   aplicarVista(leerLocal('reclamos_vista') === 'acordeon' ? 'acordeon' : 'panel');
 
   Andes.mejorar(document);
-  var mail = leerLocal('reclamos_mail');
-  if (mail) $('login-mail').value = mail;
-  var token = leerLocal('reclamos_sesion');
-  if (token) {
-    vista('cargando');
-    supabase.rpc('reclamos_verificar_sesion', { p_token: token }).then(function (r) {
-      if (r.error || !r.data || !r.data.ok) { guardarLocal('reclamos_sesion', ''); vista('login'); return; }
-      completarLogin_(r.data);
-    }).catch(function () { guardarLocal('reclamos_sesion', ''); vista('login'); });
-  } else {
-    vista('login');
-  }
+  // El estado de sesión (login / consola) lo maneja el listener de Supabase Auth
+  // registrado arriba de todo el archivo, no acá.
 });
