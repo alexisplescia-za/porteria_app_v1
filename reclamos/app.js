@@ -5,10 +5,13 @@
 // El usuario sale de la sesión de Supabase Auth (auth.email() del lado del servidor) — el cliente
 // no le manda el mail como parámetro, así no se puede actuar "como" otra persona.
 
-// Se guarda antes de que supabase-js procese y borre el hash (detectSessionInUrl, automático al
-// crear el cliente) — así sabemos si esta carga viene de un link de invitación o de recuperación
-// de contraseña, para mostrarle el formulario de "elegí tu contraseña" en vez del login normal.
+// Se guarda antes de que supabase-js procese y borre el hash/los parámetros (detectSessionInUrl,
+// automático al crear el cliente) — así sabemos si esta carga viene de un link de invitación o de
+// recuperación de contraseña, para mostrarle "elegí tu contraseña" en vez del login normal. Según
+// el modo de autenticación, Supabase manda esa marca en el hash (#...type=invite) o en los
+// parámetros de la URL (?...type=invite) — se guardan los dos por las dudas.
 var _hashInicial = location.hash;
+var _searchInicial = location.search;
 var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 var ESTADOS = ['Nuevo', 'Enviado al proveedor', 'Respuesta proveedor', 'En resolución', 'Pendiente validación', 'Escalado', 'Reabierto', 'Cerrado'];
@@ -117,8 +120,12 @@ async function traerTodo(tabla, columnas, filtro) {
 var PASSWORD_OK_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/;
 
 // ¿Esta carga de página viene de un link de invitación o de recuperación de contraseña
-// que mandó Supabase? (admin invita desde el dashboard → el link trae esto en el hash).
-function esRecuperacion_() { return /type=invite|type=recovery/.test(_hashInicial); }
+// que mandó Supabase? (admin invita desde el dashboard). Puede venir en el hash o en los
+// parámetros de la URL según el modo de autenticación del proyecto — y en el modo más nuevo
+// (PKCE) ni siquiera trae "type", sólo un "code" (nunca aparece en un login normal con contraseña).
+function esRecuperacion_() {
+  return /type=invite|type=recovery/.test(_hashInicial + _searchInicial) || /[?&]code=/.test(_searchInicial);
+}
 
 function mostrarSetPassword_(mostrar) {
   $('f-login').hidden = mostrar;
