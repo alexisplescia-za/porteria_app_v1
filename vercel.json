@@ -27,7 +27,7 @@
     {
       "source": "/(reclamos|frio-alimentario|frioalimentario_relevamiento|admin)(/.*)?",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://uufwqjjcmoawlzjqlpvf.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'sha256-qTG1B7R6VHA7Y0TaQIgKVcvmSIfLQ4Mw/4M2wBo8DoM=' 'sha256-6+qcir11WEwa/Wq4N9dm+cnfB83vLfda5W4ftcN8fsQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://uufwqjjcmoawlzjqlpvf.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
       ]
     },
     {

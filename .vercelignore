@@ -1,0 +1,9 @@
+# No publicar en el sitio: migraciones, scripts de Apps Script ni documentación interna
+# (tienen la contraseña genérica, mails y el detalle de la auditoría).
+docs/
+**/sql/
+*.sql
+*.gs
+*.md
+.env
+.env.*

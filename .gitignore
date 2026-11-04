@@ -6,3 +6,25 @@
 
 # Configuración local de Claude Code
 .claude/
+
+# Secretos y configuración local (NUNCA commitear la service_role)
+.env
+.env.*
+*.local
+*.pem
+*.key
+secrets/
+
+# Dependencias / herramientas
+node_modules/
+.vercel/
+
+# Backups y basura local
+*.bak
+*.backup
+*.dump
+backup*/
+*.tmp
+.DS_Store
+Thumbs.db
+desktop.ini
