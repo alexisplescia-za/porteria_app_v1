@@ -5,6 +5,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Portería — Central Mantenimiento App</title>
+<link rel="stylesheet" href="/shared/cargando.css"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/frio-alimentario/config.js"></script>
 <script>
@@ -545,7 +546,7 @@ function LoginScreen({onLogin}){
           <div style={{fontSize:"18px",fontWeight:700,color:"var(--text)"}}>Iniciar Sesión</div>
         </div>
         <div style={{textAlign:"center"}}>
-          {loading&&<p style={{color:"var(--text-muted)",fontSize:"14px"}}>Verificando tu acceso…</p>}
+          {loading&&<div style={{padding:"8px 0"}}><span className="cm-loader" role="status" aria-label="Cargando"/></div>}
           {err&&<p style={{...d.err,marginBottom:"16px"}}>{err}</p>}
           {!loading&&err&&<div style={{display:"flex",gap:"10px",justifyContent:"center",flexWrap:"wrap"}}>
             <button type="button" onClick={go} style={{...d.btnPrimary,padding:"10px 18px"}}>Reintentar</button>
@@ -1705,7 +1706,7 @@ function UsuariosAdmin(){
       <div style={d.card}>
         <h3 style={d.h3}>Usuarios ({users.length})</h3>
         {loading?(
-          <div style={{...d.muted,textAlign:"center",padding:"20px"}}>Cargando...</div>
+          <div style={{...d.muted,textAlign:"center",padding:"20px"}}><span className="cm-loader" role="status" aria-label="Cargando"/></div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
             {users.map(u=>(
@@ -1853,7 +1854,7 @@ function BackendPanel({onReloadDB,onSyncPendientes,registros}){
           Si borraste o editaste registros directo en Supabase, usá esto para sincronizar.
         </div>
         <button onClick={handleReload} disabled={loadingReload} style={{...btnStyle("var(--accent)"),opacity:loadingReload?0.6:1,cursor:loadingReload?"not-allowed":"pointer"}}>
-          {loadingReload?"⏳ Cargando...":"☁️ Cargar datos desde Supabase"}
+          {loadingReload?<span className="cm-loader chico" role="status" aria-label="Cargando"/>:"☁️ Cargar datos desde Supabase"}
         </button>
         {resultReload&&(
           <div style={{marginTop:"10px",padding:"10px 14px",borderRadius:"var(--radius)",fontSize:"12px",
@@ -2180,7 +2181,7 @@ function App(){
   if(loading)return(
     <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:"16px"}}>
       <CarrefourLogo size={32}/>
-      <div style={{color:"var(--text-muted)",fontSize:"13px"}}>Cargando sistema...</div>
+      <span className="cm-loader" role="status" aria-label="Cargando"/>
     </div>
   );
 

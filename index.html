@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Central Mantenimiento App</title>
+  <link rel="stylesheet" href="/shared/cargando.css">
   <script src="/redirigir-invitacion.js"></script>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
   <style>
@@ -66,7 +67,7 @@
     <p class="sub" id="hub-sub">¿A qué aplicación querés ingresar?</p>
 
     <p class="aviso" id="hub-aviso" hidden></p>
-    <p class="estado" id="hub-cargando">Cargando…</p>
+    <div class="cm-loader-centro" id="hub-cargando"><span class="cm-loader" role="status" aria-label="Cargando"></span></div>
 
     <form class="login" id="hub-login" hidden>
       <label for="hub-email">Mail de Carrefour

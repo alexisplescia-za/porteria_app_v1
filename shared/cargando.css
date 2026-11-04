@@ -1,0 +1,30 @@
+/* Indicador de carga de Central Mantenimiento: una chispa de 8 rayos que gira y late.
+   Uso: <span class="cm-loader" role="status" aria-label="Cargando"></span>  (·  "cm-loader chico" para listas y botones)
+   Color: hereda --cm-loader-color si la app lo define; si no, el azul de la app. */
+.cm-loader {
+  --cm-loader-color: #1F6FD6;
+  display: inline-block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: repeating-conic-gradient(from -6deg, var(--cm-loader-color) 0deg 12deg, transparent 12deg 45deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 24%, #000 25% 70%, transparent 71%);
+          mask: radial-gradient(circle, transparent 0 24%, #000 25% 70%, transparent 71%);
+  animation: cm-loader-giro 2.4s linear infinite, cm-loader-latido 1.2s ease-in-out infinite;
+}
+.cm-loader.chico { width: 16px; height: 16px; }
+.cm-loader-centro { display: flex; align-items: center; justify-content: center; padding: 56px 0; }
+
+@media (prefers-color-scheme: dark) { .cm-loader { --cm-loader-color: #5AA2F0; } }
+:root[data-theme="dark"] .cm-loader { --cm-loader-color: #5AA2F0; }
+:root[data-theme="light"] .cm-loader { --cm-loader-color: #1F6FD6; }
+
+@keyframes cm-loader-giro { to { rotate: 360deg; } }
+@keyframes cm-loader-latido {
+  0%, 100% { scale: .82; opacity: .75; }
+  50% { scale: 1.06; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-loader { animation: cm-loader-latido 2.4s ease-in-out infinite; }
+}

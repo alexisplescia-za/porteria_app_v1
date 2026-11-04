@@ -600,7 +600,7 @@ function htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar) {
     (g ? '<button class="ev-btn" id="d-btn-editar-datos">Editar</button>' : '') + '</div>' +
     datosLectura + datosForm + '</div>';
 
-  var historialCard = '<div class="det-card det-historial"><h4 class="seccion">Historial</h4><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul></div>';
+  var historialCard = '<div class="det-card det-historial"><h4 class="seccion">Historial</h4><ul class="tl" id="d-historial"><li class="c"><span class="cm-loader chico" role="status" aria-label="Cargando"></span></li></ul></div>';
 
   var colDer;
   if (r.anulado) {
@@ -731,7 +731,7 @@ async function renderDetalle() {
       '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
       '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
     (g ? htmlAnularReclamo_() : ''))) +
-    '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
+    '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c"><span class="cm-loader chico" role="status" aria-label="Cargando"></span></li></ul>';
   if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
   Andes.mejorar(cont);
   return renderHistorial_(r, g);

@@ -6,6 +6,7 @@
   <title>Admin — Central Mantenimiento App</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23004E9E'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>A</text></svg>">
   <link rel="stylesheet" href="/admin/style.css">
+  <link rel="stylesheet" href="/shared/cargando.css">
   <script>try{var t=localStorage.getItem('admin_tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){/* default dark */}</script>
 </head>
 <body>
@@ -171,7 +172,7 @@
     </div>
 
     <!-- Loading -->
-    <div id="view-loading" class="view cargando active">Cargando…</div>
+    <div id="view-loading" class="view cargando active"><span class="cm-loader" role="status" aria-label="Cargando"></span></div>
   </div>
 
   <!-- Modal de confirmación -->

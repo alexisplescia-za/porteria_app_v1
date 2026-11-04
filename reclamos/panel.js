@@ -246,7 +246,7 @@ async function renderTareas() {
   // El refresco al volver a la pestaña no pisa una tarea a medio cargar.
   if (S.refrescando && $('dev-form') && !$('dev-form').hidden) return;
   if (S.tareas === null) {
-    cont.innerHTML = '<p class="empty">Cargando tareas…</p>';
+    cont.innerHTML = '<p class="empty"><span class="cm-loader" role="status" aria-label="Cargando tareas"></span></p>';
     try { await cargarTareas(); } catch (e) {
       cont.innerHTML = '<p class="empty">No se pudieron cargar las tareas (' + esc(mensajeError(e)) + '). ¿Ya se corrió el SQL 018?</p>';
       return;
