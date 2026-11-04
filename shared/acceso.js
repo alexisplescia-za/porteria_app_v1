@@ -24,6 +24,11 @@
   // Si el usuario no tiene el módulo, vuelve al hub con un aviso.
   // Si no se pudo consultar, deja pasar (la app sigue validando por su cuenta).
   async function exigir(sb, modulo) {
+    // Con la contraseña genérica, primero hay que cambiarla en el hub.
+    try {
+      var g = await sb.rpc('debe_cambiar_password');
+      if (!g.error && g.data === true) { location.replace('/'); return false; }
+    } catch (e) { /* si no se puede consultar, sigue */ }
     var m = await mis(sb);
     if (m === null || m.indexOf(modulo) !== -1) return true;
     location.replace('/?sin_acceso=' + encodeURIComponent(modulo));

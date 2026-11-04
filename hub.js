@@ -32,11 +32,29 @@
     $('hub-login').hidden = false;
   }
 
+  // Si todavía tiene la contraseña genérica, primero la tiene que cambiar.
+  async function debeCambiar() {
+    try { var r = await sb.rpc('debe_cambiar_password'); return !r.error && r.data === true; }
+    catch (e) { return false; }
+  }
+
+  function verCambiar() {
+    $('hub-cargando').hidden = true;
+    $('hub-modulos').hidden = true;
+    $('hub-vacio').hidden = true;
+    $('hub-sub').textContent = 'Elegí tu contraseña';
+    $('hub-cambiar').hidden = false;
+    $('hub-pw1').focus();
+  }
+
   async function verModulos(session) {
     $('hub-login').hidden = true;
+    $('hub-cambiar').hidden = true;
     $('hub-cargando').hidden = false;
     $('hub-usuario-mail').textContent = session.user.email;
     $('hub-usuario').hidden = false;
+
+    if (await debeCambiar()) { verCambiar(); return; }
 
     var mis = await Acceso.mis(sb);
     var visibles = 0;
@@ -72,6 +90,24 @@
     }
     $('hub-password').value = '';
     await verModulos(r.data.session);
+  });
+
+  $('hub-cambiar').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var err = $('hub-cambiar-error');
+    var p1 = $('hub-pw1').value, p2 = $('hub-pw2').value;
+    err.hidden = true;
+    var mal = !/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/.test(p1) ? 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.'
+      : p1 === 'Universo2026.' ? 'Esa es la contraseña genérica. Elegí otra.'
+      : p1 !== p2 ? 'Las contraseñas no coinciden.' : '';
+    if (mal) { err.textContent = mal; err.hidden = false; return; }
+    $('hub-cambiar-btn').disabled = true;
+    var r = await sb.auth.updateUser({ password: p1 });
+    $('hub-cambiar-btn').disabled = false;
+    if (r.error) { err.textContent = 'No se pudo guardar: ' + r.error.message; err.hidden = false; return; }
+    $('hub-pw1').value = ''; $('hub-pw2').value = '';
+    var s = await sb.auth.getSession();
+    await verModulos(s.data.session);
   });
 
   $('hub-salir').addEventListener('click', async function () {

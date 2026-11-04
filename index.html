@@ -80,6 +80,19 @@
       <button class="btn" type="submit" id="hub-entrar">Entrar</button>
     </form>
 
+    <form class="login" id="hub-cambiar" hidden>
+      <p class="sub" style="margin-top:0">Por seguridad, elegí una contraseña nueva antes de seguir. La genérica ya no va a servir para entrar.</p>
+      <label for="hub-pw1">Contraseña nueva
+        <input id="hub-pw1" type="password" autocomplete="new-password" required>
+      </label>
+      <label for="hub-pw2">Repetí la contraseña
+        <input id="hub-pw2" type="password" autocomplete="new-password" required>
+      </label>
+      <p class="sub" style="margin-top:0;font-size:12px">Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+      <p class="error" id="hub-cambiar-error" hidden></p>
+      <button class="btn" type="submit" id="hub-cambiar-btn">Guardar y entrar</button>
+    </form>
+
     <div class="usuario" id="hub-usuario" hidden>
       <span id="hub-usuario-mail"></span>
       <button type="button" class="link-btn" id="hub-salir">Salir</button>
