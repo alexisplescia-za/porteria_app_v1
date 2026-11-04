@@ -15,6 +15,13 @@
 *.key
 secrets/
 
+# Solo local mientras el repo sea público: migraciones (contraseña genérica, mails),
+# auditoría de seguridad y script de backup. Si el repo pasa a privado, se pueden versionar.
+docs/
+**/sql/
+DEPLOY_TODAY_CHECKLIST.md
+admin/backup_porteria.gs
+
 # Dependencias / herramientas
 node_modules/
 .vercel/
