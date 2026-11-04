@@ -46,7 +46,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-vis
 .login-card h2{margin:0;font-size:18px}
 .login-card p{margin:0}
 .login-card .link-btn{justify-self:start;padding:0}
-.cargando{text-align:center;color:var(--muted);padding:60px 0;font-weight:600}
+.cargando{display:flex;align-items:center;justify-content:center;min-height:60vh;text-align:center;color:var(--muted);font-weight:600}
 
 /* KPIs */
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:0 0 16px}
