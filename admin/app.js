@@ -373,7 +373,7 @@
 
   /* ─── Tiendas ─── */
   async function cargarTiendas() {
-    var res = await sb.from('tiendas').select('numero, local, nombre, formato, region, jefe, jefe_mail, domicilio, m2').order('local');
+    var res = await sb.from('tiendas').select('numero, local, nombre, formato, region, jefe:jefe_nombre, jefe_mail, domicilio, m2').order('local');
     TIENDAS = res.data || [];
     poblarFiltrosTiendas();
     renderTiendas();
