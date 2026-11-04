@@ -1,30 +1,92 @@
-/* Indicador de carga de Central Mantenimiento: una chispa de 8 rayos que gira y late.
-   Uso: <span class="cm-loader" role="status" aria-label="Cargando"></span>  (·  "cm-loader chico" para listas y botones)
-   Color: hereda --cm-loader-color si la app lo define; si no, el azul de la app. */
-.cm-loader {
-  --cm-loader-color: #1F6FD6;
-  display: inline-block;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  vertical-align: middle;
-  background: repeating-conic-gradient(from -6deg, var(--cm-loader-color) 0deg 12deg, transparent 12deg 45deg);
-  -webkit-mask: radial-gradient(circle, transparent 0 24%, #000 25% 70%, transparent 71%);
-          mask: radial-gradient(circle, transparent 0 24%, #000 25% 70%, transparent 71%);
-  animation: cm-loader-giro 2.4s linear infinite, cm-loader-latido 1.2s ease-in-out infinite;
+/* Indicador de carga de Central Mantenimiento (estilo IA): una chispa de 8 rayos que respira
+   (se agranda y se achica), gira y afina/engrosa los rayos, con un anillo de destellos que gira al revés.
+   Color: NEGRO sobre fondo claro y BLANCO sobre fondo oscuro.
+     · Sigue el tema (data-theme o el del sistema) en el hub, Eficiencia y Admin.
+     · <html class="cm-claro"> lo fuerza negro (Frío, que siempre es clara).
+     · <html class="cm-oscuro"> lo fuerza blanco (Portería, que siempre es oscura).
+   Uso: <span class="cm-loader" role="status" aria-label="Cargando"></span>   ·   "cm-loader chico" en listas y botones */
+
+@property --cm-rayo {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 12deg;
 }
-.cm-loader.chico { width: 16px; height: 16px; }
+
+:root {
+  --cm-loader-color: #111418;
+  --cm-loader-brillo: rgba(17, 20, 24, .18);
+  --cm-loader-destello: rgba(17, 20, 24, .45);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not(.cm-claro) {
+    --cm-loader-color: #ffffff;
+    --cm-loader-brillo: rgba(140, 200, 255, .55);
+    --cm-loader-destello: rgba(170, 220, 255, .75);
+  }
+}
+:root[data-theme="dark"]:not(.cm-claro),
+:root.cm-oscuro {
+  --cm-loader-color: #ffffff;
+  --cm-loader-brillo: rgba(140, 200, 255, .55);
+  --cm-loader-destello: rgba(170, 220, 255, .75);
+}
+
+.cm-loader {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  vertical-align: middle;
+  filter: drop-shadow(0 0 6px var(--cm-loader-brillo));
+}
+
+/* Chispa: 8 rayos */
+.cm-loader::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, var(--cm-loader-color) 0deg var(--cm-rayo), transparent var(--cm-rayo) 45deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 14%, #000 15% 64%, transparent 67%);
+          mask: radial-gradient(circle, transparent 0 14%, #000 15% 64%, transparent 67%);
+  animation:
+    cm-loader-giro 3.2s cubic-bezier(.45, .05, .55, .95) infinite,
+    cm-loader-respira 1.8s ease-in-out infinite,
+    cm-loader-morfa 1.8s ease-in-out infinite;
+}
+
+/* Anillo de destellos que gira al revés */
+.cm-loader::after {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 22deg, var(--cm-loader-destello) 0deg 4deg, transparent 4deg 90deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 62%, #000 64% 70%, transparent 72%);
+          mask: radial-gradient(circle, transparent 0 62%, #000 64% 70%, transparent 72%);
+  animation: cm-loader-giro 4.8s linear infinite reverse, cm-loader-brillo 1.8s ease-in-out infinite;
+}
+
+.cm-loader.chico { width: 18px; height: 18px; filter: none; }
+.cm-loader.chico::after { display: none; }
+
 .cm-loader-centro { display: flex; align-items: center; justify-content: center; padding: 56px 0; }
 
-@media (prefers-color-scheme: dark) { .cm-loader { --cm-loader-color: #5AA2F0; } }
-:root[data-theme="dark"] .cm-loader { --cm-loader-color: #5AA2F0; }
-:root[data-theme="light"] .cm-loader { --cm-loader-color: #1F6FD6; }
-
 @keyframes cm-loader-giro { to { rotate: 360deg; } }
-@keyframes cm-loader-latido {
-  0%, 100% { scale: .82; opacity: .75; }
-  50% { scale: 1.06; opacity: 1; }
+@keyframes cm-loader-respira {
+  0%, 100% { scale: .5; }
+  50%      { scale: 1.08; }
 }
+@keyframes cm-loader-morfa {
+  0%, 100% { --cm-rayo: 18deg; }
+  50%      { --cm-rayo: 5deg; }
+}
+@keyframes cm-loader-brillo {
+  0%, 100% { opacity: .15; scale: .82; }
+  50%      { opacity: .95; scale: 1.06; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .cm-loader { animation: cm-loader-latido 2.4s ease-in-out infinite; }
+  .cm-loader::after { animation: none; }
+  .cm-loader::before { animation: cm-loader-respira 3s ease-in-out infinite; }
 }

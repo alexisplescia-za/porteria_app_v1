@@ -149,9 +149,22 @@ tr:hover td{background:var(--surface-2)}
   .input-search{min-width:0;width:100%}
   .filtros{flex-wrap:wrap;width:100%}
   .filtros select{flex:1;min-width:0}
-  .table-wrap table{min-width:0}
+  .frame{padding:0 12px}
+  .toolbar > .btn{width:100%}
+  /* Tablas → tarjetas: cada dato en su renglón, nada se sale de la pantalla */
+  .table-wrap{overflow-x:visible;background:transparent;border:0}
+  .table-wrap table{min-width:0;display:block}
   .table-wrap thead{display:none}
-  .table-wrap tbody tr{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:12px 14px;border-bottom:1px solid var(--line)}
-  .table-wrap tbody td{border:0;padding:0}
+  .table-wrap tbody{display:flex;flex-direction:column;gap:10px}
+  .table-wrap tbody tr{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+  .table-wrap tbody td{border:0;padding:0;width:100%;min-width:0;overflow-wrap:anywhere;text-align:left !important}
+  .table-wrap tbody td:first-child{font-weight:600;font-size:15px}
+  .table-wrap tr:hover td{background:transparent}
+  .table-wrap .badge{white-space:normal}
+  .acciones-cell{flex-wrap:wrap}
+  .acciones-cell .btn-sm{flex:1;min-height:40px}
+  .chk-acceso-cel label{display:flex;align-items:center;gap:10px;min-height:32px}
+  .chk-txt{display:inline}
 }
+.chk-txt{display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

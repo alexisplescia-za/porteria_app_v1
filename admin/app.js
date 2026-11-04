@@ -114,10 +114,10 @@
       var mods = u.modulos || [];
       var celdas = MODULOS_ACCESO.map(function (m) {
         var nombre = (window.Acceso && Acceso.NOMBRES[m]) || m;
-        return '<td style="text-align:center"><input type="checkbox" class="chk-acceso"' +
+        return '<td class="chk-acceso-cel" style="text-align:center"><label><input type="checkbox" class="chk-acceso"' +
           ' data-email="' + esc(u.email) + '" data-modulo="' + m + '"' +
           ' aria-label="' + esc(nombre + ' para ' + u.email) + '"' +
-          (mods.indexOf(m) !== -1 ? ' checked' : '') + '></td>';
+          (mods.indexOf(m) !== -1 ? ' checked' : '') + '><span class="chk-txt">' + esc(nombre) + '</span></label></td>';
       }).join('');
       return '<tr><td>' + esc(u.email) + (u.nombre ? '<div class="muted" style="font-size:12px">' + esc(u.nombre) + '</div>' : '') + '</td>' +
         celdas +
