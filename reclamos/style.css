@@ -378,6 +378,18 @@ input:focus,textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 
 
 /* a cargo, cargado por, respuestas, traspaso y finalizar */
 .c-id .cargo-por{white-space:normal;word-break:break-all;font-family:inherit;font-size:11px;max-width:160px}
+
+/* Modo "Panel lateral" en pantalla grande: la lista comparte el ancho con el detalle.
+   Sector se ve en el panel ("Tipo"), así que en la lista se oculta y Estado tiene lugar para leerse. */
+@media (min-width:1101px){
+  .console:not(.acordeon) .tbl table{min-width:0}
+  .console:not(.acordeon) .tbl th:nth-child(3),
+  .console:not(.acordeon) .tbl td.c-sec{display:none}
+  .console:not(.acordeon) .tbl td.c-est{min-width:170px}
+  .console:not(.acordeon) .tbl td.c-prob{min-width:180px}
+  .console:not(.acordeon) .tbl td.c-ant{white-space:nowrap}
+  .console:not(.acordeon) .tbl td.c-id .cargo-por{max-width:130px}
+}
 .a-cargo b{color:var(--ink,inherit);font-weight:600}
 .traspaso:not([hidden]){display:grid;gap:8px;margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
 .traspaso .acciones,.finalizar .acciones{display:flex;gap:8px;justify-content:flex-end}
