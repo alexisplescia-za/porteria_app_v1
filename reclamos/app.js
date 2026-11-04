@@ -154,6 +154,7 @@ async function sincronizarUsuario_(session) {
     $('login-error').hidden = false;
     return;
   }
+  if (window.Acceso && !(await Acceso.exigir(supabase, 'reclamos'))) return;
   S.usuario = { email: mail, nombre: r.data.nombre, rol: r.data.rol };
   $('usuario-nombre').textContent = (r.data.nombre || mail) + (r.data.rol === 'gestor' ? ' · gestor' : ' · carga');
   $('usuario').hidden = false;

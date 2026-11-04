@@ -22,6 +22,7 @@
       }
     }
     *{box-sizing:border-box;margin:0;padding:0}
+    [hidden]{display:none!important}
     html,body{min-height:100%}
     body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
     .wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:32px 16px}
@@ -42,16 +43,51 @@
     .recl{--accent:#35616B;--tint:rgba(53,97,107,.12)}
     .admin{--accent:var(--blue);--tint:var(--blue-tint)}
     .firma{margin-top:32px;text-align:center;font-size:12px;color:var(--text-2)}
+    .login{display:flex;flex-direction:column;gap:12px;margin-top:28px;padding:20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px}
+    .login label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--text-2)}
+    .login input{font:inherit;font-size:15px;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text)}
+    .login input:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+    .btn{font:inherit;font-size:15px;font-weight:700;padding:12px;border:0;border-radius:10px;background:var(--blue);color:#fff;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:default}
+    .btn:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+    .error{font-size:13px;color:#C62828}
+    .aviso{margin-top:20px;padding:12px 14px;border-radius:10px;background:var(--blue-tint);font-size:13px;line-height:1.5}
+    .porteria-directa{margin-top:16px;text-align:center;font-size:13px;color:var(--text-2)}
+    .porteria-directa a{color:var(--blue);font-weight:600}
+    .usuario{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;font-size:13px;color:var(--text-2)}
+    .link-btn{font:inherit;font-size:13px;font-weight:600;background:none;border:0;padding:4px 0;color:var(--blue);cursor:pointer}
+    .estado{margin-top:28px;font-size:14px;color:var(--text-2)}
   </style>
 </head>
 <body>
   <main class="wrap">
     <div class="eyebrow">Carrefour &middot; Mantenimiento</div>
     <h1>Central Mantenimiento App</h1>
-    <p class="sub">¿A qué aplicación querés ingresar?</p>
+    <p class="sub" id="hub-sub">¿A qué aplicación querés ingresar?</p>
 
-    <nav class="list">
-      <a class="opt frio" href="/frioalimentario_relevamiento">
+    <p class="aviso" id="hub-aviso" hidden></p>
+    <p class="estado" id="hub-cargando">Cargando…</p>
+
+    <form class="login" id="hub-login" hidden>
+      <label for="hub-email">Mail de Carrefour
+        <input id="hub-email" type="email" autocomplete="email" placeholder="tunombre@carrefour.com" required>
+      </label>
+      <label for="hub-password">Contraseña
+        <input id="hub-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p class="error" id="hub-error" hidden></p>
+      <button class="btn" type="submit" id="hub-entrar">Entrar</button>
+    </form>
+    <p class="porteria-directa" id="hub-porteria-directa" hidden>¿Sos de Portería? <a href="/porteria">Ingresá con tu usuario de Portería</a></p>
+
+    <div class="usuario" id="hub-usuario" hidden>
+      <span id="hub-usuario-mail"></span>
+      <button type="button" class="link-btn" id="hub-salir">Salir</button>
+    </div>
+    <p class="estado" id="hub-vacio" hidden>Todavía no tenés aplicaciones habilitadas. Pedíselas a un administrador.</p>
+
+    <nav class="list" id="hub-modulos" hidden>
+      <a class="opt frio" href="/frioalimentario_relevamiento" data-modulo="frio">
         <span class="ico">❄️</span>
         <div>
           <div class="opt-title">Relevamiento de Frío Alimentario</div>
@@ -59,7 +95,7 @@
         </div>
         <span class="arrow">›</span>
       </a>
-      <a class="opt port" href="/porteria">
+      <a class="opt port" href="/porteria" data-modulo="porteria">
         <span class="ico">🛡️</span>
         <div>
           <div class="opt-title">Portería</div>
@@ -67,7 +103,7 @@
         </div>
         <span class="arrow">›</span>
       </a>
-      <a class="opt recl" href="/reclamos">
+      <a class="opt recl" href="/reclamos" data-modulo="reclamos">
         <span class="ico">💡</span>
         <div>
           <div class="opt-title">Reclamo a proveedores - Eficiencia Energética</div>
@@ -75,7 +111,7 @@
         </div>
         <span class="arrow">›</span>
       </a>
-      <a class="opt admin" href="/admin">
+      <a class="opt admin" href="/admin" data-modulo="admin">
         <span class="ico">⚙️</span>
         <div>
           <div class="opt-title">Administración</div>
@@ -86,5 +122,9 @@
     </nav>
     <footer class="firma">Desarrollado por Alexis Plescia</footer>
   </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/frio-alimentario/config.js"></script>
+  <script src="/shared/acceso.js"></script>
+  <script src="/hub.js"></script>
 </body>
 </html>

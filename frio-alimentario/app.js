@@ -152,6 +152,7 @@ async function enviarLogin() {
 
 async function cargarDatosUsuario_(email) {
   irA('loading');
+  if (window.Acceso && !(await Acceso.exigir(supabase, 'frio'))) return;
   try {
     var r = await Promise.all([cargarTiendasDeEmail_(email), cargarParametros_()]);
     STATE.params = r[1];

@@ -60,6 +60,7 @@
         <div class="tabs" id="tabs">
           <button data-tab="usuarios" class="active">Usuarios</button>
           <button data-tab="tiendas">Tiendas</button>
+          <button data-tab="accesos">Accesos</button>
         </div>
 
         <!-- Tab: Usuarios -->
@@ -138,6 +139,31 @@
             </table>
           </div>
           <div class="tabla-info" id="tabla-tiendas-info"></div>
+        </div>
+
+        <!-- Tab: Accesos -->
+        <div id="t-accesos" hidden>
+          <div class="toolbar">
+            <input id="buscar-acceso" class="input-search" placeholder="Buscar por email o nombre…">
+          </div>
+          <p class="muted" style="font-size:13px;margin:0 0 12px">Tildá las aplicaciones que ve cada usuario al entrar a Central Mantenimiento. Los cambios se guardan al instante. Eficiencia Energética entra con rol "carga"; para hacerlo gestor, editá su rol en Reclamos.</p>
+          <p class="error" id="accesos-error" hidden></p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th>
+                  <th>Portería</th>
+                  <th>Eficiencia Energética</th>
+                  <th>Frío Alimentario</th>
+                  <th>Administración</th>
+                  <th>Último ingreso</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-accesos"></tbody>
+            </table>
+          </div>
+          <div class="tabla-info" id="tabla-accesos-info"></div>
         </div>
 
         <footer class="firma">Desarrollado por Alexis Plescia</footer>
@@ -223,6 +249,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="/frio-alimentario/config.js"></script>
+  <script src="/shared/acceso.js"></script>
   <script src="/admin/app.js"></script>
 </body>
 </html>

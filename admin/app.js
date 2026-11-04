@@ -78,9 +78,77 @@
   /* ─── Cargar panel ─── */
   async function cargarPanel() {
     show('view-loading');
-    await Promise.all([cargarUsuarios(), cargarTiendas()]);
+    await Promise.all([cargarUsuarios(), cargarTiendas(), cargarAccesos()]);
     show('view-panel');
   }
+
+  /* ─── Accesos por módulo (SQL 031) ─── */
+  var ACCESOS = [];
+  var MODULOS_ACCESO = ['porteria', 'reclamos', 'frio', 'admin'];
+
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  async function cargarAccesos() {
+    var res = await sb.rpc('admin_listar_accesos');
+    if (res.error) {
+      ACCESOS = [];
+      $('accesos-error').textContent = 'No se pudieron cargar los accesos. ¿Está aplicado el SQL 031? (' + res.error.message + ')';
+      $('accesos-error').hidden = false;
+    } else {
+      ACCESOS = res.data || [];
+      $('accesos-error').hidden = true;
+    }
+    renderAccesos();
+  }
+
+  function renderAccesos() {
+    var q = $('buscar-acceso').value.trim().toLowerCase();
+    var lista = ACCESOS.filter(function (u) {
+      return !q || (u.email + ' ' + (u.nombre || '')).toLowerCase().indexOf(q) !== -1;
+    });
+    var html = lista.map(function (u) {
+      var mods = u.modulos || [];
+      var celdas = MODULOS_ACCESO.map(function (m) {
+        var nombre = (window.Acceso && Acceso.NOMBRES[m]) || m;
+        return '<td style="text-align:center"><input type="checkbox" class="chk-acceso"' +
+          ' data-email="' + esc(u.email) + '" data-modulo="' + m + '"' +
+          ' aria-label="' + esc(nombre + ' para ' + u.email) + '"' +
+          (mods.indexOf(m) !== -1 ? ' checked' : '') + '></td>';
+      }).join('');
+      return '<tr><td>' + esc(u.email) + (u.nombre ? '<div class="muted" style="font-size:12px">' + esc(u.nombre) + '</div>' : '') + '</td>' +
+        celdas +
+        '<td>' + (u.ultimo_ingreso ? fmtFecha(u.ultimo_ingreso) : '<span class="badge badge-red">Nunca</span>') + '</td></tr>';
+    }).join('');
+    $('tabla-accesos').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin resultados</td></tr>';
+    $('tabla-accesos-info').textContent = 'Mostrando ' + lista.length + ' de ' + ACCESOS.length + ' usuarios';
+  }
+
+  $('buscar-acceso').addEventListener('input', renderAccesos);
+
+  $('tabla-accesos').addEventListener('change', async function (e) {
+    var chk = e.target;
+    if (!chk.classList || !chk.classList.contains('chk-acceso')) return;
+    var email = chk.dataset.email, modulo = chk.dataset.modulo, habilitado = chk.checked;
+    chk.disabled = true;
+    var res = await sb.rpc('admin_set_acceso', { p_email: email, p_modulo: modulo, p_habilitado: habilitado });
+    chk.disabled = false;
+    var nombre = (window.Acceso && Acceso.NOMBRES[modulo]) || modulo;
+    if (res.error) {
+      chk.checked = !habilitado;
+      toast('No se pudo guardar: ' + res.error.message);
+      return;
+    }
+    var u = ACCESOS.find(function (x) { return x.email === email; });
+    if (u) {
+      u.modulos = (u.modulos || []).filter(function (m) { return m !== modulo; });
+      if (habilitado) u.modulos.push(modulo);
+    }
+    toast((habilitado ? 'Habilitado ' : 'Quitado ') + nombre + ' para ' + email);
+  });
 
   /* ─── Usuarios ─── */
   async function cargarUsuarios() {
@@ -491,6 +559,7 @@
       var tab = btn.dataset.tab;
       $('t-usuarios').hidden = tab !== 'usuarios';
       $('t-tiendas').hidden  = tab !== 'tiendas';
+      $('t-accesos').hidden  = tab !== 'accesos';
     });
   });
 
