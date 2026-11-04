@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin — Central Mantenimiento App</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23004E9E'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>A</text></svg>">
+  <link rel="stylesheet" href="/admin/style.css">
+  <script>try{var t=localStorage.getItem('admin_tema');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){/* default dark */}</script>
+</head>
+<body>
+
+  <div class="frame">
+
+    <!-- ============ Login ============ -->
+    <div id="view-login" class="view active">
+      <div class="wrap">
+        <header class="top">
+          <div>
+            <a href="/" class="volver">&#8249; Central Mantenimiento App</a>
+            <div class="eyebrow">Central de Mantenimiento País</div>
+            <h1>Administración</h1>
+          </div>
+          <div class="top-der">
+            <button type="button" id="btn-tema-login" class="theme-toggle" title="Cambiar tema"></button>
+          </div>
+        </header>
+        <section class="login">
+          <div class="card login-card">
+            <form id="f-login">
+              <h2>Ingresá con tu mail de Carrefour</h2>
+              <p class="muted">Sólo pueden entrar los usuarios administradores.</p>
+              <input id="login-email" type="email" placeholder="tunombre@carrefour.com" autocomplete="email" required>
+              <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+              <p class="error" id="login-error" hidden></p>
+              <button class="btn" type="submit" id="btn-login">Entrar</button>
+            </form>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- ============ Panel principal ============ -->
+    <div id="view-panel" class="view">
+      <header class="top">
+        <div>
+          <a href="/" class="volver">‹ Central Mantenimiento App</a>
+          <div class="eyebrow">Central de Mantenimiento País</div>
+          <h1>Administración</h1>
+        </div>
+        <div class="top-der">
+          <span class="muted" id="admin-email" style="font-size:13px"></span>
+          <button type="button" class="theme-toggle" id="btn-tema" title="Cambiar tema"></button>
+          <button class="btn ghost chico" id="btn-salir">Salir</button>
+        </div>
+      </header>
+      <div class="content">
+
+        <!-- Tabs -->
+        <div class="tabs" id="tabs">
+          <button data-tab="usuarios" class="active">Usuarios</button>
+          <button data-tab="tiendas">Tiendas</button>
+        </div>
+
+        <!-- Tab: Usuarios -->
+        <div id="t-usuarios">
+          <div class="toolbar">
+            <input id="buscar-usuario" class="input-search" placeholder="Buscar por email…">
+            <button class="btn ghost chico" id="btn-copiar-tabla">Copiar tabla</button>
+            <button class="btn ghost chico" id="btn-exportar-csv">Exportar CSV</button>
+            <div class="filtros">
+              <select id="filtro-pw">
+                <option value="">Contraseña: todos</option>
+                <option value="generica">Con contraseña genérica</option>
+                <option value="propia">Con contraseña propia</option>
+              </select>
+              <select id="filtro-login">
+                <option value="">Login: todos</option>
+                <option value="si">Ingresó alguna vez</option>
+                <option value="no">Nunca ingresó</option>
+              </select>
+              <select id="filtro-modulo">
+                <option value="">Módulo: todos</option>
+                <option value="Frío Alimentario">Frío Alimentario</option>
+                <option value="Eficiencia Energética">Eficiencia Energética</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="kpis" id="kpis"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Módulo</th>
+                  <th>Contraseña</th>
+                  <th>Último ingreso</th>
+                  <th>Creado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-usuarios"></tbody>
+            </table>
+          </div>
+          <div class="tabla-info" id="tabla-info"></div>
+        </div>
+
+        <!-- Tab: Tiendas -->
+        <div id="t-tiendas" hidden>
+          <div class="toolbar">
+            <input id="buscar-tienda" class="input-search" placeholder="Buscar por tienda, local o jefe…">
+            <div class="filtros">
+              <select id="filtro-formato">
+                <option value="">Formato: todos</option>
+              </select>
+              <select id="filtro-region">
+                <option value="">Región: todas</option>
+              </select>
+            </div>
+            <button class="btn" id="btn-nueva-tienda">+ Nueva tienda</button>
+          </div>
+          <div class="kpis" id="kpis-tiendas"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nro</th>
+                  <th>Local</th>
+                  <th>Formato</th>
+                  <th>Región</th>
+                  <th>Jefe</th>
+                  <th>Mail jefe</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-tiendas"></tbody>
+            </table>
+          </div>
+          <div class="tabla-info" id="tabla-tiendas-info"></div>
+        </div>
+
+        <footer class="firma">Desarrollado por Alexis Plescia</footer>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="view-loading" class="view cargando">Cargando…</div>
+  </div>
+
+  <!-- Modal de confirmación -->
+  <div class="modal-overlay" id="modal" hidden>
+    <div class="modal-box">
+      <h3 id="modal-titulo"></h3>
+      <p id="modal-msg"></p>
+      <div id="modal-pw-input" hidden>
+        <input id="modal-pw-field" type="text" placeholder="Nueva contraseña" autocomplete="off" style="width:100%;margin-top:4px">
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="modal-cancelar">Cancelar</button>
+        <button class="btn peligro" id="modal-confirmar">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar tienda -->
+  <div class="modal-overlay" id="modal-tienda" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="modal-tienda-titulo">Editar tienda</h3>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Número</label>
+          <input id="t-numero" type="number" min="1" placeholder="Ej: 1234">
+        </div>
+        <div class="form-field">
+          <label>Local (nombre corto)</label>
+          <input id="t-local" type="text" placeholder="Ej: SAN MARTÍN 1234">
+        </div>
+        <div class="form-field">
+          <label>Nombre</label>
+          <input id="t-nombre" type="text" placeholder="Nombre completo">
+        </div>
+        <div class="form-field">
+          <label>Formato</label>
+          <select id="t-formato">
+            <option>HIPERMERCADO</option>
+            <option>MAXI</option>
+            <option>MARKET</option>
+            <option>EXPRESS</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Región</label>
+          <input id="t-region" type="text" placeholder="Ej: AMBA SUR">
+        </div>
+        <div class="form-field">
+          <label>Jefe</label>
+          <input id="t-jefe" type="text" placeholder="Nombre del jefe">
+        </div>
+        <div class="form-field">
+          <label>Mail jefe</label>
+          <input id="t-jefe-mail" type="email" placeholder="nombre@carrefour.com">
+        </div>
+        <div class="form-field">
+          <label>Domicilio</label>
+          <input id="t-domicilio" type="text" placeholder="Dirección">
+        </div>
+        <div class="form-field">
+          <label>M²</label>
+          <input id="t-m2" type="number" min="0" step="1" placeholder="Superficie">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="modal-tienda-cancelar">Cancelar</button>
+        <button class="btn peligro" id="modal-tienda-eliminar" hidden>Eliminar</button>
+        <button class="btn" id="modal-tienda-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/frio-alimentario/config.js"></script>
+  <script src="/admin/app.js"></script>
+</body>
+</html>

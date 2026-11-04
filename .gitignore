@@ -1,0 +1,8 @@
+# Presentaciones y documentos locales (no se publican)
+*.pptx
+*.ppt
+*.xlsx
+*.pdf
+
+# Configuración local de Claude Code
+.claude/

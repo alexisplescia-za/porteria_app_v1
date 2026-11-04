@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Central Mantenimiento App</title>
+  <script src="/redirigir-invitacion.js"></script>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
+  <style>
+    :root{
+      --bg:#F5F7F6;--surface:#FFFFFF;--border:#E3E8E6;
+      --text:#12211B;--text-2:#5B6B64;
+      --blue:#005BBB;--blue-tint:#E5EFFA;
+      --green:#00573F;--green-tint:#E3F1EC;
+    }
+    @media (prefers-color-scheme: dark){
+      :root{
+        --bg:#0B0F0D;--surface:#151A18;--border:#2A322F;
+        --text:#F2F5F4;--text-2:#9AA8A2;
+        --blue:#4C9BEF;--blue-tint:rgba(76,155,239,.12);
+        --green:#3DBE8F;--green-tint:rgba(61,190,143,.12);
+      }
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{min-height:100%}
+    body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+    .wrap{max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:32px 16px}
+    .eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+    h1{font-size:26px;margin-top:6px}
+    .sub{font-size:14px;color:var(--text-2);margin-top:8px;line-height:1.5}
+    .list{display:flex;flex-direction:column;gap:12px;margin-top:28px}
+    .opt{display:flex;align-items:center;gap:14px;padding:18px 16px;background:var(--surface);border:1px solid var(--border);border-radius:14px;color:inherit;text-decoration:none;transition:transform .12s,border-color .12s}
+    .opt:hover{border-color:var(--accent)}
+    .opt:active{transform:scale(.98)}
+    .opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    .ico{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;background:var(--tint)}
+    .opt-title{font-size:16px;font-weight:700}
+    .opt-desc{font-size:13px;color:var(--text-2);margin-top:3px}
+    .arrow{margin-left:auto;font-size:20px;color:var(--text-2)}
+    .frio{--accent:var(--green);--tint:var(--green-tint)}
+    .port{--accent:var(--blue);--tint:var(--blue-tint)}
+    .recl{--accent:#35616B;--tint:rgba(53,97,107,.12)}
+    .admin{--accent:var(--blue);--tint:var(--blue-tint)}
+    .firma{margin-top:32px;text-align:center;font-size:12px;color:var(--text-2)}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="eyebrow">Carrefour &middot; Mantenimiento</div>
+    <h1>Central Mantenimiento App</h1>
+    <p class="sub">¿A qué aplicación querés ingresar?</p>
+
+    <nav class="list">
+      <a class="opt frio" href="/frioalimentario_relevamiento">
+        <span class="ico">❄️</span>
+        <div>
+          <div class="opt-title">Relevamiento de Frío Alimentario</div>
+          <div class="opt-desc">Carga de relevamientos por tienda</div>
+        </div>
+        <span class="arrow">›</span>
+      </a>
+      <a class="opt port" href="/porteria">
+        <span class="ico">🛡️</span>
+        <div>
+          <div class="opt-title">Portería</div>
+          <div class="opt-desc">Control de acceso de proveedores y repartos</div>
+        </div>
+        <span class="arrow">›</span>
+      </a>
+      <a class="opt recl" href="/reclamos">
+        <span class="ico">💡</span>
+        <div>
+          <div class="opt-title">Reclamo a proveedores - Eficiencia Energética</div>
+          <div class="opt-desc">Registro y seguimiento de reclamos a BMS, PME y otros</div>
+        </div>
+        <span class="arrow">›</span>
+      </a>
+      <a class="opt admin" href="/admin">
+        <span class="ico">⚙️</span>
+        <div>
+          <div class="opt-title">Administración</div>
+          <div class="opt-desc">Gestión de usuarios, contraseñas y tiendas</div>
+        </div>
+        <span class="arrow">›</span>
+      </a>
+    </nav>
+    <footer class="firma">Desarrollado por Alexis Plescia</footer>
+  </main>
+</body>
+</html>

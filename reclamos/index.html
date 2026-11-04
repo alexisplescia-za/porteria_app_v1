@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reclamos EE — Central Mantenimiento App</title>
+<script>(function () { try {
+  var t = localStorage.getItem('reclamos_tema');
+  if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+} catch (e) { } })();</script>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23004E9E'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>R</text></svg>">
+<link rel="stylesheet" href="/reclamos/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <a href="/" class="volver">‹ Central Mantenimiento App</a>
+      <div class="eyebrow">Central de Mantenimiento País · Eficiencia Energética</div>
+      <h1>Reclamos a Proveedores</h1>
+    </div>
+    <div class="top-der">
+      <div class="usuario" id="usuario" hidden>
+        <span id="usuario-nombre"></span>
+        <button class="btn ghost chico" id="btn-cambiar-pw">Cambiar contraseña</button>
+        <button class="btn ghost chico" id="btn-salir">Salir</button>
+      </div>
+      <button type="button" id="btn-tema" class="theme-toggle" title="Cambiar tema"></button>
+    </div>
+  </header>
+
+  <!-- ============ Login ============ -->
+  <section id="v-login" class="login">
+    <div class="card login-card">
+      <form id="f-login">
+        <h2 id="login-titulo">Ingresá con tu mail de Carrefour</h2>
+        <p class="muted" id="login-sub">Sólo pueden entrar los usuarios habilitados para gestionar reclamos.</p>
+        <input id="login-mail" type="email" placeholder="tunombre@carrefour.com" autocomplete="email" required>
+        <input id="login-password" type="password" placeholder="Contraseña" autocomplete="current-password" required>
+        <p class="error" id="login-error" hidden></p>
+        <button class="btn" type="submit" id="btn-entrar">Entrar</button>
+      </form>
+      <form id="f-set-password" hidden>
+        <h2>Elegí tu contraseña</h2>
+        <p class="muted">Es tu primer ingreso (o pediste restablecerla). Elegí una contraseña para tu cuenta.</p>
+        <input id="set-password-nueva" type="password" placeholder="Elegí una contraseña" autocomplete="new-password" required>
+        <input id="set-password-confirmar" type="password" placeholder="Repetí la contraseña" autocomplete="new-password" required>
+        <p class="desc-in">Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+        <p class="error" id="set-password-error" hidden></p>
+        <button class="btn" type="submit" id="btn-set-password">Guardar contraseña y entrar</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ Consola ============ -->
+  <section id="v-consola" hidden>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Vistas">
+      <button role="tab" data-tab="tickets" class="on" aria-selected="true">Tickets</button>
+      <button role="tab" data-tab="dashboard" aria-selected="false">Dashboard</button>
+      <button role="tab" data-tab="dev" id="tab-dev" aria-selected="false" hidden>Desarrollo</button>
+    </nav>
+    <div id="t-tickets">
+    <div class="kpis" id="kpis"></div>
+    <div class="prov" id="prov"></div>
+    <details class="seguimiento" id="seguimiento-wrap">
+      <summary>Seguimiento por sistema</summary>
+      <div id="seguimiento"></div>
+    </details>
+    <div class="toolbar">
+      <input id="q" class="grow" placeholder="Buscar por ID, tienda, descripción o referencia" aria-label="Buscar">
+      <select id="f-prov" aria-label="Sistema"><option value="">Todos los sistemas</option></select>
+      <select id="f-tipo" aria-label="Tipo"><option value="">Todos los tipos</option></select>
+      <select id="f-motivo" aria-label="Motivo"><option value="">Todos los motivos</option></select>
+      <select id="f-region" aria-label="Región"><option value="">Todas las regiones</option></select>
+      <input id="f-tienda" list="lista-tiendas" autocomplete="off" placeholder="Tienda (número o nombre)" aria-label="Filtrar por tienda">
+      <select id="f-estado" aria-label="Estado">
+        <option value="abiertos">Abiertos</option>
+        <option value="">Todos</option>
+        <option value="vencidos">Sólo vencidos</option>
+        <option value="mas30">Más de 30 días</option>
+        <option value="reiterados">Reclamados más de una vez</option>
+        <option value="devueltos">Con devoluciones</option>
+        <option value="fuera">En Compras / Mantenimiento</option>
+        <option value="Cerrado">Cerrados</option>
+        <option value="anulados">Anulados</option>
+      </select>
+      <button class="btn ghost" id="btn-csv">Exportar CSV</button>
+      <button class="btn" id="btn-nuevo">+ Nuevo reclamo</button>
+    </div>
+    <div class="lista-barra">
+      <div class="lista-info" id="lista-info"></div>
+      <div class="lista-barra-der">
+        <div class="vista-modo" role="group" aria-label="Vista de la lista">
+          <button type="button" data-vista="panel" class="on" title="El detalle se ve al costado">Panel lateral</button>
+          <button type="button" data-vista="acordeon" title="El detalle se despliega debajo de cada fila">Acordeón</button>
+        </div>
+        <label class="lista-orden">Ordenar por
+          <select id="f-orden" aria-label="Ordenar por">
+            <option value="antiguos">Más antiguos primero</option>
+            <option value="reclamados">Más veces reclamados</option>
+            <option value="prioridad">Prioridad</option>
+            <option value="compromiso">Fecha compromiso más próxima</option>
+            <option value="recientes">Más recientes primero</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="console" id="console">
+      <div class="tbl"><table>
+        <thead><tr><th>ID</th><th>Sistema · Tienda</th><th>Sector</th><th>Problema</th><th>Prioridad</th><th>Estado</th><th>Antigüedad</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+      <aside class="panel-slot" id="panel-slot">
+        <div class="panel" id="detalle"><p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p></div>
+      </aside>
+    </div>
+    </div>
+    <div id="t-dashboard" hidden></div>
+    <div id="t-dev" hidden></div>
+    <footer class="firma">Desarrollado por Alexis Plescia</footer>
+  </section>
+
+  <section id="v-cargando" class="cargando" hidden>Cargando…</section>
+</div>
+<div id="detalle-holder" hidden></div>
+
+<!-- ============ Nuevo reclamo ============ -->
+<div class="sheet" id="sheet" hidden>
+  <form id="f-nuevo" autocomplete="off">
+    <div class="sheet-head"><h3>Nuevo reclamo</h3><span class="idprev">El ID se genera al guardar</span></div>
+    <div class="two">
+      <label>Sistema<select id="n-prov" required></select></label>
+      <label>Tipo<select id="n-tipo" required></select></label>
+    </div>
+    <div class="two">
+      <label>Motivo del ticket<select id="n-motivo" required></select></label>
+      <label>Prioridad<select id="n-pri"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label>
+    </div>
+    <div class="campo-tienda"><span class="campo-tit">Tienda</span>
+      <div id="n-tiendas-box"></div>
+      <datalist id="lista-tiendas"></datalist>
+    </div>
+    <label>Categoría<select id="n-cat" required></select></label>
+    <label>Descripción<textarea id="n-desc" rows="3" required placeholder="Qué pasa, desde cuándo y qué se le pidió al proveedor"></textarea></label>
+    <div class="two">
+      <label>Vía del reclamo/solicitud<select id="n-via" required></select></label>
+      <label>Fecha que comprometió el proveedor<input type="date" id="n-comp"></label>
+    </div>
+    <div class="two">
+      <label>Persona que realizó el reclamo/solicitud<input id="n-solic" required placeholder="Nombre y apellido"></label>
+      <label>Referencia<input id="n-ref" placeholder="OT SAP, Mantech o asunto del mail"></label>
+    </div>
+    <p class="error" id="n-error" hidden></p>
+    <div class="acciones">
+      <button type="button" class="btn ghost" id="btn-cancelar">Cancelar</button>
+      <button class="btn" type="submit" id="btn-guardar">Registrar reclamo</button>
+    </div>
+  </form>
+</div>
+<!-- ============ Cambiar contraseña ============ -->
+<div class="sheet" id="sheet-pw" hidden>
+  <form id="f-cambiar-pw" autocomplete="off">
+    <div class="sheet-head"><h3>Cambiar contraseña</h3></div>
+    <input id="pw-nueva" type="password" placeholder="Nueva contraseña" autocomplete="new-password" required>
+    <input id="pw-confirmar" type="password" placeholder="Repetí la contraseña" autocomplete="new-password" required>
+    <p class="desc-in">Al menos 8 caracteres, con una mayúscula, una minúscula y un número.</p>
+    <p class="error" id="pw-error" hidden></p>
+    <div class="acciones">
+      <button type="button" class="btn ghost" id="btn-cancelar-pw">Cancelar</button>
+      <button class="btn" type="submit" id="btn-guardar-pw">Guardar</button>
+    </div>
+  </form>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/frio-alimentario/config.js"></script>
+<script src="/reclamos/controles.js"></script>
+<script src="/reclamos/app.js"></script>
+<script src="/reclamos/panel.js"></script>
+</body>
+</html>

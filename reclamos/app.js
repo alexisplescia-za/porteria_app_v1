@@ -1,0 +1,1220 @@
+// Reclamos a Proveedores — Eficiencia Energética.
+// Frontend conectado directo a Supabase (mismo proyecto que Frío Alimentario).
+// Las escrituras pasan por funciones de la base (crear_reclamo, cambiar_estado_reclamo, editar_reclamo,
+// comentar_reclamo, reiterar_reclamo, derivar_reclamo) que validan el usuario, generan el ID y dejan historial.
+// El usuario sale de la sesión de Supabase Auth (auth.email() del lado del servidor) — el cliente
+// no le manda el mail como parámetro, así no se puede actuar "como" otra persona.
+
+// Se guarda antes de que supabase-js procese y borre el hash/los parámetros (detectSessionInUrl,
+// automático al crear el cliente) — así sabemos si esta carga viene de un link de invitación o de
+// recuperación de contraseña, para mostrarle "elegí tu contraseña" en vez del login normal. Según
+// el modo de autenticación, Supabase manda esa marca en el hash (#...type=invite) o en los
+// parámetros de la URL (?...type=invite) — se guardan los dos por las dudas.
+var _hashInicial = location.hash;
+var _searchInicial = location.search;
+var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+var ESTADOS = ['Nuevo', 'Enviado al proveedor', 'Respuesta proveedor', 'En resolución', 'Pendiente validación', 'Escalado', 'Reabierto', 'Cerrado'];
+var COLOR_FORMATO = { HIPERMERCADO: 'var(--hiper)', MAXI: 'var(--maxi)', MARKET: 'var(--market)', EXPRESS: 'var(--express)' };
+var TRAMOS = [['0-7 días', 'var(--line)'], ['8-15 días', 'var(--warn)'], ['16-30 días', 'var(--orange)'], ['+30 días', 'var(--bad)']];
+var DIA = 864e5;
+var CLASE_PRIORIDAD = { Alta: 'a3', Media: 'a1', Baja: 'a0' };
+var AREA_ESTILO = {
+  PROVEEDOR: 'background:var(--surface-2);color:var(--muted)',
+  COMPRAS: 'background:var(--warn-bg);color:var(--warn)',
+  MANTENIMIENTO: 'background:var(--ok-bg);color:var(--ok)'
+};
+
+var S = { usuario: null, tiendas: {}, provs: [], cats: [], opciones: { tipo: [], motivo: [], via: [], area: [] }, reclamos: [], eventos: {}, sel: null, vista: 'panel' };
+
+// ---------------------------------------------------------------
+// Utilidades
+// ---------------------------------------------------------------
+
+function $(id) { return document.getElementById(id); }
+function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function hoy() { var d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+function soloFecha(x) { var d = new Date(x); d.setHours(0, 0, 0, 0); return d; }
+function fechaLocal(ymd) { if (!ymd) return null; var p = ymd.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function fmtD(x) { return x ? new Date(x).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—'; }
+function fmtDH(x) { return new Date(x).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); }
+function guardarLocal(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+function leerLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+// Tema claro/oscuro: si el usuario no eligió uno a mano, sigue al del sistema.
+function temaEfectivo() {
+  var t = document.documentElement.getAttribute('data-theme');
+  if (t === 'light' || t === 'dark') return t;
+  return (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+}
+function aplicarTema(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  guardarLocal('reclamos_tema', t);
+  $('btn-tema').setAttribute('aria-label', t === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+  if (typeof renderPanel === 'function') renderPanel();
+}
+// Suma el valor actual a la lista si ya no está activo (para no perderlo al editar).
+function conActual_(lista, actual) { return actual && lista.indexOf(actual) === -1 ? lista.concat([actual]) : lista; }
+
+function opciones(lista, actual, vacia) {
+  return (vacia ? '<option value="">' + vacia + '</option>' : '') + lista.map(function (v) {
+    return '<option' + (v === actual ? ' selected' : '') + '>' + esc(v) + '</option>';
+  }).join('');
+}
+
+var _tt;
+function toast(m, mal) {
+  var t = $('toast'); t.textContent = m; t.className = 'toast' + (mal ? ' mal' : ''); t.hidden = false;
+  clearTimeout(_tt); _tt = setTimeout(function () { t.hidden = true; }, mal ? 5000 : 2400);
+}
+function mensajeError(err) {
+  var m = (err && (err.message || err.error_description)) || String(err);
+  return m.replace(/^.*?ERROR:\s*/, '');
+}
+
+function tienda(r) { return S.tiendas[r.tienda_numero] || null; }
+// Nombre para mostrar de un usuario (mail → nombre cargado en reclamos_usuarios).
+function nombreUsuario(mail) {
+  if (!mail) return 'Sin asignar';
+  var u = (S.usuarios || []).find(function (x) { return x.email === mail; });
+  return u && u.nombre ? u.nombre : mail;
+}
+function ymdLocal(x) { var d = x ? new Date(x) : new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+// Reclamos que cuentan (los anulados no suman en KPIs, seguimiento ni totales).
+function vigentes_() { return S.reclamos.filter(function (r) { return !r.anulado; }); }
+// Tiendas del reclamo: el grupo si lo tiene, si no la tienda única.
+function tiendasDe(r) { return r.tiendas_grupo && r.tiendas_grupo.length > 1 ? r.tiendas_grupo : [r.tienda_numero]; }
+function nombreTienda(n) { return S.tiendas[n] ? S.tiendas[n].local : 'Tienda ' + n; }
+function regionDe(t) { return !t ? 'Sin tienda' : String(t.formato).toUpperCase() === 'EXPRESS' ? 'Express' : (t.region || 'Sin región'); }
+function dias(r) { return Math.round(((r.fecha_cierre ? soloFecha(r.fecha_cierre) : hoy()) - soloFecha(r.fecha_alta)) / DIA); }
+function aging(r) {
+  if (r.estado === 'Cerrado') return ['Cerrado', 'aok'];
+  var n = dias(r);
+  return n <= 7 ? ['0-7 días', 'a0'] : n <= 15 ? ['8-15 días', 'a1'] : n <= 30 ? ['16-30 días', 'a2'] : ['+30 días', 'a3'];
+}
+function vencido(r) { return r.estado !== 'Cerrado' && r.fecha_compromiso && hoy() > fechaLocal(r.fecha_compromiso); }
+function vecesReclamado(r) { return 1 + (r.reiteraciones || 0); }
+function esGestor() { return S.usuario && S.usuario.rol === 'gestor'; }
+
+function vista(nombre) {
+  ['v-login', 'v-consola', 'v-cargando'].forEach(function (v) { $(v).hidden = v !== 'v-' + nombre; });
+}
+
+// PostgREST corta en 1000 filas: se pagina.
+async function traerTodo(tabla, columnas, filtro) {
+  var out = [];
+  for (var desde = 0; ; desde += 1000) {
+    var q = supabase.from(tabla).select(columnas).range(desde, desde + 999);
+    if (filtro) q = filtro(q);
+    var r = await q;
+    if (r.error) throw r.error;
+    out = out.concat(r.data || []);
+    if (!r.data || r.data.length < 1000) return out;
+  }
+}
+
+// ---------------------------------------------------------------
+// Login (Supabase Auth)
+// ---------------------------------------------------------------
+
+var PASSWORD_OK_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9]).{8,}$/;
+
+// ¿Esta carga de página viene de un link de invitación o de recuperación de contraseña
+// que mandó Supabase? (admin invita desde el dashboard). Puede venir en el hash o en los
+// parámetros de la URL según el modo de autenticación del proyecto — y en el modo más nuevo
+// (PKCE) ni siquiera trae "type", sólo un "code" (nunca aparece en un login normal con contraseña).
+function esRecuperacion_() {
+  return /type=invite|type=recovery/.test(_hashInicial + _searchInicial) || /[?&]code=/.test(_searchInicial);
+}
+
+function mostrarSetPassword_(mostrar) {
+  $('f-login').hidden = mostrar;
+  $('f-set-password').hidden = !mostrar;
+  if (mostrar) { $('set-password-error').hidden = true; $('set-password-nueva').focus(); }
+}
+
+// Trae nombre/rol/activo de reclamos_usuarios para la sesión ya autenticada en Supabase.
+// Si el mail no está habilitado (o se desactivó), cierra la sesión: no deja a medio loguear.
+async function sincronizarUsuario_(session) {
+  if (!session) {
+    S.usuario = null; S.sel = null;
+    $('usuario').hidden = true;
+    vista('login');
+    return;
+  }
+  var mail = session.user.email.toLowerCase();
+  if (S.usuario && S.usuario.email === mail) return; // ya sincronizado (ej. TOKEN_REFRESHED)
+  vista('cargando');
+  var r = await supabase.from('reclamos_usuarios').select('nombre,rol,activo').eq('email', mail).maybeSingle();
+  if (r.error || !r.data || !r.data.activo) {
+    await supabase.auth.signOut();
+    S.usuario = null;
+    vista('login');
+    $('login-error').textContent = 'Tu mail no está habilitado para Reclamos. Pedile acceso a un gestor del equipo de Eficiencia Energética.';
+    $('login-error').hidden = false;
+    return;
+  }
+  S.usuario = { email: mail, nombre: r.data.nombre, rol: r.data.rol };
+  $('usuario-nombre').textContent = (r.data.nombre || mail) + (r.data.rol === 'gestor' ? ' · gestor' : ' · carga');
+  $('usuario').hidden = false;
+  await cargarTodo();
+  vista('consola');
+}
+
+async function entrarConPassword(e) {
+  if (e) e.preventDefault();
+  var err = $('login-error');
+  err.hidden = true;
+  var mail = $('login-mail').value.trim().toLowerCase();
+  var pass = $('login-password').value;
+  if (!/^[^\s@]+@carrefour\.com$/.test(mail)) { err.textContent = 'Usá tu mail @carrefour.com.'; err.hidden = false; return; }
+  if (!pass) { err.textContent = 'Escribí tu contraseña.'; err.hidden = false; return; }
+  vista('cargando');
+  var r = await supabase.auth.signInWithPassword({ email: mail, password: pass });
+  if (r.error) {
+    vista('login');
+    err.textContent = 'Mail o contraseña incorrectos.';
+    err.hidden = false;
+    return;
+  }
+  await sincronizarUsuario_(r.data.session);
+}
+
+async function guardarPasswordNueva_(e) {
+  if (e) e.preventDefault();
+  var err = $('set-password-error');
+  err.hidden = true;
+  var p1 = $('set-password-nueva').value, p2 = $('set-password-confirmar').value;
+  if (!PASSWORD_OK_RE.test(p1)) {
+    err.textContent = 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
+    err.hidden = false;
+    return;
+  }
+  if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; err.hidden = false; return; }
+  vista('cargando');
+  var r = await supabase.auth.updateUser({ password: p1 });
+  if (r.error) {
+    vista('login');
+    err.textContent = 'No se pudo guardar la contraseña: ' + mensajeError(r.error);
+    err.hidden = false;
+    return;
+  }
+  _passwordPendiente = false;
+  var s = await supabase.auth.getSession();
+  await sincronizarUsuario_(s.data.session);
+}
+
+function salir() { supabase.auth.signOut(); }
+
+// Se registra apenas existe el cliente (ver arriba de todo el archivo), no en DOMContentLoaded:
+// el link de invitación/recuperación se procesa solo al crear el cliente (detectSessionInUrl) y
+// dispara el evento enseguida — no hay que perderlo esperando a que cargue el resto del DOM.
+var _passwordPendiente = false;
+supabase.auth.onAuthStateChange(function (event, session) {
+  if (!_passwordPendiente && (event === 'PASSWORD_RECOVERY' || (session && esRecuperacion_() && !S.usuario))) {
+    _passwordPendiente = true;
+    mostrarSetPassword_(true);
+    vista('login');
+    return;
+  }
+  if (_passwordPendiente) return;
+  sincronizarUsuario_(session);
+});
+supabase.auth.getSession().then(function (r) { if (!_passwordPendiente) sincronizarUsuario_(r.data.session); });
+
+// ---------------------------------------------------------------
+// Datos
+// ---------------------------------------------------------------
+
+async function cargarTodo() {
+  var r = await Promise.all([
+    traerTodo('tiendas', 'numero,local,formato,region'),
+    supabase.from('reclamos_proveedores').select('*').eq('activo', true).order('orden'),
+    supabase.from('reclamos_categorias').select('*').eq('activo', true).order('orden'),
+    supabase.from('reclamos_opciones').select('*').eq('activo', true).order('orden'),
+    traerTodo('reclamos', '*', function (q) { return q.order('fecha_alta', { ascending: false }); }),
+    supabase.from('reclamos_usuarios').select('email,nombre,rol').eq('activo', true).order('nombre')
+  ]);
+  [1, 2, 3].forEach(function (i) { if (r[i].error) throw r[i].error; });
+  S.tiendas = {};
+  r[0].forEach(function (t) { S.tiendas[t.numero] = t; });
+  S.provs = r[1].data.map(function (p) { return p.nombre; });
+  S.cats = r[2].data.map(function (c) { return c.nombre; });
+  S.opciones = { tipo: [], motivo: [], via: [], area: [] };
+  r[3].data.forEach(function (o) { if (S.opciones[o.lista]) S.opciones[o.lista].push(o.valor); });
+  S.reclamos = r[4];
+  S.usuarios = (r[5] && r[5].data) || [];
+  S.eventos = {};
+  armarSelects();
+  if (!S.sel) abrirDesdeUrl();
+  render();
+  if (window.cambiarTab) cambiarTab(TAB);
+}
+
+async function recargarReclamo(id) {
+  var r = await supabase.from('reclamos').select('*').eq('id', id).maybeSingle();
+  if (r.error) throw r.error;
+  var i = S.reclamos.findIndex(function (x) { return x.id === id; });
+  if (r.data) { if (i >= 0) S.reclamos[i] = r.data; else S.reclamos.unshift(r.data); }
+  delete S.eventos[id];
+}
+
+async function cargarEventos(id) {
+  if (S.eventos[id]) return S.eventos[id];
+  var r = await supabase.from('reclamos_eventos').select('*').eq('reclamo_id', id).order('fecha', { ascending: true });
+  if (r.error) throw r.error;
+  S.eventos[id] = r.data || [];
+  return S.eventos[id];
+}
+
+function armarSelects() {
+  // Rearma las opciones sin perder lo elegido (al volver a la pestaña se recargan los datos).
+  var conservar = function (id, html) {
+    var el = $(id), v = el.value;
+    el.innerHTML = html;
+    if (v && [].some.call(el.options, function (o) { return o.value === v; })) el.value = v;
+  };
+  conservar('f-prov', opciones(S.provs, null, 'Todos los sistemas'));
+  conservar('f-tipo', opciones(S.opciones.tipo, null, 'Todos los tipos'));
+  conservar('f-motivo', opciones(S.opciones.motivo, null, 'Todos los motivos'));
+  var regiones = {};
+  Object.keys(S.tiendas).forEach(function (n) { regiones[regionDe(S.tiendas[n])] = true; });
+  conservar('f-region', opciones(Object.keys(regiones).sort(), null, 'Todas las regiones'));
+  conservar('n-prov', opciones(S.provs));
+  conservar('n-tipo', opciones(S.opciones.tipo));
+  conservar('n-motivo', opciones(S.opciones.motivo));
+  conservar('n-via', opciones(S.opciones.via));
+  conservar('n-cat', opciones(S.cats));
+  $('lista-tiendas').innerHTML = Object.keys(S.tiendas).map(function (n) {
+    return '<option value="' + esc(S.tiendas[n].local || n) + '">';
+  }).join('');
+  Andes.mejorar(document);
+  Andes.refrescar();
+}
+
+// ---------------------------------------------------------------
+// Consola
+// ---------------------------------------------------------------
+
+function filtrados() {
+  var q = $('q').value.toLowerCase().trim(), fp = $('f-prov').value, ft = $('f-tipo').value, fm = $('f-motivo').value,
+    fr = $('f-region').value, fe = $('f-estado').value, ftd = $('f-tienda').value.toLowerCase().trim();
+  return S.reclamos.filter(function (r) {
+    var t = tienda(r);
+    if ((fe === 'anulados') !== !!r.anulado) return false;
+    if (fp && r.proveedor !== fp) return false;
+    if (ft && r.tipo !== ft) return false;
+    if (fm && r.motivo !== fm) return false;
+    if (fr && !tiendasDe(r).some(function (n) { return regionDe(S.tiendas[n]) === fr; })) return false;
+    if (ftd && !tiendasDe(r).some(function (n) {
+      return nombreTienda(n).toLowerCase().indexOf(ftd) !== -1 || String(n) === ftd.replace(/^0+/, '');
+    })) return false;
+    if (fe === 'abiertos' && r.estado === 'Cerrado') return false;
+    if (fe === 'vencidos' && !vencido(r)) return false;
+    if (fe === 'mas30' && (r.estado === 'Cerrado' || dias(r) <= 30)) return false;
+    if (fe === 'Cerrado' && r.estado !== 'Cerrado') return false;
+    if (fe === 'reiterados' && (r.estado === 'Cerrado' || !r.reiteraciones)) return false;
+    if (fe === 'devueltos' && !r.devoluciones) return false;
+    if (fe === 'fuera' && (r.estado === 'Cerrado' || (r.area_actual || 'PROVEEDOR') === 'PROVEEDOR')) return false;
+    if (!q) return true;
+    return [r.id, tiendasDe(r).map(nombreTienda).join(' '), r.tienda_numero, r.descripcion, r.categoria, r.referencia, r.solicitante, r.tipo, r.motivo,
+      r.creado_por, r.responsable, nombreUsuario(r.responsable)]
+      .join(' ').toLowerCase().indexOf(q) !== -1;
+  }).sort(function (a, b) {
+    if ((a.estado === 'Cerrado') !== (b.estado === 'Cerrado')) return a.estado === 'Cerrado' ? 1 : -1;
+    var orden = $('f-orden').value, d = 0;
+    if (orden === 'reclamados') d = vecesReclamado(b) - vecesReclamado(a);
+    else if (orden === 'prioridad') d = (PESO_PRIORIDAD[a.prioridad] || 9) - (PESO_PRIORIDAD[b.prioridad] || 9);
+    else if (orden === 'compromiso') d = (a.fecha_compromiso ? new Date(a.fecha_compromiso) : 8e15) - (b.fecha_compromiso ? new Date(b.fecha_compromiso) : 8e15);
+    else if (orden === 'recientes') d = new Date(b.fecha_alta) - new Date(a.fecha_alta);
+    if (d) return d;
+    return a.estado === 'Cerrado' ? new Date(b.fecha_cierre) - new Date(a.fecha_cierre) : dias(b) - dias(a);
+  });
+}
+
+var PESO_PRIORIDAD = { Alta: 1, Media: 2, Baja: 3 };
+var FILTROS_TEXTO = { '': 'Todos', vencidos: 'Sólo vencidos', mas30: 'Más de 30 días', reiterados: 'Reclamados más de una vez',
+  devueltos: 'Con devoluciones', fuera: 'En Compras / Mantenimiento', Cerrado: 'Cerrados', anulados: 'Anulados' };
+
+// "Mostrando N de M" + chips con los filtros activos (cada uno se saca con ✕).
+function renderInfoLista(lista) {
+  var chips = [];
+  var q = $('q').value.trim();
+  if (q) chips.push(['q', '"' + q + '"']);
+  ['f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda'].forEach(function (id) { if ($(id).value) chips.push([id, $(id).value]); });
+  if ($('f-estado').value !== 'abiertos') chips.push(['f-estado', FILTROS_TEXTO[$('f-estado').value] || $('f-estado').value]);
+  $('lista-info').innerHTML = '<b>' + lista.length + '</b> de ' + vigentes_().length + ' reclamos' +
+    ($('f-estado').value === 'abiertos' ? ' · abiertos' : '') +
+    chips.map(function (c) { return '<button class="filtro-chip" data-quitar="' + c[0] + '">' + esc(c[1]) + ' ✕</button>'; }).join('') +
+    (chips.length ? '<button class="link-btn" data-quitar="todo">Limpiar filtros</button>' : '');
+}
+
+function quitarFiltro(id) {
+  var ids = id === 'todo' ? ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'] : [id];
+  ids.forEach(function (i) { $(i).value = i === 'f-estado' ? 'abiertos' : ''; });
+  Andes.refrescar();
+  render();
+}
+
+// Elegir un reclamo: queda en la URL (#REC-...) para compartir el link.
+function seleccionar(id, desplazar) {
+  S.sel = id;
+  try { history.replaceState(null, '', id ? '#' + id : location.pathname); } catch (e) { }
+  render();
+  var tr = document.querySelector('#rows tr[data-id="' + id + '"]');
+  if (tr && desplazar !== false) tr.scrollIntoView({ block: 'nearest' });
+}
+
+function moverSeleccion(paso) {
+  var lista = S.lista || [];
+  if (!lista.length) return;
+  var i = lista.findIndex(function (r) { return r.id === S.sel; });
+  var j = i === -1 ? 0 : Math.min(Math.max(i + paso, 0), lista.length - 1);
+  if (j !== i) seleccionar(lista[j].id);
+}
+
+// Abre el reclamo del link (#REC-...). Si los filtros lo esconden, los afloja.
+function abrirDesdeUrl() {
+  var id = decodeURIComponent(location.hash.slice(1));
+  if (!id || !S.reclamos.some(function (r) { return r.id === id; })) return;
+  S.sel = id;
+  if (!filtrados().some(function (r) { return r.id === id; })) quitarFiltro('todo');
+  if (!filtrados().some(function (r) { return r.id === id; })) { $('f-estado').value = ''; Andes.refrescar(); }
+  if (!filtrados().some(function (r) { return r.id === id; })) { $('f-estado').value = 'anulados'; Andes.refrescar(); }
+  render();
+}
+
+// Vista "panel lateral" (de siempre) o "acordeón" (lista a todo el ancho,
+// el detalle se despliega debajo de la fila elegida). El usuario la elige con
+// el botón de la barra de la lista; queda guardada para la próxima visita.
+function aplicarVista(v) {
+  S.vista = v;
+  guardarLocal('reclamos_vista', v);
+  document.querySelectorAll('.vista-modo button').forEach(function (b) { b.classList.toggle('on', b.dataset.vista === v); });
+  $('console').classList.toggle('acordeon', v === 'acordeon');
+  render();
+}
+
+// Ubica el #detalle (siempre es el mismo elemento, con sus datos y sus eventos
+// ya enganchados) donde corresponda según la vista: al costado, o como fila
+// desplegada debajo del reclamo elegido. Si no hay nada elegido en modo
+// acordeón, se guarda aparte, oculto, sin perderlo.
+function colocarDetalle() {
+  var det = $('detalle');
+  if (S.vista !== 'acordeon') { $('panel-slot').appendChild(det); return; }
+  var tr = S.sel && document.querySelector('#rows tr[data-id="' + CSS.escape(S.sel) + '"]');
+  if (!tr) { $('detalle-holder').appendChild(det); return; }
+  var fila = document.createElement('tr');
+  fila.className = 'fila-detalle';
+  var td = document.createElement('td');
+  td.colSpan = 7;
+  td.appendChild(det);
+  fila.appendChild(td);
+  tr.after(fila);
+}
+
+function render() {
+  // En acordeón, #detalle puede estar colgando dentro de #rows (dentro de la fila
+  // desplegada). Se saca de ahí ANTES de reconstruir las filas con innerHTML, si no,
+  // ese innerHTML lo destruye (queda huérfano) y colocarDetalle() falla al reubicarlo.
+  $('detalle-holder').appendChild($('detalle'));
+  var abiertos = vigentes_().filter(function (r) { return r.estado !== 'Cerrado'; });
+  var cerrados = vigentes_().filter(function (r) { return r.estado === 'Cerrado'; });
+  var prom = cerrados.length ? (cerrados.reduce(function (a, r) { return a + dias(r); }, 0) / cerrados.length).toFixed(1).replace('.', ',') : '–';
+  var reit = abiertos.filter(function (r) { return r.reiteraciones > 0; }).length;
+  var devs = vigentes_().reduce(function (a, r) { return a + (r.devoluciones || 0); }, 0);
+  $('kpis').innerHTML =
+    '<div class="kpi clic" data-filtro="abiertos"><div class="l">Abiertos</div><div class="v">' + abiertos.length + '</div></div>' +
+    '<div class="kpi bad clic" data-filtro="vencidos"><div class="l">Vencidos (pasó la fecha del proveedor)</div><div class="v">' + abiertos.filter(vencido).length + '</div></div>' +
+    '<div class="kpi warn clic" data-filtro="mas30"><div class="l">Más de 30 días</div><div class="v">' + abiertos.filter(function (r) { return dias(r) > 30; }).length + '</div></div>' +
+    '<div class="kpi clic" data-filtro="reiterados"><div class="l">Abiertos reclamados más de una vez</div><div class="v">' + reit + '</div></div>' +
+    '<div class="kpi clic" data-filtro="devueltos"><div class="l">Devoluciones proveedor / compras / mant.</div><div class="v">' + devs + '</div></div>' +
+    '<div class="kpi"><div class="l">Promedio de resolución</div><div class="v">' + prom + ' <span style="font-size:14px;font-weight:500;color:var(--muted)">días</span></div></div>';
+
+  $('prov').innerHTML = S.provs.map(function (p) {
+    var ab = abiertos.filter(function (r) { return r.proveedor === p; }), tot = ab.length || 1;
+    var seg = TRAMOS.map(function (tr) {
+      var n = ab.filter(function (r) { return aging(r)[0] === tr[0]; }).length;
+      return n ? '<span style="width:' + (n / tot * 100) + '%;background:' + tr[1] + '" title="' + tr[0] + ': ' + n + '"></span>' : '';
+    }).join('');
+    return '<div class="pcard clic" data-prov="' + esc(p) + '"><h4><span>' + esc(p) + '</span><span style="color:var(--muted);font-weight:500">' + ab.length + ' abiertos · ' + ab.filter(vencido).length + ' vencidos</span></h4><div class="bar">' + seg + '</div></div>';
+  }).join('') + '<div class="pcard"><h4><span>Antigüedad de abiertos</span></h4><div class="legend">' +
+    TRAMOS.map(function (tr) { return '<span><i style="background:' + tr[1] + '"></i>' + tr[0] + '</span>'; }).join('') + '</div></div>';
+
+  renderSeguimiento();
+
+  var lista = filtrados();
+  S.lista = lista;
+  renderInfoLista(lista);
+  $('rows').innerHTML = lista.length ? lista.map(function (r) {
+    var ag = aging(r), t = tienda(r);
+    var colorF = t ? (COLOR_FORMATO[String(t.formato).toUpperCase()] || 'var(--muted)') : 'var(--muted)';
+    var marcas = r.motivo ? '<span class="mini">' + esc(r.motivo) + '</span>' : '';
+    var grupo = tiendasDe(r);
+    var celdaTienda = grupo.length > 1
+      ? '<span class="desc grupo-t" title="' + esc(grupo.map(nombreTienda).join('\n')) + '"><span class="fmt" style="background:var(--muted)"></span><b>Grupo de ' + grupo.length + ' tiendas</b> · ' +
+        esc(grupo.slice(0, 2).map(nombreTienda).join(', ')) + (grupo.length > 2 ? ' y ' + (grupo.length - 2) + ' más' : '') + '</span>'
+      : '<span class="desc"><span class="fmt" style="background:' + colorF + '"></span>' + esc(t ? t.local : 'Sin tienda') + '</span>';
+    var cont = '<span class="desc a-cargo">A cargo: <b>' + esc(nombreUsuario(r.responsable)) + '</b></span>' +
+      (r.reiteraciones ? '<span class="desc">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
+      (r.respuestas ? '<span class="desc">' + r.respuestas + (r.respuestas === 1 ? ' respuesta' : ' respuestas') + ' del proveedor</span>' : '') +
+      (r.devoluciones ? '<span class="desc">' + r.devoluciones + ' devoluciones · en ' + esc(r.area_actual) + '</span>' : '');
+    return '<tr class="row ' + (S.sel === r.id ? 'sel' : '') + '" data-id="' + esc(r.id) + '" tabindex="0">' +
+      '<td class="id c-id">' + esc(r.id) + (r.creado_por ? '<span class="desc cargo-por" title="Cargado por">' + esc(r.creado_por) + '</span>' : '') + '</td>' +
+      '<td class="c-prov"><b>' + esc(r.proveedor) + '</b><br>' + celdaTienda + '</td>' +
+      '<td class="c-sec">' + (r.tipo ? '<span class="sector">' + esc(r.tipo) + '</span>' : '<span class="desc">—</span>') + '</td>' +
+      '<td class="c-prob">' + marcas + (marcas ? '<br>' : '') + esc(r.categoria) + '<span class="desc">' + esc(r.descripcion) + '</span></td>' +
+      '<td class="c-pri"><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad || '—') + '</span></td>' +
+      '<td class="st c-est">' + esc(r.estado) + (r.anulado ? '<span class="venc">ANULADO</span>' : vencido(r) ? '<span class="venc">VENCIDO</span>' : '') + cont + '</td>' +
+      '<td class="c-ant"><span class="chip ' + ag[1] + '">' + ag[0] + '</span><br><span class="desc">' + dias(r) + ' días</span></td></tr>';
+  }).join('') : '<tr><td colspan="7" class="empty">' + (vigentes_().length ? 'No hay reclamos con estos filtros.' : 'Todavía no hay reclamos. Cargá el primero con "+ Nuevo reclamo".') + '</td></tr>';
+  colocarDetalle();
+  Andes.refrescar();
+  renderDetalle();
+  if (window.renderPanel) renderPanel();
+}
+
+// Tabla de seguimiento: cantidad por proveedor, antigüedad, estado, veces reclamado y devoluciones.
+function renderSeguimiento() {
+  var provs = S.provs.slice();
+  var base = vigentes_();
+  base.forEach(function (r) { if (provs.indexOf(r.proveedor) === -1) provs.push(r.proveedor); });
+  var fila = function (lista, nombre, total) {
+    var ab = lista.filter(function (r) { return r.estado !== 'Cerrado'; });
+    var ce = lista.filter(function (r) { return r.estado === 'Cerrado'; });
+    var celdas = [lista.length, ab.length, ce.length, ab.filter(vencido).length]
+      .concat(TRAMOS.map(function (tr) { return ab.filter(function (r) { return aging(r)[0] === tr[0]; }).length; }))
+      .concat([lista.reduce(function (a, r) { return a + vecesReclamado(r); }, 0),
+        lista.filter(function (r) { return r.reiteraciones > 0; }).length,
+        lista.reduce(function (a, r) { return a + (r.devoluciones || 0); }, 0),
+        ce.length ? (ce.reduce(function (a, r) { return a + dias(r); }, 0) / ce.length).toFixed(1).replace('.', ',') : '–']);
+    return '<tr' + (total ? ' class="total"' : '') + '><td>' + esc(nombre) + '</td>' + celdas.map(function (c) { return '<td class="n">' + c + '</td>'; }).join('') + '</tr>';
+  };
+  var t1 = '<div class="seg-sub">Cantidad, antigüedad, veces reclamado y devoluciones</div><div class="seg-tabla"><table><thead><tr>' +
+    ['Sistema', 'Total', 'Abiertos', 'Cerrados', 'Vencidos'].concat(TRAMOS.map(function (t) { return t[0]; }))
+      .concat(['Veces reclamado', 'Reclamados +1 vez', 'Devoluciones', 'Prom. días resolución'])
+      .map(function (h, i) { return '<th' + (i ? ' style="text-align:right"' : '') + '>' + h + '</th>'; }).join('') +
+    '</tr></thead><tbody>' + provs.map(function (p) { return fila(base.filter(function (r) { return r.proveedor === p; }), p); }).join('') +
+    fila(base, 'TOTAL', true) + '</tbody></table></div>';
+  var t2 = '<div class="seg-sub">Estado por sistema</div><div class="seg-tabla"><table><thead><tr><th>Sistema</th>' +
+    ESTADOS.map(function (e) { return '<th style="text-align:right">' + e + '</th>'; }).join('') + '</tr></thead><tbody>' +
+    provs.map(function (p) {
+      return '<tr><td>' + esc(p) + '</td>' + ESTADOS.map(function (e) {
+        return '<td class="n">' + base.filter(function (r) { return r.proveedor === p && r.estado === e; }).length + '</td>';
+      }).join('') + '</tr>';
+    }).join('') + '</tbody></table></div>';
+  $('seguimiento').innerHTML = '<div class="seg-tablas">' + t1 + t2 + '</div>';
+}
+
+function htmlAnulado_(r, g) {
+  return '<div class="aviso-anulado"><b>Reclamo anulado</b>' +
+    '<span>Por ' + esc(r.anulado_por || '') + (r.anulado_at ? ' · ' + fmtDH(r.anulado_at) : '') + '</span>' +
+    (r.anulado_motivo ? '<span>Motivo: ' + esc(r.anulado_motivo) + '</span>' : '') +
+    '<span class="desc-in">No cuenta en la lista, los KPIs, el seguimiento ni el backup.</span>' +
+    (g ? '<div class="acciones"><button class="btn ghost chico" id="d-btn-restaurar">Restaurar reclamo</button></div>' : '') + '</div>';
+}
+
+function htmlAnularReclamo_() {
+  return '<div class="zona-anular">' +
+    '<button class="link-btn peligro" id="d-btn-anular-rec">Anular este reclamo…</button>' +
+    '<div id="d-anular-form" hidden>' +
+      '<p class="desc-in">El reclamo deja de contar en la lista, los KPIs, el seguimiento y el backup. No se borra: queda guardado y se puede restaurar.</p>' +
+      '<input id="d-anular-motivo" placeholder="Motivo (por ejemplo: carga de prueba, duplicado)">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-anular-cancelar">Cancelar</button>' +
+      '<button class="btn chico peligro" id="d-anular-ok">Confirmar anulación</button></div>' +
+    '</div></div>';
+}
+
+// ¿El usuario está cargando algo en el detalle (escribió, cambió un campo o abrió un formulario)?
+function detalleEnEdicion_() {
+  return S.sucio === S.sel || !!$('detalle').querySelector(
+    '#d-traspaso:not([hidden]), #d-finalizar-form:not([hidden]), #d-anular-form:not([hidden]), #d-datos-form:not([hidden]), .ev-form:not(:empty)');
+}
+
+// Vista acordeón: layout propio (franja de datos arriba, 2 columnas abajo). Reutiliza
+// las mismas funciones helper y los mismos ids que la vista panel, sólo cambia el orden
+// y la agrupación visual — el panel lateral sigue generándose como siempre, sin tocar.
+function htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar) {
+  var header = '<div class="det-header">' +
+      '<div class="det-header-main"><span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
+      '<p class="det-problema">' + esc(r.descripcion) + '</p></div>' +
+      '<div class="det-badges">' +
+        '<span class="badge">' + esc(r.estado) + '</span>' +
+        '<span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span>' +
+        (r.canal ? '<span class="badge">' + esc(r.canal) + '</span>' : '') +
+        '<span class="badge">Alta: ' + fmtD(r.fecha_alta) + ' · ' + dias(r) + ' días</span>' +
+        '<span class="badge">A cargo: <b>' + esc(nombreUsuario(r.responsable)) + '</b></span>' +
+        (!r.anulado && puedeTraspasar ? '<button class="ev-btn" id="d-btn-traspasar">Traspasar</button>' : '') +
+        (vecesReclamado(r) > 1 ? '<span class="badge badge-reclamado">Reclamado ' + vecesReclamado(r) + ' veces</span>' : '') +
+        (r.anulado ? '<span class="badge badge-anulado">Anulado</span>' : vencido(r) ? '<span class="badge badge-vencido">Vencido</span>' : '') +
+      '</div></div>';
+
+  var tiendaHtml = tiendasDe(r).length > 1
+    ? '<div class="det-datos-tienda"><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
+      tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></div>'
+    : '<div class="det-datos-tienda"><b>' + esc(t ? t.local : 'Sin tienda') + '</b>' + (t ? '<span>' + esc(t.formato) + ' · ' + esc(regionDe(t)) + '</span>' : '') + '</div>';
+
+  // Labels a su ancho real (no columnas fijas): un valor corto ("MAIL", "—") no reserva
+  // el mismo espacio que uno largo. Los valores largos se truncan con elipsis + title.
+  var campo_ = function (label, valor, titulo) {
+    return '<dt>' + label + '</dt><dd' + (titulo ? ' title="' + esc(titulo) + '"' : '') + '>' + valor + '</dd>';
+  };
+  var datosGrilla = '<dl class="kv-datos">' +
+      campo_('Sistema', esc(r.proveedor)) +
+      campo_('Vía', esc(r.canal || '—')) +
+      campo_('Tipo', esc(r.tipo || '—')) +
+      campo_('Motivo', esc(r.motivo || '—')) +
+      campo_('Quién reclamó', esc(r.solicitante || '—')) +
+      campo_('Cargado por', esc(r.creado_por || '—'), r.creado_por) +
+      campo_('Referencia', esc(r.referencia || '—'), r.referencia) +
+      campo_('Compromiso', (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '')) +
+    '</dl>';
+
+  var datosMetricas = '<div class="kv-metricas">' +
+      '<div class="stat"><span class="badge" style="' + (AREA_ESTILO[r.area_actual] || AREA_ESTILO.PROVEEDOR) + '">' + esc(r.area_actual || '—') + '</span><span class="stat-label">En manos de</span></div>' +
+      '<div class="stat"><b>' + vecesReclamado(r) + '</b><span class="stat-label">Veces reclamado</span></div>' +
+      '<div class="stat"><b>' + (r.respuestas || 0) + '</b><span class="stat-label">Respuestas proveedor</span></div>' +
+      '<div class="stat"><b>' + (r.devoluciones || 0) + '</b><span class="stat-label">Devoluciones</span></div>' +
+    '</div>' +
+    (r.reaperturas ? '<p class="desc-in" style="margin-top:8px">Reaperturas: <span class="chip a2">' + r.reaperturas + '</span></p>' : '');
+
+  var datosLectura = '<div id="d-datos-lectura">' + tiendaHtml + datosGrilla + datosMetricas + '</div>';
+
+  var datosForm = g ? '<div class="editar" id="d-datos-form" hidden>' +
+      '<select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
+      '<div id="d-tiendas-box"></div>' +
+      '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
+      '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
+      '<div class="two"><select id="d-tipo">' + opciones(conActual_(S.opciones.tipo, r.tipo), r.tipo, '— Tipo —') + '</select>' +
+      '<select id="d-motivo">' + opciones(conActual_(S.opciones.motivo, r.motivo), r.motivo, '— Motivo —') + '</select></div>' +
+      '<div class="two"><select id="d-via">' + opciones(conActual_(S.opciones.via, r.canal), r.canal, '— Vía —') + '</select>' +
+      '<select id="d-pri">' + opciones(['Alta', 'Media', 'Baja'], r.prioridad) + '</select></div>' +
+      '<div class="two"><input id="d-solic" placeholder="Quién reclamó" value="' + esc(r.solicitante || '') + '">' +
+      '<input id="d-comp" type="date" value="' + esc(r.fecha_compromiso || '') + '" title="Fecha comprometida por el proveedor"></div>' +
+      '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
+      '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '';
+
+  var datosCard = '<div class="det-card det-datos"><div class="det-card-head"><h4 class="seccion">Datos del caso</h4>' +
+    (g ? '<button class="ev-btn" id="d-btn-editar-datos">Editar</button>' : '') + '</div>' +
+    datosLectura + datosForm + '</div>';
+
+  var historialCard = '<div class="det-card det-historial"><h4 class="seccion">Historial</h4><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul></div>';
+
+  var colDer;
+  if (r.anulado) {
+    colDer = '<div class="det-card">' + htmlAnulado_(r, g) + '</div>';
+  } else {
+    var accionCard = '<div class="det-card det-accion"><h4 class="seccion">Registrar acción</h4>' +
+      '<textarea id="d-coment" rows="2" placeholder="Comentario o respuesta del proveedor (se guarda con la acción que elijas abajo)"></textarea>' +
+      '<div class="seg-fecha"><label>Fecha <input id="d-fecha" type="date" value="' + ymdLocal() + '"></label></div>' +
+      '<p class="desc-in">Para "Reclamar de nuevo" y "Respuesta del proveedor". Cambiala si pasó otro día.</p>' +
+      '<div class="acciones-seg">' +
+        '<button class="btn chico" id="d-btn-reiterar"' + (abierto ? '' : ' disabled') + '>Reclamar de nuevo (+1)</button>' +
+        '<button class="btn ghost chico" id="d-btn-respuesta"' + (abierto ? '' : ' disabled') + '>Respuesta del proveedor</button>' +
+        '<button class="btn ghost chico" id="d-btn-coment">Sólo comentar</button>' +
+      '</div></div>';
+
+    var derivarCard = '<div class="det-card det-derivar"><h4 class="seccion">Derivar a</h4>' +
+      '<div class="segmentado">' + S.opciones.area.map(function (a) {
+        var actual = a === r.area_actual, deshabilitado = !g || actual;
+        var motivo = !g ? 'Sólo un gestor puede derivar' : (actual ? 'Ya está en ' + a : '');
+        return '<button type="button" class="' + (actual ? 'on' : '') + '" data-area="' + esc(a) + '"' +
+          (deshabilitado ? ' disabled' : '') + (motivo ? ' title="' + esc(motivo) + '"' : '') + '>' + esc(a) + '</button>';
+      }).join('') + '</div></div>';
+
+    var estadoCard = '<div class="det-card det-estado"><h4 class="seccion">Estado' + (g ? '' : ' (sólo un gestor puede cambiarlo)') + '</h4>' +
+      '<div class="flow">' + ESTADOS.map(function (e) {
+        return '<button data-estado="' + esc(e) + '" class="' + (e === r.estado ? 'on' : '') + '"' + (g ? '' : ' disabled') + '>' + esc(e) + '</button>';
+      }).join('') + '</div>' +
+      (g && abierto ? '<div class="finalizar"><button class="btn chico ok" id="d-btn-finalizar">✓ Finalizar caso</button>' +
+        '<div id="d-finalizar-form" hidden><input id="d-finalizar-texto" placeholder="¿Cómo se resolvió? (queda en el historial)">' +
+        '<div class="acciones"><button class="btn ghost chico" id="d-finalizar-cancelar">Cancelar</button>' +
+        '<button class="btn chico ok" id="d-finalizar-ok">Confirmar y cerrar</button></div></div></div>' : '') +
+      (g ? htmlAnularReclamo_() : '') +
+      '</div>';
+
+    colDer = accionCard + derivarCard + estadoCard;
+  }
+
+  return header +
+    (!r.anulado && puedeTraspasar ? htmlTraspaso_(r) : '') +
+    '<div class="det-body"><div class="det-col-izq">' + datosCard + historialCard + '</div>' +
+    '<div class="det-col-der">' + colDer + '</div></div>';
+}
+
+async function renderDetalle() {
+  var cont = $('detalle');
+  // El refresco al volver a la pestaña no pisa lo que se está cargando.
+  if (S.refrescando && detalleEnEdicion_()) return;
+  S.sucio = null;
+  var r = S.reclamos.find(function (x) { return x.id === S.sel; });
+  if (!r) { cont.innerHTML = '<p class="empty">Elegí un reclamo de la lista para ver el detalle, cambiar el estado y ver su historial.</p>'; return; }
+  var t = tienda(r), g = esGestor(), abierto = r.estado !== 'Cerrado';
+  var puedeTraspasar = g || r.responsable === S.usuario.email;
+  var lista = S.lista || [], pos = lista.findIndex(function (x) { return x.id === r.id; });
+  var esGrupo = tiendasDe(r).length > 1;
+  var nav = '<div class="det-nav">' +
+    '<button class="ev-btn" data-nav="-1"' + (pos <= 0 ? ' disabled' : '') + ' title="Anterior (flecha ↑)">‹ Anterior</button>' +
+    '<span>' + (pos === -1 ? 'No está en la lista filtrada' : (pos + 1) + ' de ' + lista.length) + '</span>' +
+    '<button class="ev-btn" data-nav="1"' + (pos === -1 || pos >= lista.length - 1 ? ' disabled' : '') + ' title="Siguiente (flecha ↓)">Siguiente ›</button>' +
+    '<button class="ev-btn" data-copiar-link title="Copiar el link directo a este reclamo">🔗 Copiar link</button>' +
+    '<button class="ev-btn" data-cerrar-det title="Cerrar el detalle">✕</button></div>';
+  if (S.vista === 'acordeon') {
+    cont.innerHTML = nav + htmlDetalleAcordeon_(r, t, g, abierto, puedeTraspasar);
+    if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
+    Andes.mejorar(cont);
+    return renderHistorial_(r, g);
+  }
+  cont.innerHTML = nav +
+    '<span class="id">' + esc(r.id) + '</span><h3>' + esc(r.categoria) + '</h3>' +
+    '<p style="margin:0;color:var(--muted);font-size:13px">' + esc(r.descripcion) + '</p>' +
+    '<dl class="kv">' +
+      '<dt>Sistema</dt><dd>' + esc(r.proveedor) + '</dd>' +
+      '<dt>Tipo</dt><dd>' + esc(r.tipo || '—') + '</dd>' +
+      '<dt>Motivo</dt><dd>' + esc(r.motivo || '—') + '</dd>' +
+      (tiendasDe(r).length > 1
+        ? '<dt>Tiendas</dt><dd><b>Grupo de ' + tiendasDe(r).length + ' tiendas</b><ul class="lista-t">' +
+          tiendasDe(r).map(function (n) { var x = S.tiendas[n]; return '<li>' + esc(nombreTienda(n)) + (x ? ' <span class="desc-in">· ' + esc(x.formato) + ' · ' + esc(regionDe(x)) + '</span>' : '') + '</li>'; }).join('') + '</ul></dd>'
+        : '<dt>Tienda</dt><dd>' + esc(t ? t.local + ' · ' + t.formato + ' · ' + regionDe(t) : 'Sin tienda') + '</dd>') +
+      '<dt>Prioridad</dt><dd><span class="chip ' + (CLASE_PRIORIDAD[r.prioridad] || 'a0') + '">' + esc(r.prioridad) + '</span></dd>' +
+      '<dt>Vía</dt><dd>' + esc(r.canal || '—') + '</dd>' +
+      '<dt>Quién reclamó</dt><dd>' + esc(r.solicitante || '—') + '</dd>' +
+      '<dt>Cargado por</dt><dd>' + esc(r.creado_por || '—') + '</dd>' +
+      '<dt>A cargo de</dt><dd><b>' + esc(nombreUsuario(r.responsable)) + '</b>' +
+        (r.responsable && nombreUsuario(r.responsable) !== r.responsable ? ' <span class="desc-in">' + esc(r.responsable) + '</span>' : '') +
+        (!r.anulado && puedeTraspasar ? ' <button class="ev-btn" id="d-btn-traspasar">Traspasar</button>' : '') + '</dd>' +
+      '<dt>Alta</dt><dd>' + fmtD(r.fecha_alta) + ' · ' + dias(r) + ' días' + (r.estado === 'Cerrado' ? ' (cerrado ' + fmtD(r.fecha_cierre) + ')' : '') + '</dd>' +
+      '<dt>Compromiso</dt><dd>' + (r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : 'Sin fecha') + (vencido(r) ? ' <span class="chip a3">Vencido</span>' : '') + '</dd>' +
+      '<dt>Referencia</dt><dd>' + esc(r.referencia || '—') + '</dd>' +
+      '<dt>En manos de</dt><dd><b>' + esc(r.area_actual || '—') + '</b></dd>' +
+      '<dt>Veces reclamado</dt><dd><span class="contador">' + vecesReclamado(r) + '</span></dd>' +
+      '<dt>Respuestas del proveedor</dt><dd><span class="contador">' + (r.respuestas || 0) + '</span></dd>' +
+      '<dt>Devoluciones</dt><dd><span class="contador">' + (r.devoluciones || 0) + '</span></dd>' +
+      (r.reaperturas ? '<dt>Reaperturas</dt><dd><span class="chip a2">' + r.reaperturas + '</span></dd>' : '') +
+    '</dl>' +
+    (!r.anulado && puedeTraspasar ? htmlTraspaso_(r) : '') +
+    (r.anulado ? htmlAnulado_(r, g) : (
+    (g && abierto ? '<div class="finalizar"><button class="btn chico ok" id="d-btn-finalizar">✓ Finalizar caso</button>' +
+      '<div id="d-finalizar-form" hidden><input id="d-finalizar-texto" placeholder="¿Cómo se resolvió? (queda en el historial)">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-finalizar-cancelar">Cancelar</button>' +
+      '<button class="btn chico ok" id="d-finalizar-ok">Confirmar y cerrar</button></div></div></div>' : '') +
+    '<textarea id="d-coment" rows="2" placeholder="Comentario o respuesta del proveedor (se guarda con la acción que elijas abajo)"></textarea>' +
+    '<div class="seg-fecha"><label>Fecha <input id="d-fecha" type="date" value="' + ymdLocal() + '"></label>' +
+      '<span class="desc-in">Para "Reclamar de nuevo" y "Respuesta del proveedor". Cambiala si pasó otro día.</span></div>' +
+    '<div class="seccion">Seguimiento</div>' +
+    '<div class="acciones-seg">' +
+      '<button class="btn chico" id="d-btn-reiterar"' + (abierto ? '' : ' disabled') + '>Reclamar de nuevo (+1)</button>' +
+      '<button class="btn ghost chico" id="d-btn-respuesta"' + (abierto ? '' : ' disabled') + '>Respuesta del proveedor</button>' +
+      '<button class="btn ghost chico" id="d-btn-coment">Sólo comentar</button>' +
+    '</div>' +
+    '<div class="acciones-seg"><span class="lbl">Derivar a:</span>' + S.opciones.area.map(function (a) {
+      return '<button class="btn ghost chico" data-area="' + esc(a) + '"' + (g && a !== r.area_actual ? '' : ' disabled') + '>' + esc(a) + '</button>';
+    }).join('') + '</div>' +
+    '<div class="seccion">Estado' + (g ? '' : ' (sólo un gestor puede cambiarlo)') + '</div>' +
+    '<div class="flow">' + ESTADOS.map(function (e) {
+      return '<button data-estado="' + esc(e) + '" class="' + (e === r.estado ? 'on' : '') + '"' + (g ? '' : ' disabled') + '>' + esc(e) + '</button>';
+    }).join('') + '</div>' +
+    (g ? '<div class="seccion">Editar</div><div class="editar">' +
+      '<select id="d-prov">' + opciones(S.provs.indexOf(r.proveedor) === -1 ? S.provs.concat([r.proveedor]) : S.provs, r.proveedor) + '</select>' +
+      '<div id="d-tiendas-box"></div>' +
+      '<select id="d-cat">' + opciones(S.cats.indexOf(r.categoria) === -1 ? S.cats.concat([r.categoria]) : S.cats, r.categoria) + '</select>' +
+      '<textarea id="d-desc" rows="2" placeholder="Descripción">' + esc(r.descripcion) + '</textarea>' +
+      '<div class="two"><select id="d-tipo">' + opciones(conActual_(S.opciones.tipo, r.tipo), r.tipo, '— Tipo —') + '</select>' +
+      '<select id="d-motivo">' + opciones(conActual_(S.opciones.motivo, r.motivo), r.motivo, '— Motivo —') + '</select></div>' +
+      '<div class="two"><select id="d-via">' + opciones(conActual_(S.opciones.via, r.canal), r.canal, '— Vía —') + '</select>' +
+      '<select id="d-pri">' + opciones(['Alta', 'Media', 'Baja'], r.prioridad) + '</select></div>' +
+      '<div class="two"><input id="d-solic" placeholder="Quién reclamó" value="' + esc(r.solicitante || '') + '">' +
+      '<input id="d-comp" type="date" value="' + esc(r.fecha_compromiso || '') + '" title="Fecha comprometida por el proveedor"></div>' +
+      '<input id="d-ref" placeholder="Referencia (OT SAP, Mantech, mail)" value="' + esc(r.referencia || '') + '">' +
+      '<div class="acciones"><button class="btn ghost chico" id="d-btn-cancelar">Cancelar cambios</button>' +
+      '<button class="btn chico" id="d-btn-guardar">Guardar cambios</button></div></div>' : '') +
+    (g ? htmlAnularReclamo_() : ''))) +
+    '<div class="seccion">Historial</div><ul class="tl" id="d-historial"><li class="c">Cargando…</li></ul>';
+  if ($('d-tiendas-box')) armarSelectorTiendas('d', esGrupo ? tiendasDe(r) : [r.tienda_numero]);
+  Andes.mejorar(cont);
+  return renderHistorial_(r, g);
+}
+
+// Compartido por las dos vistas: llena #d-historial (que ya está en el HTML recién armado).
+async function renderHistorial_(r, g) {
+  try {
+    var ev = await cargarEventos(r.id);
+    if (S.sel !== r.id) return;
+    // Sólo se puede anular la última derivación y el último cambio de estado vigentes.
+    var ultimo = {};
+    ev.forEach(function (e) { if (!e.anulado && (e.tipo === 'estado' || e.tipo === 'derivacion' || e.tipo === 'asignacion')) ultimo[e.tipo] = e.id; });
+    $('d-historial').innerHTML = ev.slice().reverse().map(function (e) {
+      var txt = e.tipo === 'estado' ? esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
+        : e.tipo === 'derivacion' ? 'Derivado: ' + esc(e.estado_anterior) + ' → <b>' + esc(e.estado_nuevo) + '</b>'
+        : e.tipo === 'asignacion' ? 'Traspaso: ' + esc(nombreUsuario(e.estado_anterior === 'sin asignar' ? null : e.estado_anterior)) + ' → <b>' + esc(nombreUsuario(e.estado_nuevo)) + '</b>'
+        : e.tipo === 'respuesta' ? '<b class="ev-respuesta">Respuesta del proveedor</b>'
+        : e.tipo === 'alta' ? '<b>Reclamo creado</b> · Nuevo' : '';
+      if (e.comentario && e.tipo !== 'alta') {
+        txt += (txt ? '<br>' : '') + '<span class="ev-coment">' + (['reiteracion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1 ? '<b>' + esc(e.comentario) + '</b>' : esc(e.comentario)) + '</span>';
+      }
+      if (e.editado_at && e.comentario_original) txt += ' <span class="ev-marca" title="Original: ' + esc(e.comentario_original) + '">(editado)</span>';
+      if (e.fecha_original) txt += ' <span class="ev-marca" title="Fecha original: ' + esc(fmtDH(e.fecha_original)) + '">(fecha corregida)</span>';
+      var anulable = g && !e.anulado && (e.tipo === 'reiteracion' || e.tipo === 'respuesta' || e.tipo === 'comentario' || ultimo[e.tipo] === e.id);
+      var editable = !e.anulado && ['alta', 'edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) === -1 && (g || e.usuario === S.usuario.email);
+      // Eliminar de verdad (no se puede deshacer): si ya estaba anulado no hay más riesgo
+      // (sus efectos ya se revirtieron al anularlo); si está activo, las mismas reglas que anular.
+      var eliminable = g && e.tipo !== 'alta' && (e.anulado || anulable ||
+        ['edicion', 'anulacion', 'restauracion'].indexOf(e.tipo) !== -1);
+      var acciones = (editable ? '<button class="ev-btn" data-ev-editar="' + e.id + '">Editar</button>' : '') +
+        (anulable ? '<button class="ev-btn peligro" data-ev-anular="' + e.id + '">Anular</button>' : '') +
+        (eliminable ? '<button class="ev-btn peligro" data-ev-eliminar="' + e.id + '">Eliminar</button>' : '');
+      var pie = e.anulado ? '<div class="ev-anulado">Anulado por ' + esc(e.anulado_por || '') + ' · ' + fmtDH(e.anulado_at) + '</div>' : '';
+      var cls = (['comentario', 'edicion', 'anulacion', 'restauracion', 'asignacion'].indexOf(e.tipo) !== -1 ? 'c' : '') + (e.tipo === 'respuesta' ? ' resp' : '') + (e.anulado ? ' anulado' : '');
+      return '<li class="' + cls + '" data-ev="' + e.id + '"><time>' + fmtDH(e.fecha) + '</time> <span class="quien">· ' + esc(e.usuario || '') + '</span>' +
+        (acciones ? '<span class="ev-acciones">' + acciones + '</span>' : '') +
+        '<div class="ev-cuerpo">' + txt + '</div>' + pie + '<div class="ev-form"></div></li>';
+    }).join('') || '<li class="c">Sin movimientos.</li>';
+  } catch (e) {
+    $('d-historial').innerHTML = '<li class="c">No se pudo cargar el historial: ' + esc(mensajeError(e)) + '</li>';
+  }
+}
+
+// ---------------------------------------------------------------
+// Acciones
+// ---------------------------------------------------------------
+
+async function ejecutar(fn, args, ok) {
+  var r = await supabase.rpc(fn, args);
+  if (r.error) throw r.error;
+  if (ok) toast(ok);
+  return r.data;
+}
+
+async function accion(fn, args, ok, textoError) {
+  try {
+    await ejecutar(fn, Object.assign({ p_id: S.sel }, args), ok);
+    await recargarReclamo(S.sel);
+    render();
+  } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
+}
+
+function comentarioActual() { var el = $('d-coment'); return el ? el.value : ''; }
+
+function cambiarEstado(estado) {
+  var r = S.reclamos.find(function (x) { return x.id === S.sel; });
+  if (!r || r.estado === estado) return;
+  return accion('cambiar_estado_reclamo', { p_estado: estado, p_comentario: comentarioActual() }, 'Estado: ' + estado, 'No se pudo cambiar el estado');
+}
+
+// Además del toast (puede pasar inadvertido), marca el campo en rojo hasta que se
+// corrija — así no queda sólo el aviso pasajero como única pista de qué pasó.
+function marcarError_(el, msg) {
+  toast(msg, true);
+  el.classList.add('campo-error');
+  el.focus();
+  el.addEventListener('input', function limpiar() { el.classList.remove('campo-error'); }, { once: true });
+}
+
+function comentar() {
+  var txt = comentarioActual().trim();
+  if (!txt) { marcarError_($('d-coment'), 'Escribí el comentario primero.'); return; }
+  return accion('comentar_reclamo', { p_comentario: txt }, 'Comentario agregado', 'No se pudo comentar');
+}
+
+function fechaActual() { var el = $('d-fecha'); return el && el.value ? el.value : null; }
+
+function reiterar() {
+  return accion('reiterar_reclamo', { p_comentario: comentarioActual(), p_fecha: fechaActual() }, 'Reclamado de nuevo', 'No se pudo registrar');
+}
+
+function responder() {
+  var txt = comentarioActual().trim();
+  if (!txt) { marcarError_($('d-coment'), 'Escribí en el comentario qué respondió el proveedor.'); return; }
+  return accion('responder_reclamo', { p_texto: txt, p_fecha: fechaActual() }, 'Respuesta del proveedor registrada', 'No se pudo registrar');
+}
+
+function htmlTraspaso_(r) {
+  var otros = (S.usuarios || []).filter(function (u) { return u.email !== r.responsable; });
+  return '<div id="d-traspaso" class="traspaso" hidden><b>Traspasar el ticket a</b>' +
+    '<select id="d-traspaso-a">' + otros.map(function (u) {
+      return '<option value="' + esc(u.email) + '">' + esc(u.nombre || u.email) + (u.nombre ? ' · ' + esc(u.email) : '') + '</option>';
+    }).join('') + '</select>' +
+    '<input id="d-traspaso-com" placeholder="Motivo o indicaciones (opcional)">' +
+    '<div class="acciones"><button class="btn ghost chico" id="d-traspaso-cancelar">Cancelar</button>' +
+    '<button class="btn chico" id="d-traspaso-ok">Confirmar traspaso</button></div></div>';
+}
+
+function derivar(area) {
+  return accion('derivar_reclamo', { p_area: area, p_comentario: comentarioActual() }, 'Derivado a ' + area, 'No se pudo derivar');
+}
+
+function guardarEdicion() {
+  var sel = leerTiendas('d');
+  if (sel.error) { toast(sel.error, true); return; }
+  if (!$('d-desc').value.trim()) { toast('La descripción no puede quedar vacía.', true); return; }
+  return accion('editar_reclamo', {
+    p_solicitante: $('d-solic').value, p_compromiso: $('d-comp').value || null, p_prioridad: $('d-pri').value,
+    p_referencia: $('d-ref').value, p_tipo: $('d-tipo').value, p_motivo: $('d-motivo').value, p_via: $('d-via').value,
+    p_proveedor: $('d-prov').value, p_tienda: sel.lista[0], p_categoria: $('d-cat').value, p_descripcion: $('d-desc').value,
+    p_tiendas: sel.lista.length > 1 ? sel.lista : []
+  }, 'Cambios guardados', 'No se pudo guardar');
+}
+
+// Formulario chico dentro del movimiento del historial (editar comentario o confirmar anulación).
+function abrirFormEvento(id, modo) {
+  document.querySelectorAll('#d-historial .ev-form').forEach(function (f) { f.innerHTML = ''; });
+  var li = document.querySelector('#d-historial li[data-ev="' + id + '"]');
+  if (!li) return;
+  var ev = (S.eventos[S.sel] || []).find(function (e) { return String(e.id) === String(id); });
+  var form = li.querySelector('.ev-form');
+  var conFecha = ev && ['comentario', 'reiteracion', 'respuesta'].indexOf(ev.tipo) !== -1;
+  form.innerHTML = modo === 'editar'
+    ? '<textarea rows="2" class="ev-texto">' + esc(ev && ev.comentario || '') + '</textarea>' +
+      (conFecha ? '<label class="ev-fecha-lbl">Fecha <input type="date" class="ev-fecha" value="' + ymdLocal(ev.fecha) + '" data-orig="' + ymdLocal(ev.fecha) + '"></label>' : '') +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico" data-ev-guardar="' + id + '">Guardar</button></div>'
+    : modo === 'eliminar'
+    ? '<p class="desc-in">Esto borra el movimiento para siempre, no se puede deshacer ni restaurar.</p>' +
+      '<input class="ev-texto" placeholder="Motivo de la eliminación (obligatorio)">' +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-eliminar-ok="' + id + '">Eliminar para siempre</button></div>'
+    : '<input class="ev-texto" placeholder="Motivo de la anulación (opcional)">' +
+      '<div class="acciones"><button class="btn ghost chico" data-ev-cerrar>Cancelar</button><button class="btn chico peligro" data-ev-confirmar="' + id + '">Confirmar anulación</button></div>';
+  form.querySelector('.ev-texto').focus();
+}
+
+async function accionEvento(fn, args, ok, textoError) {
+  try {
+    await ejecutar(fn, args, ok);
+    await recargarReclamo(S.sel);
+    render();
+  } catch (e) { toast(textoError + ': ' + mensajeError(e), true); }
+}
+
+// ---------------------------------------------------------------
+// Selector "Una tienda / Grupo de tiendas" (alta = 'n', edición = 'd')
+// ---------------------------------------------------------------
+S.selT = {};
+
+function armarSelectorTiendas(p, numeros) {
+  var grupo = numeros.length > 1;
+  S.selT[p] = { grupo: grupo, lista: grupo ? numeros.slice() : [] };
+  $(p + '-tiendas-box').innerHTML =
+    '<div class="sel-t" data-p="' + p + '">' +
+      '<div class="sel-t-modo" role="group" aria-label="Cantidad de tiendas">' +
+        '<button type="button" data-modo-t="una" class="' + (grupo ? '' : 'on') + '">Una tienda</button>' +
+        '<button type="button" data-modo-t="grupo" class="' + (grupo ? 'on' : '') + '">Grupo de tiendas</button></div>' +
+      '<input id="' + p + '-tienda" class="in-tienda" list="lista-tiendas" autocomplete="off" value="' + esc(!grupo && numeros[0] ? nombreTienda(numeros[0]) : '') + '">' +
+      '<div class="sel-t-chips" id="' + p + '-chips"></div>' +
+    '</div>';
+  pintarSelectorTiendas(p);
+}
+
+function pintarSelectorTiendas(p) {
+  var st = S.selT[p], box = $(p + '-tiendas-box');
+  if (!st || !box) return;
+  box.querySelectorAll('[data-modo-t]').forEach(function (b) { b.classList.toggle('on', (b.dataset.modoT === 'grupo') === st.grupo); });
+  $(p + '-tienda').placeholder = st.grupo
+    ? 'Elegí tiendas de a una para sumarlas, o pegá varios números separados por coma'
+    : 'Escribí número o nombre y elegí de la lista';
+  var chips = $(p + '-chips');
+  chips.hidden = !st.grupo;
+  chips.innerHTML = st.lista.map(function (n) {
+    return '<span class="chip-t">' + esc(nombreTienda(n)) + '<button type="button" data-quitar-t="' + n + '" aria-label="Quitar ' + esc(nombreTienda(n)) + '">✕</button></span>';
+  }).join('') + (st.lista.length
+    ? '<span class="sel-t-n">' + st.lista.length + (st.lista.length === 1 ? ' tienda' : ' tiendas') + '</span><button type="button" class="link-btn" data-vaciar-t>Quitar todas</button>'
+    : '<span class="sel-t-n">Todavía no sumaste tiendas.</span>');
+}
+
+// Suma al grupo lo escrito en el campo. estricto = sólo nombres completos (elegidos de la lista).
+function sumarTiendasDelCampo(p, estricto) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  var piezas = inp.value.split(/[,;\n]+/), quedan = [];
+  piezas.forEach(function (txt) {
+    txt = txt.trim();
+    if (!txt) return;
+    var n = estricto ? tiendaPorNombre(txt) : tiendaDeTexto(txt);
+    if (n) { if (st.lista.indexOf(n) === -1) st.lista.push(n); } else quedan.push(txt);
+  });
+  inp.value = quedan.join(', ');
+  pintarSelectorTiendas(p);
+}
+
+function cambiarModoTiendas(p, grupo) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  if (st.grupo === grupo) return;
+  st.grupo = grupo;
+  if (grupo) sumarTiendasDelCampo(p, false);
+  else { inp.value = st.lista.length ? nombreTienda(st.lista[0]) : inp.value; }
+  pintarSelectorTiendas(p);
+  inp.focus();
+}
+
+// Devuelve { lista: [números] } o { error }.
+function leerTiendas(p) {
+  var st = S.selT[p], inp = $(p + '-tienda');
+  if (!st.grupo) {
+    var n = tiendaDeTexto(inp.value);
+    return n ? { lista: [n] } : { error: 'Elegí la tienda de la lista (podés escribir el número o el nombre).' };
+  }
+  sumarTiendasDelCampo(p, false);
+  if (inp.value.trim()) return { error: 'No encontré esta tienda: ' + inp.value.trim() + '. Elegila de la lista.' };
+  if (!st.lista.length) return { error: 'Sumá al menos una tienda al grupo.' };
+  return { lista: st.lista.slice() };
+}
+
+function tiendaPorNombre(txt) {
+  txt = (txt || '').trim().toLowerCase();
+  var n = Object.keys(S.tiendas).find(function (k) { return (S.tiendas[k].local || '').toLowerCase() === txt; });
+  return n ? Number(n) : null;
+}
+
+function tiendaDeTexto(txt) {
+  txt = (txt || '').trim().toLowerCase();
+  if (!txt) return null;
+  var num = parseInt(txt, 10);
+  var porNombre = Object.keys(S.tiendas).find(function (n) { return (S.tiendas[n].local || '').toLowerCase() === txt; });
+  if (porNombre) return Number(porNombre);
+  if (!isNaN(num) && S.tiendas[num]) return num;
+  return null;
+}
+
+async function crear(e) {
+  e.preventDefault();
+  var err = $('n-error'); err.hidden = true;
+  var sel = leerTiendas('n');
+  if (sel.error) { err.textContent = sel.error; err.hidden = false; return; }
+  var btn = $('btn-guardar'); btn.disabled = true; btn.textContent = 'Registrando…';
+  try {
+    var id = await ejecutar('crear_reclamo', {
+      p_proveedor: $('n-prov').value, p_tienda: sel.lista[0], p_tiendas: sel.lista.length > 1 ? sel.lista : null,
+      p_categoria: $('n-cat').value,
+      p_descripcion: $('n-desc').value, p_prioridad: $('n-pri').value, p_via: $('n-via').value,
+      p_solicitante: $('n-solic').value, p_compromiso: $('n-comp').value || null, p_referencia: $('n-ref').value,
+      p_tipo: $('n-tipo').value, p_motivo: $('n-motivo').value
+    });
+    await recargarReclamo(id);
+    S.sel = id;
+    $('f-nuevo').reset();
+    armarSelectorTiendas('n', []);
+    $('sheet').hidden = true;
+    $('f-estado').value = 'abiertos';
+    render();
+    toast('Reclamo ' + id + ' registrado');
+  } catch (ex) {
+    err.textContent = 'No se pudo registrar: ' + mensajeError(ex);
+    err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Registrar reclamo';
+  }
+}
+
+function exportarCSV() {
+  var cols = ['ID', 'Fecha alta', 'Sistema', 'Tipo', 'Motivo', 'Tienda', 'Formato', 'Región', 'Tiendas del grupo', 'Categoría', 'Descripción', 'Prioridad', 'Vía',
+    'Estado', 'Días abiertos', 'Antigüedad', 'Vencido', 'Fecha compromiso', 'Fecha cierre', 'Quién reclamó', 'Referencia',
+    'En manos de', 'Veces reclamado', 'Devoluciones', 'Reaperturas', 'Respuestas del proveedor', 'Cargado por', 'A cargo de'];
+  var filas = filtrados().map(function (r) {
+    var t = tienda(r);
+    return [r.id, fmtD(r.fecha_alta), r.proveedor, r.tipo, r.motivo, t ? t.local : '', t ? t.formato : '', regionDe(t), tiendasDe(r).length > 1 ? tiendasDe(r).map(nombreTienda).join(' | ') : '', r.categoria, r.descripcion,
+      r.prioridad, r.canal, r.estado, dias(r), aging(r)[0], vencido(r) ? 'Sí' : 'No', r.fecha_compromiso ? fmtD(fechaLocal(r.fecha_compromiso)) : '',
+      r.fecha_cierre ? fmtD(r.fecha_cierre) : '', r.solicitante, r.referencia, r.area_actual, vecesReclamado(r), r.devoluciones, r.reaperturas,
+      r.respuestas || 0, r.creado_por || '', r.responsable || ''];
+  });
+  var csv = [cols].concat(filas).map(function (f) {
+    return f.map(function (v) { v = v == null ? '' : String(v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';');
+  }).join('\r\n');
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = 'reclamos_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+}
+
+// ---------------------------------------------------------------
+// Eventos
+// ---------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', function () {
+  $('f-login').addEventListener('submit', entrarConPassword);
+  $('f-set-password').addEventListener('submit', guardarPasswordNueva_);
+  $('btn-salir').onclick = salir;
+  $('btn-cambiar-pw').onclick = function () { $('sheet-pw').hidden = false; };
+  $('btn-cancelar-pw').onclick = function () { $('sheet-pw').hidden = true; $('pw-error').hidden = true; };
+  $('f-cambiar-pw').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var err = $('pw-error');
+    err.hidden = true;
+    var p1 = $('pw-nueva').value, p2 = $('pw-confirmar').value;
+    if (!PASSWORD_OK_RE.test(p1)) {
+      err.textContent = 'La contraseña tiene que tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
+      err.hidden = false;
+      return;
+    }
+    if (p1 !== p2) { err.textContent = 'Las contraseñas no coinciden.'; err.hidden = false; return; }
+    var btn = $('btn-guardar-pw');
+    btn.disabled = true; btn.textContent = 'Guardando…';
+    supabase.auth.updateUser({ password: p1 }).then(function (r) {
+      btn.disabled = false; btn.textContent = 'Guardar';
+      if (r.error) { err.textContent = 'No se pudo cambiar: ' + mensajeError(r.error); err.hidden = false; return; }
+      $('pw-nueva').value = ''; $('pw-confirmar').value = '';
+      $('sheet-pw').hidden = true;
+      toast('Contraseña actualizada');
+    });
+  });
+  ['q', 'f-prov', 'f-tipo', 'f-motivo', 'f-region', 'f-tienda', 'f-estado'].forEach(function (id) { $(id).addEventListener('input', render); });
+  var ordenGuardado = leerLocal('reclamos_orden');
+  if (ordenGuardado) $('f-orden').value = ordenGuardado;
+  $('f-orden').addEventListener('input', function () { guardarLocal('reclamos_orden', $('f-orden').value); render(); });
+  $('lista-info').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-quitar]');
+    if (b) quitarFiltro(b.dataset.quitar);
+  });
+  // Flechas ↑/↓ recorren la lista (salvo que se esté escribiendo o haya un desplegable abierto).
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!S.usuario || !$('sheet').hidden || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, .andes-select, .andes-panel')) return;
+    if (document.querySelector('.andes-panel') && document.querySelector('.andes-panel').offsetParent) return;
+    e.preventDefault();
+    moverSeleccion(e.key === 'ArrowDown' ? 1 : -1);
+  });
+  window.addEventListener('hashchange', function () { if (S.usuario) abrirDesdeUrl(); });
+  document.addEventListener('click', function (e) {
+    var box = e.target.closest('.sel-t');
+    if (!box) return;
+    var p = box.dataset.p, b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.modoT) cambiarModoTiendas(p, b.dataset.modoT === 'grupo');
+    else if (b.dataset.quitarT) { S.selT[p].lista = S.selT[p].lista.filter(function (n) { return String(n) !== b.dataset.quitarT; }); pintarSelectorTiendas(p); }
+    else if (b.hasAttribute('data-vaciar-t')) { S.selT[p].lista = []; pintarSelectorTiendas(p); }
+  });
+  document.addEventListener('input', function (e) {
+    if (!e.target.classList.contains('in-tienda')) return;
+    var p = e.target.closest('.sel-t').dataset.p;
+    if (!S.selT[p].grupo) return;
+    // Al elegir de la lista llega el nombre completo; si pegan varios separados por coma, se suman todos.
+    sumarTiendasDelCampo(p, !/[,;\n]/.test(e.target.value));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target.classList || !e.target.classList.contains('in-tienda')) return;
+    var p = e.target.closest('.sel-t').dataset.p;
+    if (!S.selT[p].grupo) return;
+    e.preventDefault();
+    sumarTiendasDelCampo(p, false);
+  });
+  $('kpis').addEventListener('click', function (e) {
+    var k = e.target.closest('[data-filtro]');
+    if (k) { $('f-estado').value = k.dataset.filtro; render(); }
+  });
+  $('prov').addEventListener('click', function (e) {
+    var k = e.target.closest('[data-prov]');
+    if (k) { $('f-prov').value = k.dataset.prov; Andes.refrescar(); render(); }
+  });
+  $('rows').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    // En acordeón, tocar la fila ya abierta la cierra (si no, cada fila abre su propio detalle debajo).
+    if (S.vista === 'acordeon' && S.sel === tr.dataset.id) return seleccionar(null, false);
+    seleccionar(tr.dataset.id, false);
+    if (S.vista === 'panel' && window.innerWidth <= 1100) $('detalle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('rows').addEventListener('keydown', function (e) {
+    var tr = e.target.closest('tr[data-id]');
+    if (tr && e.key === 'Enter') seleccionar(tr.dataset.id, false);
+  });
+  $('detalle').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b || b.disabled) return;
+    if (b.dataset.estado) return cambiarEstado(b.dataset.estado);
+    if (b.dataset.area) return derivar(b.dataset.area);
+    if (b.id === 'd-btn-reiterar') return reiterar();
+    if (b.id === 'd-btn-respuesta') return responder();
+    if (b.id === 'd-btn-traspasar') { $('d-traspaso').hidden = false; return; }
+    if (b.id === 'd-traspaso-cancelar') { $('d-traspaso').hidden = true; return; }
+    if (b.id === 'd-traspaso-ok') {
+      var dest = $('d-traspaso-a').value;
+      if (!dest) { toast('No hay otro usuario habilitado para traspasar.', true); return; }
+      return accion('asignar_reclamo', { p_responsable: dest, p_comentario: $('d-traspaso-com').value }, 'Ticket traspasado a ' + nombreUsuario(dest), 'No se pudo traspasar');
+    }
+    if (b.id === 'd-btn-finalizar') { $('d-finalizar-form').hidden = false; b.hidden = true; $('d-finalizar-texto').focus(); return; }
+    if (b.id === 'd-finalizar-cancelar') { $('d-finalizar-form').hidden = true; $('d-btn-finalizar').hidden = false; return; }
+    if (b.id === 'd-finalizar-ok') {
+      var res = $('d-finalizar-texto').value.trim();
+      if (!res) { toast('Escribí cómo se resolvió el caso.', true); $('d-finalizar-texto').focus(); return; }
+      return accion('cambiar_estado_reclamo', { p_estado: 'Cerrado', p_comentario: 'Caso finalizado · ' + res }, 'Caso finalizado', 'No se pudo finalizar');
+    }
+    if (b.id === 'd-btn-coment') return comentar();
+    if (b.id === 'd-btn-editar-datos') { $('d-datos-lectura').hidden = true; $('d-datos-form').hidden = false; b.hidden = true; return; }
+    if (b.id === 'd-btn-guardar') return guardarEdicion();
+    if (b.dataset.nav) return moverSeleccion(Number(b.dataset.nav));
+    if (b.hasAttribute('data-cerrar-det')) return seleccionar(null, false);
+    if (b.hasAttribute('data-copiar-link')) {
+      var link = location.origin + location.pathname + '#' + S.sel;
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+        .then(function () { toast('Link copiado: ' + S.sel); }, function () { prompt('Copiá este link:', link); });
+      return;
+    }
+    if (b.id === 'd-btn-anular-rec') { $('d-anular-form').hidden = false; b.hidden = true; $('d-anular-motivo').focus(); return; }
+    if (b.id === 'd-anular-cancelar') { $('d-anular-form').hidden = true; $('d-btn-anular-rec').hidden = false; return; }
+    if (b.id === 'd-anular-ok') {
+      var motivo = $('d-anular-motivo').value.trim();
+      if (!motivo) { toast('Escribí el motivo de la anulación.', true); $('d-anular-motivo').focus(); return; }
+      return accion('anular_reclamo', { p_motivo: motivo }, 'Reclamo ' + S.sel + ' anulado', 'No se pudo anular');
+    }
+    if (b.id === 'd-btn-restaurar') return accion('restaurar_reclamo', {}, 'Reclamo ' + S.sel + ' restaurado', 'No se pudo restaurar');
+    if (b.id === 'd-btn-cancelar') { renderDetalle(); toast('Cambios descartados'); return; }
+    if (b.dataset.evEditar) return abrirFormEvento(b.dataset.evEditar, 'editar');
+    if (b.dataset.evAnular) return abrirFormEvento(b.dataset.evAnular, 'anular');
+    if (b.dataset.evEliminar) return abrirFormEvento(b.dataset.evEliminar, 'eliminar');
+    if (b.hasAttribute('data-ev-cerrar')) { b.closest('.ev-form').innerHTML = ''; return; }
+    if (b.dataset.evGuardar) {
+      var fEv = b.closest('.ev-form'), inF = fEv.querySelector('.ev-fecha');
+      return accionEvento('editar_evento', {
+        p_evento_id: Number(b.dataset.evGuardar), p_texto: fEv.querySelector('.ev-texto').value,
+        p_fecha: inF && inF.value && inF.value !== inF.dataset.orig ? inF.value : null
+      }, 'Movimiento corregido', 'No se pudo corregir');
+    }
+    if (b.dataset.evConfirmar) {
+      return accionEvento('anular_evento', { p_evento_id: Number(b.dataset.evConfirmar), p_motivo: b.closest('.ev-form').querySelector('.ev-texto').value },
+        'Movimiento anulado', 'No se pudo anular');
+    }
+    if (b.dataset.evEliminarOk) {
+      var motivoEl = b.closest('.ev-form').querySelector('.ev-texto');
+      if (!motivoEl.value.trim()) { marcarError_(motivoEl, 'Escribí el motivo de la eliminación.'); return; }
+      return accionEvento('eliminar_evento', { p_evento_id: Number(b.dataset.evEliminarOk), p_motivo: motivoEl.value },
+        'Movimiento eliminado', 'No se pudo eliminar');
+    }
+  });
+  $('btn-nuevo').onclick = function () {
+    $('n-error').hidden = true;
+    if (!$('n-solic').value && S.usuario) $('n-solic').value = S.usuario.nombre || '';
+    if (!S.selT.n) armarSelectorTiendas('n', []);
+    Andes.refrescar();
+    $('sheet').hidden = false;
+    $('n-tienda').focus();
+  };
+  $('btn-cancelar').onclick = function () { Andes.cerrar(); $('sheet').hidden = true; };
+  $('sheet').addEventListener('click', function (e) { if (e.target.id === 'sheet') $('sheet').hidden = true; });
+  $('f-nuevo').addEventListener('submit', crear);
+  // Enter en un campo no registra el reclamo: sólo el botón "Registrar reclamo".
+  $('f-nuevo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault();
+  });
+  $('btn-csv').onclick = exportarCSV;
+  // Marca el detalle como "con cambios sin guardar" apenas se toca un campo.
+  $('detalle').addEventListener('input', function () { S.sucio = S.sel; });
+  // Al volver a la pestaña, se refrescan los datos (otro usuario pudo cambiar algo),
+  // sin pisar formularios a medio cargar ni mover el scroll (si no, el acordeón que
+  // estabas mirando queda fuera de vista y parece que se cerró).
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden || !S.usuario || S.refrescando) return;
+    S.refrescando = true;
+    var y = window.scrollY;
+    cargarTodo().catch(function () { }).then(function () { S.refrescando = false; window.scrollTo(0, y); });
+  });
+
+  $('btn-tema').onclick = function () { aplicarTema(temaEfectivo() === 'dark' ? 'light' : 'dark'); };
+  $('btn-tema').setAttribute('aria-label', temaEfectivo() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+
+  document.querySelectorAll('.vista-modo button').forEach(function (b) {
+    b.onclick = function () { aplicarVista(b.dataset.vista); };
+  });
+  aplicarVista(leerLocal('reclamos_vista') === 'acordeon' ? 'acordeon' : 'panel');
+
+  Andes.mejorar(document);
+  // El estado de sesión (login / consola) lo maneja el listener de Supabase Auth
+  // registrado arriba de todo el archivo, no acá.
+});
