@@ -5,15 +5,37 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23005BBB'/><text x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>C</text></svg>"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Portería — Central Mantenimiento App</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/frio-alimentario/config.js"></script>
 <script>
-/* Sesión de Portería: el login devuelve un token firmado que se manda en cada pedido a la API.
-   Se guarda sólo en esta pestaña (sessionStorage): al cerrar el navegador hay que volver a ingresar. */
+/* Sesión de Portería = la sesión de Central Mantenimiento (Supabase Auth, login del hub).
+   El token de esa sesión se manda en cada pedido a la API; el backend lo valida con Supabase
+   y revisa que tengas acceso a Portería. */
 (function(){
-  var CLAVE='porteria_token', orig=window.fetch.bind(window);
+  var CLAVE='porteria_token', orig=window.fetch.bind(window), sb=null;
   function leer(){try{return sessionStorage.getItem(CLAVE);}catch(e){return null;}}
   function guardar(t){try{sessionStorage.setItem(CLAVE,t);}catch(e){}}
   function borrar(){try{sessionStorage.removeItem(CLAVE);}catch(e){}}
-  window.porteriaSesion={leer:leer,borrar:borrar};
+  function cliente(){
+    if(!sb&&window.supabase&&window.SUPABASE_URL){
+      sb=window.supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON_KEY);
+      sb.auth.onAuthStateChange(function(e,s){ if(s) guardar(s.access_token); else borrar(); });
+    }
+    return sb;
+  }
+  // Devuelve un token vigente (supabase-js lo renueva solo) o null si no hay sesión.
+  async function actualizar(){
+    var c=cliente(); if(!c) return null;
+    var r=await c.auth.getSession();
+    var t=r.data.session&&r.data.session.access_token;
+    if(t) guardar(t); else borrar();
+    return t||null;
+  }
+  async function salir(){
+    var c=cliente(); if(c) await c.auth.signOut();
+    borrar(); location.href='/';
+  }
+  window.porteriaSesion={leer:leer,borrar:borrar,actualizar:actualizar,salir:salir};
   window.fetch=function(entrada,opciones){
     var url=typeof entrada==='string'?entrada:(entrada&&entrada.url)||'';
     if(url.indexOf('/api/')===-1) return orig(entrada,opciones);
@@ -489,21 +511,26 @@ function CarrefourLogo({size=36}){
    LOGIN
 ═══════════════════════════════════════════════════════ */
 function LoginScreen({onLogin}){
-  const[usr,setUsr]=useState("");const[pw,setPw]=useState("");const[err,setErr]=useState("");const[loading,setLoading]=useState(false);
-  const go=async(e)=>{
-    e.preventDefault();setErr("");setLoading(true);
+  // Login único: no se pide usuario acá. Se usa la sesión del hub y se le pregunta al backend quién sos.
+  const[err,setErr]=useState("");const[loading,setLoading]=useState(true);
+  const go=async()=>{
+    setErr("");setLoading(true);
     try{
-      const res=await fetch(`${BACKEND_URL}/api/usuarios/login`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:usr,password:pw})});
-      const data=await res.json();
-      if(data.ok){
+      const t=window.porteriaSesion?await window.porteriaSesion.actualizar():null;
+      if(!t){location.replace("/");return;}
+      const res=await fetch(`${BACKEND_URL}/api/usuarios/me`);
+      if(res.status===403){location.replace("/?sin_acceso=porteria");return;}
+      const data=await res.json().catch(()=>({ok:false}));
+      if(res.ok&&data.ok){
         onLogin({id:data.usuario.id,user:data.usuario.username,role:data.usuario.rol,name:data.usuario.username});
       } else {
-        setErr(data.error||"Usuario o contraseña incorrectos");
+        setErr(res.status===401?"Tu sesión venció. Volvé al inicio e ingresá de nuevo.":(data.error||"No se pudo verificar tu acceso."));
       }
     } catch {
-      setErr("Sin conexión al servidor. Revisá la conexión y probá de nuevo en unos segundos.");
+      setErr("Sin conexión al servidor. Puede estar iniciando (tarda unos 30 segundos). Probá de nuevo.");
     } finally {setLoading(false);}
   };
+  useEffect(()=>{go();},[]);
   return(
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"var(--bg-deep)",padding:"20px"}}>
       <div style={{marginBottom:"36px",textAlign:"center"}}>
@@ -517,12 +544,14 @@ function LoginScreen({onLogin}){
           <div style={{fontSize:"32px",marginBottom:"8px"}}>🛡️</div>
           <div style={{fontSize:"18px",fontWeight:700,color:"var(--text)"}}>Iniciar Sesión</div>
         </div>
-        <form onSubmit={go}>
-          <div style={d.sec}><label style={d.label}>Usuario</label><input style={d.input} value={usr} onChange={e=>setUsr(e.target.value)} placeholder="Ingresá tu usuario" autoFocus/></div>
-          <div style={{...d.sec,marginBottom:"20px"}}><label style={d.label}>Contraseña</label><input style={d.input} type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder="••••••••"/></div>
-          {err&&<p style={{...d.err,marginBottom:"12px"}}>{err}</p>}
-          <button type="submit" disabled={loading} style={{...d.btnPrimary,width:"100%",padding:"12px",fontSize:"15px",opacity:loading?.6:1}}>{loading?"Verificando...":"Ingresar al Sistema"}</button>
-        </form>
+        <div style={{textAlign:"center"}}>
+          {loading&&<p style={{color:"var(--text-muted)",fontSize:"14px"}}>Verificando tu acceso…</p>}
+          {err&&<p style={{...d.err,marginBottom:"16px"}}>{err}</p>}
+          {!loading&&err&&<div style={{display:"flex",gap:"10px",justifyContent:"center",flexWrap:"wrap"}}>
+            <button type="button" onClick={go} style={{...d.btnPrimary,padding:"10px 18px"}}>Reintentar</button>
+            <a href="/" style={{padding:"10px 18px",fontSize:"14px",color:"var(--accent)"}}>Volver al inicio</a>
+          </div>}
+        </div>
       </div>
       <div style={{marginTop:"40px",fontSize:"11px",color:"var(--text-dim)"}}>desarrollado por alexis plescia en 2026</div>
     </div>
@@ -1742,7 +1771,7 @@ function Admin({cfg,saveCfg,registros,onPurgeDB,onReloadDB,onSyncPendientes}){
           </button>
         ))}
       </div>
-      {tab==="usuarios"&&<UsuariosAdmin/>}
+      {tab==="usuarios"&&<div style={d.card}><p style={{color:"var(--text)",fontSize:"14px",lineHeight:1.6}}>Los usuarios de Portería ahora son los de Central Mantenimiento. Para dar o quitar acceso entrá a <a href="/admin">Administración → Accesos</a> y tildá “Portería”. Los administradores de Central son administradores de Portería.</p></div>}
       {ct?.key&&<ListEditor key={ct.id} title={ct.label} items={cfg[ct.key]||[]} onSave={(list)=>saveCfg({...cfg,[ct.key]:list})}/>}
       {tab==="purgar"&&<PurgarDB registros={registros} onPurgeDB={onPurgeDB}/>}
       {tab==="backend"&&<BackendPanel onReloadDB={onReloadDB} onSyncPendientes={onSyncPendientes} registros={registros}/>}
@@ -2159,7 +2188,7 @@ function App(){
 
   return(
     <div style={{display:"flex",minHeight:"100vh"}}>
-      <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{window.porteriaSesion&&window.porteriaSesion.borrar();setUser(null);setView("dashboard");}} sidebarOpen={sidebarOpen}/>
+      <Sidebar view={view} setView={(v)=>{setView(v);setSidebarOpen(false);}} user={user} onLogout={()=>{if(window.porteriaSesion&&window.porteriaSesion.salir)window.porteriaSesion.salir();else{setUser(null);setView("dashboard");}}} sidebarOpen={sidebarOpen}/>
       {sidebarOpen&&<div className="sidebar-overlay" onClick={()=>setSidebarOpen(false)}/>}
       <div className="main-wrap" style={{flex:1,display:"flex",flexDirection:"column",minHeight:"100vh",marginLeft:"var(--sidebar-w)"}}>
         <Header view={view} onMenuToggle={()=>setSidebarOpen(p=>!p)}/>

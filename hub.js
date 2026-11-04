@@ -30,12 +30,10 @@
     $('hub-vacio').hidden = true;
     $('hub-sub').textContent = 'Ingresá con tu cuenta para ver tus aplicaciones.';
     $('hub-login').hidden = false;
-    $('hub-porteria-directa').hidden = false;
   }
 
   async function verModulos(session) {
     $('hub-login').hidden = true;
-    $('hub-porteria-directa').hidden = true;
     $('hub-cargando').hidden = false;
     $('hub-usuario-mail').textContent = session.user.email;
     $('hub-usuario').hidden = false;

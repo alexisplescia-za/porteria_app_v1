@@ -10,6 +10,7 @@
 # Secretos y configuración local (NUNCA commitear la service_role)
 .env
 .env.*
+!.env.example
 *.local
 *.pem
 *.key
