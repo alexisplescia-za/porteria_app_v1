@@ -471,7 +471,7 @@ const d = {
 };
 function Badge({ tipo, small, egresoTemprano }) {
   const ok = tipo === "INGRESO";
-  return /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: "4px", fontSize: small ? "10px" : "12px", fontWeight: 700, padding: small ? "2px 7px" : "4px 10px", borderRadius: "6px", background: ok ? "var(--green-bg)" : "var(--red-bg)", color: ok ? "var(--green-t)" : "var(--red-t)", border: `1px solid ${ok ? "var(--green-dark)" : "var(--red-dark)"}` } }, ok ? "\u25B6" : "\u25C0", " ", ok ? "INGRESO" : "EGRESO", egresoTemprano && /* @__PURE__ */ React.createElement("span", { style: { fontSize: "9px", background: "var(--amber-bg)", color: "var(--amber-t)", padding: "1px 4px", borderRadius: "4px", marginLeft: "2px" } }, "PTE. EGRESO"));
+  return /* @__PURE__ */ React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", fontSize: small ? "11px" : "13px", fontWeight: 700, padding: small ? "3px 0" : "4px 0", color: ok ? "var(--ok)" : "var(--bad)", whiteSpace: "nowrap" } }, ok ? "INGRESO" : "EGRESO", egresoTemprano && /* @__PURE__ */ React.createElement("span", { style: { fontSize: "10px", color: "var(--warn)", fontWeight: 600 } }, "PTE."));
 }
 function Toast({ msg, type }) {
   return /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)", zIndex: 9999, padding: "10px 16px", borderRadius: "var(--radius)", background: "var(--fg)", color: "var(--bg)", fontSize: "13px", fontWeight: 600 } }, msg);
