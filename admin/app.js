@@ -213,6 +213,7 @@
         '<td>' + lastLogin + '</td>' +
         '<td>' + fmtFecha(u.created_at) + '</td>' +
         '<td class="acciones-cell">' +
+          '<button class="btn-sm btn-asignar-tiendas" data-uid="' + u.id + '" data-email="' + u.email + '">Tiendas</button>' +
           '<button class="btn-sm btn-cambiar-pw" data-uid="' + u.id + '" data-email="' + u.email + '">Cambiar</button>' +
           '<button class="btn-sm danger btn-reset" data-uid="' + u.id + '" data-email="' + u.email + '">Resetear</button>' +
         '</td>' +
@@ -231,6 +232,12 @@
     document.querySelectorAll('.btn-cambiar-pw').forEach(function (btn) {
       btn.addEventListener('click', function () {
         abrirCambiarPassword(btn.dataset.uid, btn.dataset.email);
+      });
+    });
+
+    document.querySelectorAll('.btn-asignar-tiendas').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        abrirAsignarTiendas(btn.dataset.uid, btn.dataset.email);
       });
     });
 
@@ -575,6 +582,143 @@
   function toggleTema() { aplicarTema(temaActual() === 'dark' ? 'light' : 'dark'); }
   $('btn-tema').addEventListener('click', toggleTema);
   if ($('btn-tema-login')) $('btn-tema-login').addEventListener('click', toggleTema);
+
+  /* ─── Crear usuario ─── */
+  $('btn-nuevo-usuario').addEventListener('click', function () {
+    $('nu-email').value = '';
+    $('nu-password').value = 'Universo2026.';
+    $('nu-error').hidden = true;
+    document.querySelectorAll('.nu-modulo').forEach(function (c) { c.checked = false; });
+    $('modal-nuevo-usuario').hidden = false;
+    $('nu-email').focus();
+  });
+
+  $('nu-cancelar').addEventListener('click', function () {
+    $('modal-nuevo-usuario').hidden = true;
+  });
+
+  $('nu-crear').addEventListener('click', async function () {
+    var email = $('nu-email').value.trim().toLowerCase();
+    var pw    = $('nu-password').value;
+    if (!email) { $('nu-error').textContent = 'El email es obligatorio.'; $('nu-error').hidden = false; return; }
+    if (!pw || pw.length < 6) { $('nu-error').textContent = 'La contraseña debe tener al menos 6 caracteres.'; $('nu-error').hidden = false; return; }
+
+    var mods = [];
+    document.querySelectorAll('.nu-modulo:checked').forEach(function (c) { mods.push(c.value); });
+
+    var btn = $('nu-crear');
+    btn.disabled = true;
+    btn.textContent = 'Creando…';
+    $('nu-error').hidden = true;
+
+    var res = await sb.rpc('admin_crear_usuario', { p_email: email, p_password: pw, p_modulos: mods });
+
+    btn.disabled = false;
+    btn.textContent = 'Crear usuario';
+
+    if (res.error) {
+      $('nu-error').textContent = res.error.message;
+      $('nu-error').hidden = false;
+      return;
+    }
+
+    $('modal-nuevo-usuario').hidden = true;
+    toast('Usuario ' + email + ' creado correctamente');
+    await Promise.all([cargarUsuarios(), cargarAccesos()]);
+  });
+
+  /* ─── Asignar tiendas a usuario (Frío) ─── */
+  var matUserId = null;
+  var matSeleccion = {};
+
+  function abrirAsignarTiendas(uid, email) {
+    matUserId = uid;
+    $('mat-titulo').textContent = 'Tiendas de Frío — ' + email;
+    $('mat-buscar').value = '';
+    $('mat-error').hidden = true;
+    $('mat-guardar').disabled = true;
+    $('mat-guardar').textContent = 'Cargando…';
+    $('modal-asignar-tiendas').hidden = false;
+    $('mat-lista').innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)">Cargando tiendas…</div>';
+
+    sb.rpc('admin_tiendas_de_usuario', { p_user_id: uid }).then(function (res) {
+      var asignadas = (res.data || []);
+      matSeleccion = {};
+      asignadas.forEach(function (n) { matSeleccion[n] = true; });
+      renderMatLista();
+      $('mat-guardar').disabled = false;
+      $('mat-guardar').textContent = 'Guardar asignación';
+    }).catch(function (err) {
+      $('mat-error').textContent = 'Error al cargar: ' + (err.message || err);
+      $('mat-error').hidden = false;
+      $('mat-guardar').disabled = false;
+      $('mat-guardar').textContent = 'Guardar asignación';
+      renderMatLista();
+    });
+  }
+
+  function renderMatLista() {
+    var q = ($('mat-buscar').value || '').trim().toLowerCase();
+    var lista = TIENDAS.filter(function (t) {
+      if (!q) return true;
+      return [t.numero, t.local, t.formato, t.region, t.jefe].join(' ').toLowerCase().indexOf(q) !== -1;
+    });
+
+    if (lista.length === 0) {
+      $('mat-lista').innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted)">Sin tiendas' + (q ? ' para esa búsqueda' : '') + '</div>';
+      return;
+    }
+
+    var html = lista.map(function (t) {
+      var checked = matSeleccion[t.numero] ? ' checked' : '';
+      return '<label style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px">' +
+        '<input type="checkbox" class="mat-chk" data-numero="' + t.numero + '"' + checked + '>' +
+        '<span style="font-weight:600;min-width:50px">' + t.numero + '</span>' +
+        '<span>' + (t.local || '') + '</span>' +
+        '<span class="chip" style="margin-left:auto">' + (t.formato || '') + '</span>' +
+        '</label>';
+    }).join('');
+    $('mat-lista').innerHTML = html;
+
+    document.querySelectorAll('.mat-chk').forEach(function (chk) {
+      chk.addEventListener('change', function () {
+        var num = Number(chk.dataset.numero);
+        if (chk.checked) matSeleccion[num] = true;
+        else delete matSeleccion[num];
+      });
+    });
+  }
+
+  $('mat-buscar').addEventListener('input', renderMatLista);
+
+  $('mat-cancelar').addEventListener('click', function () {
+    $('modal-asignar-tiendas').hidden = true;
+    matUserId = null;
+  });
+
+  $('mat-guardar').addEventListener('click', async function () {
+    if (!matUserId) return;
+    var tiendas = Object.keys(matSeleccion).map(Number);
+    var btn = $('mat-guardar');
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+    $('mat-error').hidden = true;
+
+    var res = await sb.rpc('admin_asignar_tiendas', { p_user_id: matUserId, p_tiendas: tiendas });
+
+    btn.disabled = false;
+    btn.textContent = 'Guardar asignación';
+
+    if (res.error) {
+      $('mat-error').textContent = 'Error: ' + res.error.message;
+      $('mat-error').hidden = false;
+      return;
+    }
+
+    $('modal-asignar-tiendas').hidden = true;
+    toast(tiendas.length + ' tienda' + (tiendas.length !== 1 ? 's' : '') + ' asignada' + (tiendas.length !== 1 ? 's' : ''));
+    matUserId = null;
+  });
 
   /* ─── Salir ─── */
   $('btn-salir').addEventListener('click', async function () {

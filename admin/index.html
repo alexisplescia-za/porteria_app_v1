@@ -68,6 +68,7 @@
         <div id="t-usuarios">
           <div class="toolbar">
             <input id="buscar-usuario" class="input-search" placeholder="Buscar por email…">
+            <button class="btn" id="btn-nuevo-usuario">+ Nuevo usuario</button>
             <button class="btn ghost chico" id="btn-copiar-tabla">Copiar tabla</button>
             <button class="btn ghost chico" id="btn-exportar-csv">Exportar CSV</button>
             <div class="filtros">
@@ -241,6 +242,52 @@
         <button class="btn ghost" id="modal-tienda-cancelar">Cancelar</button>
         <button class="btn peligro" id="modal-tienda-eliminar" hidden>Eliminar</button>
         <button class="btn" id="modal-tienda-guardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal crear usuario -->
+  <div class="modal-overlay" id="modal-nuevo-usuario" hidden>
+    <div class="modal-box modal-wide">
+      <h3>Nuevo usuario</h3>
+      <div class="form-grid">
+        <div class="form-field">
+          <label>Email</label>
+          <input id="nu-email" type="email" placeholder="nombre@carrefour.com">
+        </div>
+        <div class="form-field">
+          <label>Contraseña inicial</label>
+          <input id="nu-password" type="text" value="Universo2026." autocomplete="off">
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:8px">Módulos habilitados</label>
+        <div style="display:flex;flex-wrap:wrap;gap:10px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="nu-modulo" value="frio"> Frío Alimentario</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="nu-modulo" value="reclamos"> Eficiencia Energética</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="nu-modulo" value="porteria"> Portería</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" class="nu-modulo" value="admin"> Administración</label>
+        </div>
+      </div>
+      <p class="error" id="nu-error" hidden style="margin-top:8px"></p>
+      <div class="modal-actions" style="margin-top:14px">
+        <button class="btn ghost" id="nu-cancelar">Cancelar</button>
+        <button class="btn" id="nu-crear">Crear usuario</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal asignar tiendas a usuario -->
+  <div class="modal-overlay" id="modal-asignar-tiendas" hidden>
+    <div class="modal-box modal-wide">
+      <h3 id="mat-titulo">Asignar tiendas</h3>
+      <p class="muted" style="font-size:13px;margin:0 0 12px">Tildá las tiendas que este usuario puede ver en Frío Alimentario.</p>
+      <input id="mat-buscar" class="input-search" placeholder="Buscar tienda…" style="width:100%;margin-bottom:10px">
+      <div id="mat-lista" style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r);padding:6px"></div>
+      <p class="error" id="mat-error" hidden style="margin-top:8px"></p>
+      <div class="modal-actions" style="margin-top:14px">
+        <button class="btn ghost" id="mat-cancelar">Cancelar</button>
+        <button class="btn" id="mat-guardar">Guardar asignación</button>
       </div>
     </div>
   </div>
