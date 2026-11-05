@@ -21,7 +21,6 @@ secrets/
 docs/
 **/sql/
 DEPLOY_TODAY_CHECKLIST.md
-admin/backup_porteria.gs
 
 # Dependencias / herramientas
 node_modules/
