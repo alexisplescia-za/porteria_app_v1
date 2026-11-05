@@ -688,11 +688,12 @@ function toggleTema() {
   document.documentElement.setAttribute("data-theme", next);
   try { localStorage.setItem("porteria_tema", next); } catch(e) {}
 }
-function Header({ view, onMenuToggle }) {
+function Header({ view, onMenuToggle, onBack }) {
   const dt = (/* @__PURE__ */ new Date()).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   return /* @__PURE__ */ React.createElement("header", { className: "port-header" },
-    /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "12px" } },
+    /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: "10px" } },
       /* @__PURE__ */ React.createElement("button", { onClick: onMenuToggle, className: "hide-desktop", style: { ...d.btnGhost, padding: "6px 8px", fontSize: "16px" } }, "\u2630"),
+      onBack && /* @__PURE__ */ React.createElement("button", { onClick: onBack, className: "btn-back", style: { background: "none", border: "1px solid var(--border-light)", borderRadius: "var(--radius)", cursor: "pointer", fontSize: "18px", color: "var(--accent)", padding: "4px 10px", display: "flex", alignItems: "center", lineHeight: 1, transition: "all .15s" }, title: "Volver al Dashboard" }, "\u2190"),
       /* @__PURE__ */ React.createElement("div", null,
         /* @__PURE__ */ React.createElement("div", { style: { fontSize: "16px", fontWeight: 700, color: "var(--fg)" } }, VIEWS[view]),
         /* @__PURE__ */ React.createElement("div", { style: { fontSize: "11px", color: "var(--muted)", textTransform: "capitalize" } }, dt)
@@ -1383,6 +1384,13 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navTo = (v) => { setView(v); try { history.pushState({ view: v }, "", null); } catch(e){} };
+  useEffect(() => {
+    const onPop = (e) => { setView(e.state && e.state.view ? e.state.view : "dashboard"); };
+    window.addEventListener("popstate", onPop);
+    try { history.replaceState({ view: "dashboard" }, "", null); } catch(e){}
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   useEffect(() => {
     (async () => {
       const esCfgCorrupta = (cfg3) => {
@@ -1559,7 +1567,7 @@ function App() {
   if (loading) return /* @__PURE__ */ React.createElement("div", { style: { minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "16px" } }, /* @__PURE__ */ React.createElement(CarrefourLogo, { size: 56 }), /* @__PURE__ */ React.createElement("span", { className: "cm-loader", role: "status", "aria-label": "Cargando" }));
   if (!user) return /* @__PURE__ */ React.createElement(LoginScreen, { onLogin: setUser });
   return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", minHeight: "100vh" } }, /* @__PURE__ */ React.createElement(Sidebar, { view, setView: (v) => {
-    setView(v);
+    navTo(v);
     setSidebarOpen(false);
   }, user, onLogout: () => {
     if (window.porteriaSesion && window.porteriaSesion.salir) window.porteriaSesion.salir();
@@ -1567,6 +1575,6 @@ function App() {
       setUser(null);
       setView("dashboard");
     }
-  }, sidebarOpen }), sidebarOpen && /* @__PURE__ */ React.createElement("div", { className: "sidebar-overlay", onClick: () => setSidebarOpen(false) }), /* @__PURE__ */ React.createElement("div", { className: "main-wrap", style: { flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh", marginLeft: "var(--sidebar-w)" } }, /* @__PURE__ */ React.createElement(Header, { view, onMenuToggle: () => setSidebarOpen((p) => !p) }), /* @__PURE__ */ React.createElement("main", { className: "main-pad", style: { flex: 1, padding: "28px 36px", overflow: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { maxWidth: "1440px", margin: "0 auto" } }, view === "dashboard" && /* @__PURE__ */ React.createElement(Dashboard, { registros, setView }), view === "analytics" && /* @__PURE__ */ React.createElement(Analytics, { registros, setView }), view === "nueva" && /* @__PURE__ */ React.createElement(NuevaOp, { registros, cfg, user, addRegistros, nextId, setView }), view === "generadores" && /* @__PURE__ */ React.createElement(Generadores, { registros, cfg, user, addRegistros, nextId, setView }), view === "historial" && /* @__PURE__ */ React.createElement(Historial, { registros }), view === "tempranos" && /* @__PURE__ */ React.createElement(EgresosTemprano, { registros, addRegistros, nextId, user }), view === "admin" && user.role === "admin" && /* @__PURE__ */ React.createElement(Admin, { cfg, saveCfg, registros, onPurgeDB: purgeDB, onReloadDB: reloadFromDB, onSyncPendientes: syncPendientes }))), /* @__PURE__ */ React.createElement(Footer, null)), toast && /* @__PURE__ */ React.createElement(Toast, { msg: toast.msg, type: toast.type }));
+  }, sidebarOpen }), sidebarOpen && /* @__PURE__ */ React.createElement("div", { className: "sidebar-overlay", onClick: () => setSidebarOpen(false) }), /* @__PURE__ */ React.createElement("div", { className: "main-wrap", style: { flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh", marginLeft: "var(--sidebar-w)" } }, /* @__PURE__ */ React.createElement(Header, { view, onMenuToggle: () => setSidebarOpen((p) => !p), onBack: view !== "dashboard" ? () => navTo("dashboard") : null }), /* @__PURE__ */ React.createElement("main", { className: "main-pad", style: { flex: 1, padding: "28px 36px", overflow: "auto" } }, /* @__PURE__ */ React.createElement("div", { style: { maxWidth: "1440px", margin: "0 auto" } }, view === "dashboard" && /* @__PURE__ */ React.createElement(Dashboard, { registros, setView: navTo }), view === "analytics" && /* @__PURE__ */ React.createElement(Analytics, { registros, setView: navTo }), view === "nueva" && /* @__PURE__ */ React.createElement(NuevaOp, { registros, cfg, user, addRegistros, nextId, setView: navTo }), view === "generadores" && /* @__PURE__ */ React.createElement(Generadores, { registros, cfg, user, addRegistros, nextId, setView: navTo }), view === "historial" && /* @__PURE__ */ React.createElement(Historial, { registros }), view === "tempranos" && /* @__PURE__ */ React.createElement(EgresosTemprano, { registros, addRegistros, nextId, user }), view === "admin" && user.role === "admin" && /* @__PURE__ */ React.createElement(Admin, { cfg, saveCfg, registros, onPurgeDB: purgeDB, onReloadDB: reloadFromDB, onSyncPendientes: syncPendientes }))), /* @__PURE__ */ React.createElement(Footer, null)), toast && /* @__PURE__ */ React.createElement(Toast, { msg: toast.msg, type: toast.type }));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));
