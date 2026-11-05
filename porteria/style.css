@@ -1,0 +1,124 @@
+/* Portería — Andes UI (misma paleta que Reclamos y Admin)
+   Las variables mantienen los nombres que usa app.js para no romper nada. */
+
+:root {
+  /* ── tokens Andes (light) ── */
+  --navy:#002855; --blue:#3483FA; --blue-h:#2968C8; --teal:#35616B;
+  --bg:#F3F6FA; --surface:#FFFFFF; --surface-2:#EAF0F7; --line:#D5DFEB;
+  --fg:#0E1E33; --muted:#5A6B82;
+  --ok:#1E8E5A; --ok-bg:#DDF3E8; --warn:#B26B00; --warn-bg:#FFF0D6;
+  --bad:#C0262D; --bad-bg:#FCE1E2;
+  --f-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:12px; --foco:rgba(52,131,250,.28);
+  color-scheme:light;
+
+  /* ── alias hacia nombres usados por app.js ── */
+  --bg-deep:var(--bg);
+  --bg-card:var(--surface);
+  --bg-card-solid:var(--surface);
+  --bg-sidebar:var(--bg);
+  --bg-input:var(--surface-2);
+  --bg-hover:var(--surface-2);
+  --border:var(--line);
+  --border-light:var(--line);
+  --text:var(--fg);
+  --text-muted:var(--muted);
+  --text-dim:var(--muted);
+  --accent:var(--blue);
+  --accent-h:var(--blue-h);
+  --green:#1E8E5A; --green-bg:var(--ok-bg); --green-dark:var(--ok); --green-t:var(--ok);
+  --red:#C0262D;   --red-bg:var(--bad-bg);  --red-dark:var(--bad); --red-t:var(--bad);
+  --amber:#B26B00; --amber-bg:var(--warn-bg); --amber-t:var(--warn);
+  --purple:var(--navy); --purple-bg:rgba(0,40,85,.08); --purple-t:var(--navy);
+  --blue-bg:rgba(52,131,250,.08); --blue-t:var(--blue);
+  --radius:var(--r); --radius-lg:16px; --sidebar-w:248px;
+}
+
+/* ── dark automático ── */
+@media (prefers-color-scheme:dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#191918; --surface:#222120; --surface-2:#2B2A28; --line:#3A3836;
+    --fg:#ECE9E4; --muted:#9C978F;
+    --navy:#7FACFF; --blue:#4E9BFF; --blue-h:#7AB4FF; --teal:#7CA8A0;
+    --foco:rgba(78,155,255,.35);
+    --ok:#4CC98C; --ok-bg:#16291E; --warn:#F2B44C; --warn-bg:#332710;
+    --bad:#FF6B70; --bad-bg:#331619;
+    --green:#4CC98C; --green-bg:var(--ok-bg); --green-dark:var(--ok); --green-t:var(--ok);
+    --red:#FF6B70;   --red-bg:var(--bad-bg);  --red-dark:var(--bad); --red-t:var(--bad);
+    --amber:#F2B44C; --amber-bg:var(--warn-bg); --amber-t:var(--warn);
+    --purple:#7FACFF; --purple-bg:rgba(127,172,255,.1); --purple-t:#7FACFF;
+    --blue-bg:rgba(78,155,255,.12); --blue-t:var(--blue);
+    color-scheme:dark;
+  }
+}
+/* ── dark forzado ── */
+:root[data-theme="dark"] {
+  --bg:#191918; --surface:#222120; --surface-2:#2B2A28; --line:#3A3836;
+  --fg:#ECE9E4; --muted:#9C978F;
+  --navy:#7FACFF; --blue:#4E9BFF; --blue-h:#7AB4FF; --teal:#7CA8A0;
+  --foco:rgba(78,155,255,.35);
+  --ok:#4CC98C; --ok-bg:#16291E; --warn:#F2B44C; --warn-bg:#332710;
+  --bad:#FF6B70; --bad-bg:#331619;
+  --green:#4CC98C; --green-bg:var(--ok-bg); --green-dark:var(--ok); --green-t:var(--ok);
+  --red:#FF6B70;   --red-bg:var(--bad-bg);  --red-dark:var(--bad); --red-t:var(--bad);
+  --amber:#F2B44C; --amber-bg:var(--warn-bg); --amber-t:var(--warn);
+  --purple:#7FACFF; --purple-bg:rgba(127,172,255,.1); --purple-t:#7FACFF;
+  --blue-bg:rgba(78,155,255,.12); --blue-t:var(--blue);
+  color-scheme:dark;
+}
+
+/* ── reset + base ── */
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{height:100%;background:var(--bg);color:var(--fg);font-family:var(--f-ui);-webkit-font-smoothing:antialiased}
+input,select,textarea,button{font-family:inherit}
+a{color:var(--accent)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+/* scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+
+/* select */
+select{appearance:auto;background:var(--surface-2);color:var(--fg)}
+select option{background:var(--surface);color:var(--fg)}
+
+/* ── header Andes (volver + eyebrow + h1) ── */
+.port-header{background:var(--surface);border-bottom:1px solid var(--line);padding:14px 36px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+.port-header .volver{font-size:12px;color:var(--muted);text-decoration:none;display:inline-block;margin-bottom:2px}
+.port-header .volver:hover{color:var(--blue)}
+.port-header .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--navy);font-weight:600}
+.port-header h2{font-size:16px;font-weight:700;margin:2px 0 0;letter-spacing:-.01em}
+.port-header .fecha{font-size:11px;color:var(--muted);text-transform:capitalize}
+
+/* ── sidebar ── */
+.sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:10}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9;cursor:pointer}
+
+/* ── theme toggle ── */
+.theme-toggle{width:36px;height:36px;flex:none;border-radius:50%;border:1px solid var(--line);background:var(--fg);padding:0;cursor:pointer;transition:background-color .25s ease,transform .15s ease}
+.theme-toggle:hover{transform:scale(1.07)}
+.theme-toggle:active{transform:scale(.92)}
+
+/* ── footer ── */
+.port-footer{text-align:center;font-size:12px;color:var(--muted);padding:24px 0}
+
+/* ── responsive ── */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%);position:fixed!important;z-index:100;transition:transform .3s}
+  .sidebar.open{transform:translateX(0)}
+  .main-wrap{margin-left:0!important}
+  .main-pad{padding:16px!important}
+  .g4{grid-template-columns:1fr 1fr!important}
+  .g3{grid-template-columns:1fr!important}
+  .g2{grid-template-columns:1fr!important}
+  .filter-row{grid-template-columns:1fr!important}
+  .hide-mobile{display:none!important}
+  .sidebar-overlay{display:block!important}
+  .port-header{padding:14px 16px}
+}
+@media(min-width:769px){
+  .hide-desktop{display:none!important}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
